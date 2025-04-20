@@ -12,6 +12,7 @@ if os.getenv("ENV", "dev") == "dev":
     try:
         print("🔄 Autogenerating migration...")
         subprocess.run([
+            
             "alembic", "revision", "--autogenerate", "-m", "Auto migration"
         ], check=True)
     except subprocess.CalledProcessError:

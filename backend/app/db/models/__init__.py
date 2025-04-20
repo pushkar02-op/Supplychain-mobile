@@ -5,3 +5,4 @@ from .stock_entry import StockEntry
 from .dispatch_entry import DispatchEntry
 from .invoice import Invoice
 from .daily_summary import DailySummary
+from .rejection_entry import RejectionEntry
