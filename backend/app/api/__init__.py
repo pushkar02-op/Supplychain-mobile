@@ -1,7 +1,7 @@
 from fastapi import APIRouter
+from app.api.stock_entry import router as stock_entry_router
+
 
 router = APIRouter()
 
-@router.get("/")
-def health_check():
-    return {"status": "running"}
+router.include_router(stock_entry_router, prefix="/stock-entry", tags=["Stock Entry"])

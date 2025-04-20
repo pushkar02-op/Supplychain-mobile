@@ -6,6 +6,9 @@ fruit-vendor-tool/
 ├── backend/
 │   ├── Dockerfile
 │   ├── requirements.txt
+|   |__── alembic/
+│       ├── env.py
+│       └── script.py
 │   └── app/
 │       ├── main.py
 │       ├── api/
@@ -22,7 +25,7 @@ fruit-vendor-tool/
 │       └── utils/
 │           └── __init__.py
 │
-├── alembic/
+
 │__ docker-compose.yml
 │
   
