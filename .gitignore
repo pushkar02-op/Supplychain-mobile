@@ -18,3 +18,22 @@ venv/
 *.sqlite3
 modal_debug*
 versions/
+
+# Flutter / Dart
+**/build/
+**/.dart_tool/
+**/.idea/
+**/.vscode/
+**/pubspec.lock
+**/android/.gradle/
+**/android/local.properties
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/mobile/.DS_Store
+
+# Misc
+**/.env
+*.iml
