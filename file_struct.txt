@@ -31,12 +31,10 @@ fruit-vendor-tool/
   
 lib/
 ├── main.dart
-├── core/                 # Shared utils, themes, constants
-├── features/             # Feature-wise folder (like login, stock_entry)
-│   ├── login/
-│   │   ├── presentation/
-│   │   └── logic/
-│   │   └── models/
-│   ├── stock_entry/
-│       └── ...
-└── services/             # API calls, storage, etc.
+├── screens/
+│   └── login_screen.dart
+├── services/
+│   └── auth_service.dart
+├── utils/
+│   └── api_client.dart
+

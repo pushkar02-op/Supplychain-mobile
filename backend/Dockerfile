@@ -2,7 +2,7 @@ FROM python:3.11
 
 WORKDIR /app
 COPY ./app /app
-COPY requirements.txt /app
+COPY ./requirements.txt /app/requirements.txt
 COPY alembic.ini /app/alembic.ini
 COPY alembic /app/alembic
 COPY wait-for-db.sh /app/wait-for-db.sh 
