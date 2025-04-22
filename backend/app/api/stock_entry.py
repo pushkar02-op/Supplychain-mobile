@@ -16,7 +16,7 @@ from app.services.stock_entry import (
 )
 from app.db.session import get_db
 
-router = APIRouter(prefix="//stock-entry", tags=["Stock Entry"])
+router = APIRouter(prefix="/stock-entry", tags=["Stock Entry"])
 
 
 @router.post("/", response_model=StockEntryRead, status_code=status.HTTP_201_CREATED)

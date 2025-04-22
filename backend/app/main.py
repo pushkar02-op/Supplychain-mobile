@@ -10,10 +10,11 @@ app.include_router(api_router)
 
 @app.on_event("startup")
 def startup():
-    pass
+    try:
+        print("🔄 Autogenerating migration...")
+        # subprocess.run(["alembic", "revision", "--autogenerate", "-m", "Auto migration"], check=True)
+    except subprocess.CalledProcessError:
+        print("⚠️  No changes or error during auto migration")
 
-def run_migrations():
-    os.system("alembic upgrade head")
-
-if __name__ == "__main__":
-    run_migrations()
+    print("⬆️  Applying migrations...")
+    subprocess.run(["alembic", "upgrade", "head"], check=True)

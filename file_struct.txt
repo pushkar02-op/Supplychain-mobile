@@ -38,3 +38,5 @@ lib/
 ├── utils/
 │   └── api_client.dart
 
+Command for initial migration
+docker-compose exec backend alembic revision --autogenerate -m "Initial migration"

@@ -16,10 +16,10 @@ class StockEntryCreate(StockEntryBase):
 
 class StockEntryRead(StockEntryBase):
     id: int
-    created_at: Optional[str]
-    updated_at: Optional[str]
-    created_by: Optional[int]
-    updated_by: Optional[int]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    created_by: Optional[str]
+    updated_by: Optional[str]
 
     class Config:
         orm_mode = True
