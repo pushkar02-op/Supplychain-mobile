@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../utils/api_client.dart';
+import '../core/api_config.dart';
 
 class AuthService {
   static const storage = FlutterSecureStorage();
@@ -9,9 +9,9 @@ class AuthService {
   static Future<dynamic> login(String email, String password) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiClient.baseUrl}/auth/login'),
+        Uri.parse('${ApiConfig.baseUrl}/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
+        body: jsonEncode({'username': email, 'password': password}),
       );
 
       if (response.statusCode == 200) {
