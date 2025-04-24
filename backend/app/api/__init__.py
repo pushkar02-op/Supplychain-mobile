@@ -8,6 +8,7 @@ from app.api.rejection_entry import router as rejection_router
 from app.api.audit_log import router as audit_router
 from app.api.user import router as user_router
 from app.api.invoice import router as invoice_router
+from app.api.invoice_item import router as invoice_item_router
 
 
 router = APIRouter(prefix="/v1")
@@ -21,6 +22,7 @@ router.include_router(rejection_router)
 router.include_router(audit_router)
 router.include_router(user_router)
 router.include_router(invoice_router)
+router.include_router(invoice_item_router)
 
 
 

@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 
+
 class InvoiceItemBase(BaseModel):
     hsn_code: Optional[str]
     item_code: Optional[str]
@@ -13,8 +14,19 @@ class InvoiceItemBase(BaseModel):
     invoice_date: datetime
     store_name: str
 
+
 class InvoiceItemCreate(InvoiceItemBase):
     invoice_id: int
+
+
+class InvoiceItemUpdate(BaseModel):
+    quantity: Optional[float] = None
+    price: Optional[float] = None
+    total: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
 
 class InvoiceItemRead(InvoiceItemBase):
     id: int
@@ -24,4 +36,4 @@ class InvoiceItemRead(InvoiceItemBase):
     updated_by: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
