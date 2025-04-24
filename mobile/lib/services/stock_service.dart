@@ -1,84 +1,51 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../core/dio_client.dart';
-import '../core/api_config.dart';
 
 class StockService {
-  /// Fetch all batches to pick from
-  static Future<List<dynamic>> fetchBatches() async {
+  /// Fetch all items for the dropdown
+  static Future<List<dynamic>> fetchItems() async {
     try {
-      final resp = await DioClient.instance.get('/batch/');
+      final resp = await DioClient.instance.get('/item/');
       return resp.data as List<dynamic>;
     } on DioError catch (e) {
       throw Exception(
-        'Failed to load batches: ${e.response?.statusMessage ?? e.message}',
+        'Failed to load items: ${e.response?.statusMessage ?? e.message}',
       );
     }
   }
 
   /// Create a new stock entry
-  ///
-  /// - [receivedDate] should be in YYYY-MM-DD format
-  /// - [source] is your supplier name
-  /// - [pricePerUnit], [totalCost] are floats
-  /// - [batchId] must come from fetchBatches()
+  /// - [itemId]: the item being stocked
+  /// - [receivedDate]: "YYYY-MM-DD"
+  /// - [quantity], [unit]
+  /// - [pricePerUnit]: per-unit cost
+  /// - [totalCost]: quantity * pricePerUnit
+  /// - [source]: optional supplier name
   static Future<dynamic> addStockEntry({
+    required int itemId,
     required String receivedDate,
-    required String source,
+    required double quantity,
+    required String unit,
     required double pricePerUnit,
+    required String? source,
     required double totalCost,
-    required int batchId,
-    required int itemId, // Add itemId as parameter
   }) async {
     try {
-      // First, check if the batch exists for this item and received date
-      final batchResponse = await DioClient.instance.get(
-        '/batch',
-        queryParameters: {'item_id': itemId, 'received_date': receivedDate},
-      );
-
-      int newBatchId;
-      if (batchResponse.statusCode == 200 && batchResponse.data != null) {
-        // Batch found, use existing batch_id
-        newBatchId = batchResponse.data['batch_id'];
-      } else {
-        // If no batch is found, create a new batch
-        final newBatchResponse = await DioClient.instance.post(
-          '/batch',
-          data: {
-            'item_id': itemId,
-            'received_date': receivedDate,
-            'expiry_date': '2025-12-31', // Adjust as per your logic
-            'quantity': 0, // Start with zero quantity
-            'unit': 'kg', // Adjust unit as needed
-          },
-        );
-
-        if (newBatchResponse.statusCode == 201) {
-          newBatchId = newBatchResponse.data['batch_id'];
-        } else {
-          return 'Failed to create batch'; // Handle failure to create batch
-        }
-      }
-
-      // Proceed with inserting the stock entry
       final resp = await DioClient.instance.post(
         '/stock-entry/',
         data: {
+          'item_id': itemId,
           'received_date': receivedDate,
-          'source': source,
+          'quantity': quantity,
+          'unit': unit,
           'price_per_unit': pricePerUnit,
           'total_cost': totalCost,
-          'batch_id': newBatchId, // Use the newly created or found batch
+          'source': source,
         },
       );
-
-      if (resp.statusCode == 201) {
-        return true; // Successful response
-      }
+      if (resp.statusCode == 201) return true;
       return resp.data['detail'] ?? 'Unknown error';
     } on DioError catch (e) {
-      print('DioError: ${e.response?.data ?? e.message}');
       return e.response?.data['detail'] ?? 'Error: ${e.message}';
     }
   }

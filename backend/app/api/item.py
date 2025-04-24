@@ -36,3 +36,4 @@ def delete(item_id: int, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail="Item not found")
     return None
+

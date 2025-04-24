@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/stock_service.dart';
+import 'package:dropdown_search/dropdown_search.dart';
+import 'dart:async';
 
 class StockEntryScreen extends StatefulWidget {
   const StockEntryScreen({super.key});
@@ -12,34 +14,40 @@ class StockEntryScreen extends StatefulWidget {
 class _StockEntryScreenState extends State<StockEntryScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Form fields
-  DateTime? _receivedDate;
-  int? _selectedBatchId;
-  String _source = '';
+  DateTime? _receivedDate = DateTime.now();
+  Map<String, dynamic>? _selectedItem;
+  String _quantity = '';
+  String _unit = '';
   String _pricePerUnit = '';
-  String _totalCost = '';
-
+  String _source = '';
   bool _isLoading = false;
   String _error = '';
-
-  List<dynamic> _batches = [];
+  List<dynamic> _items = [];
+  List<String> _unitOptions = [];
 
   @override
   void initState() {
     super.initState();
-    _loadBatches();
+    _loadItems();
   }
 
-  Future<void> _loadBatches() async {
+  Future<void> _loadItems() async {
     try {
-      final batches = await StockService.fetchBatches();
+      final items = await StockService.fetchItems();
+      items.sort(
+        (a, b) => a['name'].toString().compareTo(b['name'].toString()),
+      );
       if (mounted) {
-        setState(() => _batches = batches);
+        setState(() {
+          _items = items;
+          // Build distinct unit list
+          _unitOptions =
+              items.map((e) => e['default_unit'] as String).toSet().toList()
+                ..sort();
+        });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _error = e.toString());
-      }
+      if (mounted) setState(() => _error = e.toString());
     }
   }
 
@@ -47,25 +55,23 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     final today = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: today,
+      initialDate: _receivedDate ?? today,
       firstDate: DateTime(today.year - 1),
       lastDate: today,
     );
-    if (picked != null && mounted) {
-      setState(() => _receivedDate = picked);
-    }
+    if (picked != null && mounted) setState(() => _receivedDate = picked);
   }
 
   void _submit() async {
     if (!_formKey.currentState!.validate() ||
         _receivedDate == null ||
-        _selectedBatchId == null) {
+        _selectedItem == null) {
       setState(() {
         _error =
             _receivedDate == null
-                ? 'Please pick a received date'
-                : _selectedBatchId == null
-                ? 'Please select a batch'
+                ? 'Please pick a date'
+                : _selectedItem == null
+                ? 'Please select an item'
                 : '';
       });
       return;
@@ -76,28 +82,26 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
       _error = '';
     });
 
-    print(
-      "Form data: ${_receivedDate?.toIso8601String()}, $_source, $_pricePerUnit, $_totalCost, $_selectedBatchId",
-    );
+    final qty = double.parse(_quantity);
+    final price = double.parse(_pricePerUnit);
 
     final result = await StockService.addStockEntry(
-      receivedDate: _receivedDate!.toIso8601String().split('T').first,
-      source: _source,
-      pricePerUnit: double.parse(_pricePerUnit),
-      totalCost: double.parse(_totalCost),
-      batchId: _selectedBatchId!,
-      itemId: 1, // Ensure you pass itemId here
+      itemId: _selectedItem!['id'],
+      receivedDate: _receivedDate!.toIso8601String().split('T')[0],
+      quantity: qty,
+      unit: _unit,
+      pricePerUnit: price,
+      source: _source.isEmpty ? null : _source,
+      totalCost: qty * price,
     );
 
     if (!mounted) return;
-
-    print("API result: $result");
 
     if (result == true) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Stock entry added')));
-      context.pop(); // go back
+      context.pop();
     } else {
       setState(() => _error = result.toString());
     }
@@ -105,14 +109,27 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     if (mounted) setState(() => _isLoading = false);
   }
 
+  Widget _requiredLabel(String label) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(color: Colors.black),
+        children: const [
+          TextSpan(text: ' *', style: TextStyle(color: Colors.red)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Stock Entry')),
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(title: const Text('ADD STOCK ENTRY')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child:
-            _batches.isEmpty
+            _items.isEmpty
                 ? _error.isNotEmpty
                     ? Center(
                       child: Text(
@@ -125,57 +142,117 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                   key: _formKey,
                   child: ListView(
                     children: [
-                      // Received Date
+                      // Date picker
                       ListTile(
                         title: Text(
-                          _receivedDate == null
-                              ? 'Pick Received Date'
-                              : 'Date: ${_receivedDate!.toLocal().toIso8601String().split('T')[0]}',
+                          'Date: ${_receivedDate!.toIso8601String().split('T')[0]}',
                         ),
                         trailing: const Icon(Icons.calendar_today),
                         onTap: _pickDate,
                       ),
                       const SizedBox(height: 12),
 
-                      // Batch Dropdown
-                      DropdownButtonFormField<int>(
-                        value: _selectedBatchId,
-                        decoration: const InputDecoration(
-                          labelText: 'Select Batch',
+                      DropdownSearch<Map<String, dynamic>>(
+                        asyncItems: (String filter) async {
+                          // 500ms debounce
+                          await Future.delayed(
+                            const Duration(milliseconds: 500),
+                          );
+                          if (filter.isEmpty) {
+                            return _items.cast<Map<String, dynamic>>();
+                          }
+                          final lower = filter.toLowerCase();
+                          return _items
+                              .cast<Map<String, dynamic>>()
+                              .where(
+                                (item) => (item['name'] as String)
+                                    .toLowerCase()
+                                    .contains(lower),
+                              )
+                              .toList();
+                        },
+                        selectedItem: _selectedItem,
+                        itemAsString: (item) => item['name'] as String,
+                        dropdownDecoratorProps: DropDownDecoratorProps(
+                          dropdownSearchDecoration: InputDecoration(
+                            label: _requiredLabel('Select Item'),
+                          ),
                         ),
-                        items:
-                            _batches.map((b) {
-                              final id = b['id'] as int;
-                              final label = 'Batch $id';
-                              return DropdownMenuItem(
-                                value: id,
-                                child: Text(label),
-                              );
-                            }).toList(),
-                        onChanged: (v) => setState(() => _selectedBatchId = v),
+                        popupProps: PopupProps.dialog(
+                          showSearchBox: true,
+                          searchFieldProps: const TextFieldProps(
+                            decoration: InputDecoration(
+                              hintText: 'Search item...',
+                            ),
+                          ),
+                          // dialogProps: DialogProps(
+                          //   insetPadding: EdgeInsets.symmetric(
+                          //     horizontal: 16,
+                          //     vertical: 16,
+                          //   ), // Controls space around the dialog
+                          //   shape: RoundedRectangleBorder(
+                          //     borderRadius: BorderRadius.circular(
+                          //       16,
+                          //     ), // Customizing the shape
+                          //   ),
+                          // ),
+                        ),
+                        onChanged: (item) {
+                          if (item != null) {
+                            setState(() {
+                              _selectedItem = item;
+                              _unit = item['default_unit'] as String;
+                            });
+                          }
+                        },
                         validator:
-                            (v) => v == null ? 'Please select a batch' : null,
+                            (item) =>
+                                item == null ? 'Please select an item' : null,
                       ),
                       const SizedBox(height: 12),
-
-                      // Source
+                      // Quantity
                       TextFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'Supplier/Source',
+                        decoration: InputDecoration(
+                          label: _requiredLabel('Quantity'),
                         ),
-                        onChanged: (v) => _source = v.trim(),
+                        keyboardType: TextInputType.number,
+                        onChanged: (v) => _quantity = v.trim(),
                         validator:
                             (v) =>
                                 v == null || v.isEmpty
-                                    ? 'Enter supplier name'
+                                    ? 'Enter quantity'
                                     : null,
                       ),
                       const SizedBox(height: 12),
 
-                      // Price per unit
+                      // Unit dropdown (editable)
+                      DropdownButtonFormField<String>(
+                        value: _unit.isNotEmpty ? _unit : null,
+                        decoration: InputDecoration(
+                          label: _requiredLabel('Unit'),
+                        ),
+                        items:
+                            _unitOptions
+                                .map(
+                                  (u) => DropdownMenuItem(
+                                    value: u,
+                                    child: Text(u),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged:
+                            (v) => setState(() {
+                              _unit = v ?? '';
+                            }),
+                        validator:
+                            (v) => v == null || v.isEmpty ? 'Enter unit' : null,
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Price per Unit
                       TextFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'Price per Unit',
+                        decoration: InputDecoration(
+                          label: _requiredLabel('Price per Unit'),
                         ),
                         keyboardType: TextInputType.number,
                         onChanged: (v) => _pricePerUnit = v.trim(),
@@ -187,18 +264,12 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Total cost
+                      // Source (optional)
                       TextFormField(
                         decoration: const InputDecoration(
-                          labelText: 'Total Cost',
+                          labelText: 'Source (optional)',
                         ),
-                        keyboardType: TextInputType.number,
-                        onChanged: (v) => _totalCost = v.trim(),
-                        validator:
-                            (v) =>
-                                v == null || v.isEmpty
-                                    ? 'Enter total cost'
-                                    : null,
+                        onChanged: (v) => _source = v.trim(),
                       ),
                       const SizedBox(height: 20),
 
@@ -207,11 +278,17 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                       const SizedBox(height: 12),
 
                       ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
                         onPressed: _isLoading ? null : _submit,
                         child:
                             _isLoading
-                                ? const CircularProgressIndicator()
-                                : const Text('Submit'),
+                                ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                                : const Text('SAVE'),
                       ),
                     ],
                   ),
