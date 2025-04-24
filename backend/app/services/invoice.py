@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 from fastapi import UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -10,6 +10,7 @@ from app.db.models.invoice_item import InvoiceItem
 from app.db.models.item import Item
 import aiofiles 
 import hashlib
+from app.db.schemas.invoice import InvoiceUpdate
 
 
 async def save_and_process_invoice(file: UploadFile, db: Session, created_by: str = "system") -> dict:
@@ -93,3 +94,32 @@ async def save_and_process_invoice(file: UploadFile, db: Session, created_by: st
         return {"filename": filename, "success": True, "invoice_id": new_invoice.id}
     except Exception as e:
         return {"filename": filename, "success": False, "error": str(e)}
+    
+def get_invoice_by_id(db: Session, invoice_id: int) -> Invoice:
+    return db.query(Invoice).filter(Invoice.id == invoice_id).first()
+
+
+def get_all_invoices(db: Session) -> List[Invoice]:
+    return db.query(Invoice).order_by(Invoice.invoice_date.desc()).all()
+
+
+def update_invoice(db: Session, invoice_id: int, data: InvoiceUpdate) -> Optional[Invoice]:
+    invoice = get_invoice_by_id(db, invoice_id)
+    if not invoice:
+        return None
+
+    for field, value in data.dict(exclude_unset=True).items():
+        setattr(invoice, field, value)
+
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+
+def delete_invoice(db: Session, invoice_id: int) -> bool:
+    invoice = get_invoice_by_id(db, invoice_id)
+    if not invoice:
+        return False
+    db.delete(invoice)
+    db.commit()
+    return True
