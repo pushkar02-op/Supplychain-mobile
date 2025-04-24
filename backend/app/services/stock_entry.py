@@ -1,17 +1,50 @@
 from typing import List, Optional
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from app.db.models.stock_entry import StockEntry
 from app.db.schemas.stock_entry import (
     StockEntryCreate,
     StockEntryUpdate,
 )
-
+from app.db.models.batch import Batch
+from app.db.models.item import Item
 from datetime import datetime
 
 
 def create_stock_entry(db: Session, entry: StockEntryCreate, created_by: Optional[int] = None) -> StockEntry:
+    # 1. Check for existing batch for same item and received_date
+    existing_batch = db.query(Batch).filter(
+        and_(
+            Batch.item_id == entry.item_id,
+            Batch.expiry_date == entry.received_date  # Grouping by date as batch key
+        )
+    ).first()
+
+    if existing_batch:
+        batch_id = existing_batch.id
+        existing_batch.quantity += entry.quantity  # update existing batch quantity
+        existing_batch.updated_by = created_by
+    else:
+        # Fetch unit from item if not explicitly in entry
+        item = db.query(Item).filter(Item.id == entry.item_id).first()
+        unit = item.default_unit if item else entry.unit
+
+        new_batch = Batch(
+            item_id=entry.item_id,
+            quantity=entry.quantity,
+            unit=unit,
+            expiry_date=entry.received_date,  # used as batch grouping key
+            created_by=created_by,
+            updated_by=created_by
+        )
+        db.add(new_batch)
+        db.flush()  # get new_batch.id
+        batch_id = new_batch.id
+
+    # 2. Create stock entry using batch
     db_entry = StockEntry(
         **entry.dict(),
+        batch_id=batch_id,
         created_by=created_by,
         updated_by=created_by,
     )

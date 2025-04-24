@@ -4,11 +4,14 @@ from pydantic import BaseModel
 
 
 class StockEntryBase(BaseModel):
+    item_id: int 
     received_date: date
-    source: Optional[str] = None  # Supplier or source name (optional)
     price_per_unit: float
     total_cost: float
-    batch_id: int
+    source: Optional[str] = None
+    quantity: float  
+    unit: str        
+
 
 
 class StockEntryCreate(StockEntryBase):
@@ -26,9 +29,8 @@ class StockEntryRead(StockEntryBase):
         
 class StockEntryUpdate(BaseModel):
     received_date: Optional[date] = None
-    source: Optional[str] = None
     price_per_unit: Optional[float] = None
     total_cost: Optional[float] = None
-    batch_id: Optional[int] = None
-
-
+    source: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None

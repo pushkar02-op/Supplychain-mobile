@@ -1,19 +1,41 @@
+from datetime import date, datetime
+from typing import Optional
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from app.db.models import Batch
 from app.db.schemas.batch import BatchCreate, BatchUpdate
 
-def create_batch(db: Session, entry: BatchCreate, created_by: int):
-    db_batch = Batch(
-        expiry_date=entry.expiry_date,
-        unit=entry.unit,
-        quantity=entry.quantity,
-        item_id=entry.item_id,
-        created_by=created_by
-    )
-    db.add(db_batch)
-    db.commit()
-    db.refresh(db_batch)
-    return db_batch
+def create_batch(db: Session, batch: BatchCreate, created_by: Optional[str] = None) -> Batch:
+    today = date.today()
+
+    # 👀 Check if batch already exists for the item today
+    existing_batch = db.query(Batch).filter(
+        and_(
+            Batch.item_id == batch.item_id,
+            Batch.created_at >= datetime.combine(today, datetime.min.time()),
+            Batch.created_at <= datetime.combine(today, datetime.max.time())
+        )
+    ).first()
+
+    if existing_batch:
+        # ✅ Reuse the batch, just increase the quantity
+        existing_batch.quantity += batch.quantity
+        existing_batch.updated_by = created_by
+        existing_batch.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing_batch)
+        return existing_batch
+    else:
+        # ➕ Create new batch
+        db_batch = Batch(
+            **batch.dict(),
+            created_by=created_by,
+            updated_by=created_by,
+        )
+        db.add(db_batch)
+        db.commit()
+        db.refresh(db_batch)
+        return db_batch
 
 def get_batch(db: Session, batch_id: int):
     return db.query(Batch).filter(Batch.id == batch_id).first()
