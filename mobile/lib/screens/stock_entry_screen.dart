@@ -105,13 +105,14 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
       _isLoading = true;
       _error = '';
     });
-
-    final qty = double.parse(_quantity);
-    final price = double.parse(_pricePerUnit);
     final formState = _formKey.currentState;
     if (formState != null) {
       formState.save();
     }
+
+    final qty = double.parse(_quantity);
+    final price = double.parse(_pricePerUnit);
+
     final data = {
       'itemId': _selectedItem!['id'],
       'received_date': _receivedDate!.toIso8601String().split('T')[0],
@@ -279,6 +280,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                         ),
                         keyboardType: TextInputType.number,
                         onChanged: (v) => _quantity = v.trim(),
+                        onSaved: (v) => _quantity = v?.trim() ?? '',
                         validator:
                             (v) =>
                                 v == null || v.isEmpty
@@ -301,7 +303,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                                 )
                                 .toList(),
                         onChanged: (v) => setState(() => _unit = v ?? ''),
-                        onSaved: (v) => _unit = v ?? '', // <------ ADD THIS
+                        onSaved: (v) => _unit = v ?? '',
                         validator:
                             (v) => v == null || v.isEmpty ? 'Enter unit' : null,
                       ),
@@ -313,6 +315,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                         ),
                         keyboardType: TextInputType.number,
                         onChanged: (v) => _pricePerUnit = v.trim(),
+                        onSaved: (v) => _pricePerUnit = v?.trim() ?? '',
                         validator:
                             (v) =>
                                 v == null || v.isEmpty ? 'Enter price' : null,

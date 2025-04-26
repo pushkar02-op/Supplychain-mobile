@@ -27,12 +27,5 @@ final GoRouter appRouter = GoRouter(
       path: '/stock-entry',
       builder: (context, state) => const StockEntryScreen(),
     ),
-    // GoRoute(
-    //   path: '/stock-entry',
-    //   builder: (context, state) {
-    //     final entry = state.extra as Map<String, dynamic>?;
-    //     return StockEntryScreen(stock: entry);
-    //   },
-    // ),
   ],
 );
