@@ -8,7 +8,7 @@ from app.db.schemas.stock_entry import (
 )
 from app.db.models.batch import Batch
 from app.db.models.item import Item
-from datetime import datetime
+from datetime import date, datetime
 
 
 def create_stock_entry(db: Session, entry: StockEntryCreate, created_by: Optional[int] = None) -> StockEntry:
@@ -58,8 +58,8 @@ def get_stock_entry(db: Session, stock_entry_id: int) -> Optional[StockEntry]:
     return db.query(StockEntry).filter(StockEntry.id == stock_entry_id).first()
 
 
-def get_all_stock_entries(db: Session, skip: int = 0, limit: int = 100) -> List[StockEntry]:
-    return db.query(StockEntry).offset(skip).limit(limit).all()
+def get_all_stock_entries(db: Session, date: Optional[date] = None, skip: int = 0, limit: int = 100) -> List[StockEntry]:
+    return db.query(StockEntry).filter(StockEntry.received_date == date).offset(skip).limit(limit).all()
 
 
 def update_stock_entry(
@@ -73,6 +73,8 @@ def update_stock_entry(
         return None
 
     for key, value in entry_update.dict(exclude_unset=True).items():
+        print(key)
+        print(value)
         setattr(db_entry, key, value)
 
     db_entry.updated_by = updated_by

@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 from pydantic import BaseModel
+from app.db.schemas.item import ItemRead
 
 
 class StockEntryBase(BaseModel):
@@ -19,6 +20,7 @@ class StockEntryCreate(StockEntryBase):
 
 class StockEntryRead(StockEntryBase):
     id: int
+    item: ItemRead
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
     created_by: Optional[str]

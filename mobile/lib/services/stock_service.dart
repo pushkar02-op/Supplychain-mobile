@@ -49,4 +49,48 @@ class StockService {
       return e.response?.data['detail'] ?? 'Error: ${e.message}';
     }
   }
+
+  /// Fetch stock entries by date
+  static Future<List<dynamic>> fetchStockEntries({required String date}) async {
+    try {
+      final resp = await DioClient.instance.get(
+        '/stock-entry/',
+        queryParameters: {'date': date, 'skip': 0, 'limit': 100},
+      );
+      return resp.data as List<dynamic>;
+    } on DioError catch (e) {
+      throw Exception(
+        'Failed to load stock entries: ${e.response?.statusMessage ?? e.message}',
+      );
+    }
+  }
+
+  /// Delete stock entry by ID
+  static Future<void> deleteStockEntry(int stockEntryId) async {
+    try {
+      await DioClient.instance.delete('/stock-entry/$stockEntryId');
+    } on DioError catch (e) {
+      throw Exception(
+        'Failed to delete stock entry: ${e.response?.statusMessage ?? e.message}',
+      );
+    }
+  }
+
+  static Future<dynamic> updateStockEntry(
+    int stockEntryId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final resp = await DioClient.instance.put(
+        '/stock-entry/$stockEntryId',
+        data: data,
+      );
+      print(data);
+      // print(resp.data);
+      if (resp.statusCode == 200) return true;
+      return resp.data['detail'] ?? 'Unknown error';
+    } on DioError catch (e) {
+      return e.response?.data['detail'] ?? 'Error: ${e.message}';
+    }
+  }
 }

@@ -1,6 +1,7 @@
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.db.schemas.stock_entry import (
     StockEntryCreate,
@@ -25,8 +26,8 @@ def create(entry: StockEntryCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/", response_model=List[StockEntryRead])
-def read_all(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return get_all_stock_entries(db=db, skip=skip, limit=limit)
+def read_all(date: Optional[date] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return get_all_stock_entries(date=date, db=db, skip=skip, limit=limit)
 
 
 @router.get("/{stock_entry_id}", response_model=StockEntryRead)
@@ -39,7 +40,8 @@ def read_one(stock_entry_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{stock_entry_id}", response_model=StockEntryRead)
 def update(stock_entry_id: int, entry_update: StockEntryUpdate, db: Session = Depends(get_db)):
-    updated = update_stock_entry(db=db, stock_entry_id=stock_entry_id, entry_update=entry_update, updated_by=1)  # TODO: Use current user ID
+    print(entry_update)
+    updated = update_stock_entry(db=db, stock_entry_id=stock_entry_id, entry_update=entry_update, updated_by=1)  
     if not updated:
         raise HTTPException(status_code=404, detail="Stock entry not found")
     return updated

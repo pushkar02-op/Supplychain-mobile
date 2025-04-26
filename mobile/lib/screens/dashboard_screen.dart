@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile/screens/stock_entry_screen.dart';
+import 'package:mobile/screens/stock_list_screen.dart';
 import '/core/dio_client.dart'; // Ensure correct import
 
 class DashboardScreen extends StatefulWidget {
@@ -36,7 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const StockEntryScreen(),
+                  builder: (context) => const StockListScreen(),
                 ),
               );
             },

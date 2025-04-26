@@ -1,3 +1,4 @@
+// stock_entry_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/stock_service.dart';
@@ -25,10 +26,34 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   List<dynamic> _items = [];
   List<String> _unitOptions = [];
 
+  Map<String, dynamic>? _editingStock;
+
   @override
   void initState() {
     super.initState();
     _loadItems();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Moved the navigation-related logic here, as it must happen after initState
+    final args = GoRouterState.of(context).extra;
+    if (args != null && args is Map<String, dynamic>) {
+      _editingStock = args;
+      _preFillStockData();
+    }
+  }
+
+  void _preFillStockData() {
+    if (_editingStock != null) {
+      _receivedDate = DateTime.parse(_editingStock!['received_date']);
+      _quantity = _editingStock!['quantity'].toString();
+      _unit = _editingStock!['unit'] ?? '';
+      _pricePerUnit = _editingStock!['price_per_unit'].toString();
+      _source = _editingStock!['source'] ?? '';
+      _selectedItem = _editingStock!['item'];
+    }
   }
 
   Future<void> _loadItems() async {
@@ -40,7 +65,6 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
       if (mounted) {
         setState(() {
           _items = items;
-          // Build distinct unit list
           _unitOptions =
               items.map((e) => e['default_unit'] as String).toSet().toList()
                 ..sort();
@@ -84,24 +108,47 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
 
     final qty = double.parse(_quantity);
     final price = double.parse(_pricePerUnit);
+    final formState = _formKey.currentState;
+    if (formState != null) {
+      formState.save();
+    }
+    final data = {
+      'itemId': _selectedItem!['id'],
+      'received_date': _receivedDate!.toIso8601String().split('T')[0],
+      'quantity': qty,
+      'unit': _unit,
+      'price_per_unit': price,
+      'source': _source.isEmpty ? null : _source,
+      'total_cost': qty * price,
+    };
+    print(data);
 
-    final result = await StockService.addStockEntry(
-      itemId: _selectedItem!['id'],
-      receivedDate: _receivedDate!.toIso8601String().split('T')[0],
-      quantity: qty,
-      unit: _unit,
-      pricePerUnit: price,
-      source: _source.isEmpty ? null : _source,
-      totalCost: qty * price,
-    );
+    bool result = false;
+    if (_editingStock != null) {
+      result = await StockService.updateStockEntry(_editingStock!['id'], data);
+    } else {
+      result = await StockService.addStockEntry(
+        itemId: data['itemId'],
+        receivedDate: data['receivedDate'],
+        quantity: data['quantity'],
+        unit: data['unit'],
+        pricePerUnit: data['pricePerUnit'],
+        source: data['source'],
+        totalCost: data['totalCost'],
+      );
+    }
 
     if (!mounted) return;
 
     if (result == true) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Stock entry added')));
-      context.pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _editingStock != null ? 'Stock entry updated' : 'Stock entry added',
+          ),
+        ),
+      );
+      context.pop(true);
     } else {
       setState(() => _error = result.toString());
     }
@@ -125,24 +172,32 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: AppBar(title: const Text('ADD STOCK ENTRY')),
+      appBar: AppBar(
+        title: Text(
+          _editingStock != null ? 'EDIT STOCK ENTRY' : 'ADD STOCK ENTRY',
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child:
-            _items.isEmpty
-                ? _error.isNotEmpty
-                    ? Center(
-                      child: Text(
-                        _error,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    )
-                    : const Center(child: CircularProgressIndicator())
+            _error.isNotEmpty
+                ? Center(
+                  child: Text(
+                    _error,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                )
+                : _items.isEmpty
+                ? const Center(
+                  child: Text(
+                    'No items found. Please add items first.',
+                    style: TextStyle(color: Colors.black54, fontSize: 16),
+                  ),
+                )
                 : Form(
                   key: _formKey,
                   child: ListView(
                     children: [
-                      // Date picker
                       ListTile(
                         title: Text(
                           'Date: ${_receivedDate!.toIso8601String().split('T')[0]}',
@@ -151,67 +206,74 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                         onTap: _pickDate,
                       ),
                       const SizedBox(height: 12),
-
-                      DropdownSearch<Map<String, dynamic>>(
-                        asyncItems: (String filter) async {
-                          // 500ms debounce
-                          await Future.delayed(
-                            const Duration(milliseconds: 500),
-                          );
-                          if (filter.isEmpty) {
-                            return _items.cast<Map<String, dynamic>>();
-                          }
-                          final lower = filter.toLowerCase();
-                          return _items
-                              .cast<Map<String, dynamic>>()
-                              .where(
-                                (item) => (item['name'] as String)
-                                    .toLowerCase()
-                                    .contains(lower),
-                              )
-                              .toList();
-                        },
-                        selectedItem: _selectedItem,
-                        itemAsString: (item) => item['name'] as String,
-                        dropdownDecoratorProps: DropDownDecoratorProps(
-                          dropdownSearchDecoration: InputDecoration(
-                            label: _requiredLabel('Select Item'),
+                      if (_editingStock != null)
+                        TextFormField(
+                          initialValue:
+                              _selectedItem != null
+                                  ? _selectedItem!['name'] as String
+                                  : '',
+                          decoration: InputDecoration(
+                            label: _requiredLabel('Selected Item'),
+                            border: const OutlineInputBorder(),
+                            filled: true,
+                            fillColor:
+                                Colors.grey[200], // Light grey background
                           ),
-                        ),
-                        popupProps: PopupProps.dialog(
-                          showSearchBox: true,
-                          searchFieldProps: const TextFieldProps(
-                            decoration: InputDecoration(
-                              hintText: 'Search item...',
+                          enabled: false, // Make it read-only
+                          style: const TextStyle(
+                            color: Colors.black87,
+                          ), // Text color
+                        )
+                      else
+                        DropdownSearch<Map<String, dynamic>>(
+                          asyncItems: (String filter) async {
+                            await Future.delayed(
+                              const Duration(milliseconds: 500),
+                            );
+                            if (filter.isEmpty) {
+                              return _items.cast<Map<String, dynamic>>();
+                            }
+                            final lower = filter.toLowerCase();
+                            return _items
+                                .cast<Map<String, dynamic>>()
+                                .where(
+                                  (item) => (item['name'] as String)
+                                      .toLowerCase()
+                                      .contains(lower),
+                                )
+                                .toList();
+                          },
+                          selectedItem: _selectedItem,
+                          itemAsString: (item) => item['name'] as String,
+                          // enabled: _editingStock == null,
+                          dropdownDecoratorProps: DropDownDecoratorProps(
+                            dropdownSearchDecoration: InputDecoration(
+                              label: _requiredLabel('Select Item'),
                             ),
                           ),
-                          // dialogProps: DialogProps(
-                          //   insetPadding: EdgeInsets.symmetric(
-                          //     horizontal: 16,
-                          //     vertical: 16,
-                          //   ), // Controls space around the dialog
-                          //   shape: RoundedRectangleBorder(
-                          //     borderRadius: BorderRadius.circular(
-                          //       16,
-                          //     ), // Customizing the shape
-                          //   ),
-                          // ),
+                          popupProps: PopupProps.dialog(
+                            showSearchBox: true,
+                            searchFieldProps: const TextFieldProps(
+                              decoration: InputDecoration(
+                                hintText: 'Search item...',
+                              ),
+                            ),
+                          ),
+                          onChanged: (item) {
+                            if (item != null && _editingStock == null) {
+                              setState(() {
+                                _selectedItem = item;
+                                _unit = item['default_unit'] as String;
+                              });
+                            }
+                          },
+                          validator:
+                              (item) =>
+                                  item == null ? 'Please select an item' : null,
                         ),
-                        onChanged: (item) {
-                          if (item != null) {
-                            setState(() {
-                              _selectedItem = item;
-                              _unit = item['default_unit'] as String;
-                            });
-                          }
-                        },
-                        validator:
-                            (item) =>
-                                item == null ? 'Please select an item' : null,
-                      ),
                       const SizedBox(height: 12),
-                      // Quantity
                       TextFormField(
+                        initialValue: _quantity,
                         decoration: InputDecoration(
                           label: _requiredLabel('Quantity'),
                         ),
@@ -224,8 +286,6 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                                     : null,
                       ),
                       const SizedBox(height: 12),
-
-                      // Unit dropdown (editable)
                       DropdownButtonFormField<String>(
                         value: _unit.isNotEmpty ? _unit : null,
                         decoration: InputDecoration(
@@ -240,17 +300,14 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                                   ),
                                 )
                                 .toList(),
-                        onChanged:
-                            (v) => setState(() {
-                              _unit = v ?? '';
-                            }),
+                        onChanged: (v) => setState(() => _unit = v ?? ''),
+                        onSaved: (v) => _unit = v ?? '', // <------ ADD THIS
                         validator:
                             (v) => v == null || v.isEmpty ? 'Enter unit' : null,
                       ),
                       const SizedBox(height: 12),
-
-                      // Price per Unit
                       TextFormField(
+                        initialValue: _pricePerUnit,
                         decoration: InputDecoration(
                           label: _requiredLabel('Price per Unit'),
                         ),
@@ -258,37 +315,22 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                         onChanged: (v) => _pricePerUnit = v.trim(),
                         validator:
                             (v) =>
-                                v == null || v.isEmpty
-                                    ? 'Enter price per unit'
-                                    : null,
+                                v == null || v.isEmpty ? 'Enter price' : null,
                       ),
                       const SizedBox(height: 12),
-
-                      // Source (optional)
                       TextFormField(
+                        initialValue: _source,
                         decoration: const InputDecoration(
                           labelText: 'Source (optional)',
                         ),
                         onChanged: (v) => _source = v.trim(),
                       ),
-                      const SizedBox(height: 20),
-
-                      if (_error.isNotEmpty)
-                        Text(_error, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 12),
-
+                      const SizedBox(height: 24),
                       ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        onPressed: _submit,
+                        child: Text(
+                          _editingStock != null ? 'Update Stock' : 'Add Stock',
                         ),
-                        onPressed: _isLoading ? null : _submit,
-                        child:
-                            _isLoading
-                                ? const CircularProgressIndicator(
-                                  color: Colors.white,
-                                )
-                                : const Text('SAVE'),
                       ),
                     ],
                   ),
