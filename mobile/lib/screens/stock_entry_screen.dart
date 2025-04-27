@@ -122,21 +122,33 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
       'source': _source.isEmpty ? null : _source,
       'total_cost': qty * price,
     };
-    print(data);
+    // print(data);
 
     bool result = false;
-    if (_editingStock != null) {
-      result = await StockService.updateStockEntry(_editingStock!['id'], data);
-    } else {
-      result = await StockService.addStockEntry(
-        itemId: data['itemId'],
-        receivedDate: data['receivedDate'],
-        quantity: data['quantity'],
-        unit: data['unit'],
-        pricePerUnit: data['pricePerUnit'],
-        source: data['source'],
-        totalCost: data['totalCost'],
-      );
+    try {
+      if (_editingStock != null) {
+        result = await StockService.updateStockEntry(
+          _editingStock!['id'],
+          data,
+        );
+      } else {
+        result = await StockService.addStockEntry(
+          itemId: data['itemId'],
+          receivedDate: data['received_date'],
+          quantity: data['quantity'],
+          unit: data['unit'],
+          pricePerUnit: data['price_per_unit'],
+          source: data['source'],
+          totalCost: data['total_cost'],
+        );
+      }
+    } catch (e) {
+      print('Error during API call: $e');
+      setState(() {
+        _isLoading = false;
+        _error = e.toString();
+      });
+      return;
     }
 
     if (!mounted) return;
