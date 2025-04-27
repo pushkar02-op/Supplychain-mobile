@@ -143,7 +143,6 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
         );
       }
     } catch (e) {
-      print('Error during API call: $e');
       setState(() {
         _isLoading = false;
         _error = e.toString();
