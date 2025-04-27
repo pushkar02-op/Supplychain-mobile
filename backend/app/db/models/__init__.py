@@ -6,4 +6,4 @@ from .dispatch_entry import DispatchEntry
 from .invoice import Invoice
 from .rejection_entry import RejectionEntry
 from .invoice_item import InvoiceItem
-
+from .order import Order

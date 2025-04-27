@@ -1,0 +1,47 @@
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from app.db.models.order import Order
+from app.db.schemas.order import OrderCreate, OrderUpdate
+from datetime import date, datetime
+
+def create_order(db: Session, entry: OrderCreate, created_by: Optional[str] = None) -> Order:
+    db_entry = Order(
+        **entry.dict(),
+        created_by=created_by,
+        updated_by=created_by,
+    )
+    db.add(db_entry)
+    db.commit()
+    db.refresh(db_entry)
+    return db_entry
+
+def get_order(db: Session, order_id: int) -> Optional[Order]:
+    return db.query(Order).filter(Order.id == order_id).first()
+
+def get_orders(db: Session, order_date: Optional[date] = None) -> List[Order]:
+    query = db.query(Order)
+    if order_date:
+        query = query.filter(Order.order_date == order_date)
+    return query.order_by(Order.created_at.desc()).all()
+
+def update_order(db: Session, order_id: int, entry_update: OrderUpdate, updated_by: Optional[str] = None) -> Optional[Order]:
+    db_entry = get_order(db, order_id)
+    if not db_entry:
+        return None
+
+    for key, value in entry_update.dict(exclude_unset=True).items():
+        setattr(db_entry, key, value)
+
+    db_entry.updated_by = updated_by
+    db_entry.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(db_entry)
+    return db_entry
+
+def delete_order(db: Session, order_id: int) -> bool:
+    db_entry = get_order(db, order_id)
+    if not db_entry:
+        return False
+    db.delete(db_entry)
+    db.commit()
+    return True
