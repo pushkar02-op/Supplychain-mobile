@@ -45,7 +45,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ElevatedButton.icon(
               onPressed: () => context.push('/orders'),
               icon: const Icon(Icons.assignment),
-              label: const Text('View Orders'),
+              label: const Text('Daily Orders'),
             ),
           ],
         ),

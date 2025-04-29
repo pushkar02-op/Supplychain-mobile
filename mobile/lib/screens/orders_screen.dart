@@ -92,7 +92,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: AppBar(title: const Text('ORDER LIST')),
+      appBar: AppBar(title: const Text('DAILY ORDER')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -146,7 +146,9 @@ class _OrderListScreenState extends State<OrdersScreen> {
 
                 // Add Order button
                 ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                  ),
                   onPressed: () async {
                     final ok = await context.push('/order-entry');
                     if (ok == true) _fetchOrders();
@@ -170,7 +172,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
                       )
                       : _orders.isEmpty
                       ? const Center(
-                        child: Text('No orders found for this date'),
+                        child: Text('No orders found for this date and mart'),
                       )
                       : ListView.builder(
                         itemCount: _orders.length,

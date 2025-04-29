@@ -217,7 +217,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
 
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          backgroundColor: Colors.green,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                         onPressed: _submit,
