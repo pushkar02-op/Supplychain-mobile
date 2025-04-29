@@ -3,6 +3,12 @@ from typing import List, Optional
 from app.db.models.order import Order
 from app.db.schemas.order import OrderCreate, OrderUpdate
 from datetime import date, datetime
+from app.db.models.invoice import Invoice
+
+
+def get_distinct_mart_names(db: Session) -> List[str]:
+    results = db.query(Invoice.mart_name).distinct().all()
+    return [row[0] for row in results if row[0]] 
 
 def create_order(db: Session, entry: OrderCreate, created_by: Optional[str] = None) -> Order:
     db_entry = Order(

@@ -42,6 +42,7 @@ dependencies:
   # qr_code_scanner: ^1.0.0 # nice‑to‑have
   signature: ^5.0.0
   dropdown_search: ^5.0.6
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:

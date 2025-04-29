@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
+from app.services.order import get_distinct_mart_names
 
 from app.db.schemas.order import OrderCreate, OrderRead, OrderUpdate
 from app.services.order import create_order, get_order, get_orders, update_order, delete_order
@@ -19,6 +20,10 @@ def read_all(
     db: Session = Depends(get_db)
 ):
     return get_orders(db=db, order_date=order_date)
+
+@router.get("/mart-names", response_model=List[str])
+def get_mart_names(db: Session = Depends(get_db)):
+    return get_distinct_mart_names(db)
 
 @router.get("/{order_id}", response_model=OrderRead)
 def read_one(order_id: int, db: Session = Depends(get_db)):

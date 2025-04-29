@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile/screens/stock_list_screen.dart';
-import '/core/dio_client.dart'; // Ensure correct import
+import '/core/dio_client.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -29,21 +28,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ); // Ensures we navigate properly with GoRouter
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.add_box),
-            onPressed: () {
-              // Navigate to the stock entry screen
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const StockListScreen(),
-                ),
-              );
-            },
-          ),
         ],
       ),
-      body: const Center(child: Text('Welcome to Fruit Vendor Tool!')),
+
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => context.push('/stock-list'),
+              icon: const Icon(Icons.add_box),
+              label: const Text('Stock List'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/orders'),
+              icon: const Icon(Icons.assignment),
+              label: const Text('View Orders'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
