@@ -25,10 +25,8 @@ class OrderService {
 
     final data = resp.data;
     if (data is List) {
-      // API returned: [ "Mart A", "Mart B", ... ]
       return List<String>.from(data);
     } else if (data is Map && data['mart_names'] is List) {
-      // API returned: { "mart_names": [ "Mart A", ... ] }
       return List<String>.from(data['mart_names']);
     } else {
       throw Exception('Unexpected mart-names response format');
