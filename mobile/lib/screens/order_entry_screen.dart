@@ -77,8 +77,9 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
   void _submit() async {
     if (!_formKey.currentState!.validate() ||
         _selectedItem == null ||
-        _selectedMart == null)
+        _selectedMart == null) {
       return;
+    }
     _formKey.currentState!.save();
 
     final data = {

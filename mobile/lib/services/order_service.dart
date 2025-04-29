@@ -44,7 +44,7 @@ class OrderService {
     required int itemId,
     required String martName,
     required String orderDate, // "YYYY-MM-DD"
-    required int quantityOrdered,
+    required double quantityOrdered,
   }) async {
     try {
       final resp = await DioClient.instance.post(
