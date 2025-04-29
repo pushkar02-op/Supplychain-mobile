@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from pydantic import BaseModel
 from typing import Optional
+from app.db.schemas.item import ItemRead
 
 class OrderBase(BaseModel):
     item_id: int
@@ -17,6 +18,7 @@ class OrderUpdate(BaseModel):
 
 class OrderRead(OrderBase):
     id: int
+    item: ItemRead
     quantity_dispatched: float
     status: str
     created_at: Optional[datetime]

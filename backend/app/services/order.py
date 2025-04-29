@@ -24,10 +24,16 @@ def create_order(db: Session, entry: OrderCreate, created_by: Optional[str] = No
 def get_order(db: Session, order_id: int) -> Optional[Order]:
     return db.query(Order).filter(Order.id == order_id).first()
 
-def get_orders(db: Session, order_date: Optional[date] = None) -> List[Order]:
+def get_orders(
+    db: Session,
+    order_date: Optional[date] = None,
+    mart_name: Optional[str] = None
+) -> List[Order]:
     query = db.query(Order)
     if order_date:
         query = query.filter(Order.order_date == order_date)
+    if mart_name:
+        query = query.filter(Order.mart_name == mart_name)
     return query.order_by(Order.created_at.desc()).all()
 
 def update_order(db: Session, order_id: int, entry_update: OrderUpdate, updated_by: Optional[str] = None) -> Optional[Order]:

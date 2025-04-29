@@ -3,12 +3,18 @@ import 'package:dio/dio.dart';
 import '../core/dio_client.dart';
 
 class OrderService {
-  /// Fetch all orders for a specific date
-  static Future<List<Map<String, dynamic>>> fetchOrders(DateTime date) async {
+  /// Fetch all orders for a specific date, optionally filtered by mart.
+  static Future<List<Map<String, dynamic>>> fetchOrders(
+    DateTime date, {
+    String? martName,
+  }) async {
     final dateStr = date.toIso8601String().split('T').first;
+    final params = {'order_date': dateStr};
+    if (martName != null) params['mart_name'] = martName;
+
     final resp = await DioClient.instance.get(
       '/orders/',
-      queryParameters: {'order_date': dateStr},
+      queryParameters: params,
     );
     if (resp.statusCode != 200) {
       throw Exception('Failed to fetch orders');
@@ -33,13 +39,12 @@ class OrderService {
     }
   }
 
-  /// Create a new order
+  /// Create a new order; status defaults to "Pending" server-side.
   static Future<dynamic> createOrder({
     required int itemId,
     required String martName,
     required String orderDate, // "YYYY-MM-DD"
     required int quantityOrdered,
-    required String status,
   }) async {
     try {
       final resp = await DioClient.instance.post(
@@ -49,7 +54,6 @@ class OrderService {
           'mart_name': martName,
           'order_date': orderDate,
           'quantity_ordered': quantityOrdered,
-          'status': status,
         },
       );
       if (resp.statusCode == 201) return resp.data;

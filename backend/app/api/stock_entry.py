@@ -40,7 +40,6 @@ def read_one(stock_entry_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{stock_entry_id}", response_model=StockEntryRead)
 def update(stock_entry_id: int, entry_update: StockEntryUpdate, db: Session = Depends(get_db)):
-    print(entry_update)
     updated = update_stock_entry(db=db, stock_entry_id=stock_entry_id, entry_update=entry_update, updated_by=1)  
     if not updated:
         raise HTTPException(status_code=404, detail="Stock entry not found")

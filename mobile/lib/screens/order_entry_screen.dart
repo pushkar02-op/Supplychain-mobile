@@ -16,8 +16,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
   DateTime _orderDate = DateTime.now();
   Map<String, dynamic>? _selectedItem;
   String? _selectedMart;
-  int _quantity = 0;
-  String _status = 'Pending';
+  double _quantity = 0;
 
   List<dynamic> _items = [];
   List<String> _marts = [];
@@ -45,11 +44,10 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     if (_editing != null) {
       _orderDate = DateTime.parse(_editing!['order_date']);
       _quantity = _editing!['quantity_ordered'];
-      _status = _editing!['status'];
       _selectedMart = _editing!['mart_name'] as String;
       _selectedItem = {
         'id': _editing!['item_id'],
-        'name': _editing!['item_name'],
+        'name': _editing!['item']['name'],
       };
     }
   }
@@ -79,9 +77,8 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
   void _submit() async {
     if (!_formKey.currentState!.validate() ||
         _selectedItem == null ||
-        _selectedMart == null) {
+        _selectedMart == null)
       return;
-    }
     _formKey.currentState!.save();
 
     final data = {
@@ -89,7 +86,6 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       'mart_name': _selectedMart!,
       'order_date': DateFormat('yyyy-MM-dd').format(_orderDate),
       'quantity_ordered': _quantity,
-      'status': _status,
     };
 
     dynamic result;
@@ -101,10 +97,9 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
         martName: data['mart_name'],
         orderDate: data['order_date'],
         quantityOrdered: data['quantity_ordered'],
-        status: data['status'],
       );
     }
-    print(result);
+
     if (result != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -137,20 +132,32 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child:
-            _items.isEmpty || _marts.isEmpty
+            (_items.isEmpty || _marts.isEmpty)
                 ? const Center(child: CircularProgressIndicator())
                 : Form(
                   key: _formKey,
                   child: ListView(
                     children: [
-                      ListTile(
-                        title: Text(
-                          'Date: ${DateFormat('yyyy-MM-dd').format(_orderDate)}',
-                        ),
-                        trailing: const Icon(Icons.calendar_today),
-                        onTap: _pickDate,
-                      ),
+                      _editing != null
+                          ? TextFormField(
+                            initialValue: DateFormat(
+                              'yyyy-MM-dd',
+                            ).format(_orderDate),
+                            decoration: InputDecoration(
+                              label: _required('Date'),
+                            ),
+                            enabled: false,
+                          )
+                          : ListTile(
+                            title: Text(
+                              'Date: ${DateFormat('yyyy-MM-dd').format(_orderDate)}',
+                            ),
+                            trailing: const Icon(Icons.calendar_today),
+                            onTap: _pickDate,
+                          ),
                       const SizedBox(height: 12),
+
+                      // Item dropdown
                       if (_editing != null)
                         TextFormField(
                           initialValue: _selectedItem?['name'],
@@ -160,7 +167,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                       else
                         DropdownSearch<Map<String, dynamic>>(
                           items: _items.cast<Map<String, dynamic>>(),
-                          itemAsString: (i) => i['name'],
+                          itemAsString: (i) => i['name'] as String,
                           dropdownDecoratorProps: DropDownDecoratorProps(
                             dropdownSearchDecoration: InputDecoration(
                               label: _required('Item'),
@@ -171,6 +178,8 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                               (i) => i == null ? 'Please select an item' : null,
                         ),
                       const SizedBox(height: 12),
+
+                      // Mart dropdown
                       DropdownButtonFormField<String>(
                         value: _selectedMart,
                         decoration: InputDecoration(label: _required('Mart')),
@@ -188,40 +197,23 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                             (v) => v == null ? 'Please select a mart' : null,
                       ),
                       const SizedBox(height: 12),
+
+                      // Quantity
                       TextFormField(
                         initialValue: '$_quantity',
                         decoration: InputDecoration(
                           label: _required('Quantity'),
                         ),
                         keyboardType: TextInputType.number,
-                        onSaved: (v) => _quantity = int.parse(v ?? '0'),
+                        onSaved: (v) => _quantity = double.parse(v ?? '0.0'),
                         validator:
                             (v) =>
                                 (v == null || v.isEmpty)
                                     ? 'Enter quantity'
                                     : null,
                       ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: _status,
-                        decoration: InputDecoration(label: _required('Status')),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Pending',
-                            child: Text('Pending'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Partially Completed',
-                            child: Text('Partially Completed'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Completed',
-                            child: Text('Completed'),
-                          ),
-                        ],
-                        onChanged: (v) => setState(() => _status = v!),
-                      ),
                       const SizedBox(height: 24),
+
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,

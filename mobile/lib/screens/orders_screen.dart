@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../services/order_service.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -11,6 +12,8 @@ class OrdersScreen extends StatefulWidget {
 
 class _OrderListScreenState extends State<OrdersScreen> {
   DateTime _selectedDate = DateTime.now();
+  String? _selectedMartFilter;
+  List<String> _marts = [];
   List<Map<String, dynamic>> _orders = [];
   bool _isLoading = false;
   String _error = '';
@@ -18,7 +21,15 @@ class _OrderListScreenState extends State<OrdersScreen> {
   @override
   void initState() {
     super.initState();
+    _loadMarts();
     _fetchOrders();
+  }
+
+  Future<void> _loadMarts() async {
+    try {
+      final list = await OrderService.fetchMartNames();
+      if (mounted) setState(() => _marts = list);
+    } catch (_) {}
   }
 
   Future<void> _fetchOrders() async {
@@ -27,12 +38,15 @@ class _OrderListScreenState extends State<OrdersScreen> {
       _error = '';
     });
     try {
-      final orders = await OrderService.fetchOrders(_selectedDate);
-      setState(() => _orders = orders);
+      final orders = await OrderService.fetchOrders(
+        _selectedDate,
+        martName: _selectedMartFilter,
+      );
+      if (mounted) setState(() => _orders = orders);
     } catch (e) {
-      setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -90,7 +104,47 @@ class _OrderListScreenState extends State<OrdersScreen> {
                   icon: const Icon(Icons.calendar_today),
                   label: Text(DateFormat('yyyy-MM-dd').format(_selectedDate)),
                 ),
-                const Spacer(),
+                const SizedBox(width: 12),
+
+                // Mart filter fills remaining space
+                Expanded(
+                  child: DropdownButtonFormField2<String>(
+                    isExpanded: true,
+                    value: _selectedMartFilter,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    dropdownStyleData: DropdownStyleData(
+                      maxHeight: 200,
+                      width: 200, // You can adjust this as needed
+                    ),
+                    hint: const Text('All Marts'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('All Marts'),
+                      ),
+                      ..._marts.map(
+                        (m) => DropdownMenuItem(value: m, child: Text(m)),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      setState(() {
+                        _selectedMartFilter = v;
+                        _fetchOrders();
+                      });
+                    },
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // Add Order button
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
                   onPressed: () async {
@@ -122,12 +176,11 @@ class _OrderListScreenState extends State<OrdersScreen> {
                         itemCount: _orders.length,
                         itemBuilder: (_, i) {
                           final o = _orders[i];
+                          final itemName = o['item']?['name'] ?? 'Unknown';
                           return Card(
                             margin: const EdgeInsets.only(bottom: 12),
                             child: ListTile(
-                              title: Text(
-                                '${o['mart_name']} – ${o['item_name']}',
-                              ),
+                              title: Text('$itemName'),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [

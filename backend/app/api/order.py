@@ -17,9 +17,10 @@ def create(entry: OrderCreate, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[OrderRead])
 def read_all(
     order_date: Optional[date] = Query(None),
+    mart_name: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    return get_orders(db=db, order_date=order_date)
+    return get_orders(db=db, order_date=order_date, mart_name=mart_name)
 
 @router.get("/mart-names", response_model=List[str])
 def get_mart_names(db: Session = Depends(get_db)):
