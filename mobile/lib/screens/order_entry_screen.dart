@@ -1,27 +1,36 @@
+// lib/screens/order_entry_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import '../services/order_service.dart';
 import '../services/stock_service.dart';
+import '../widgets/form/custom_date_picker.dart';
 
 class OrderEntryScreen extends StatefulWidget {
   const OrderEntryScreen({super.key});
+
   @override
   State<OrderEntryScreen> createState() => _OrderEntryScreenState();
 }
 
 class _OrderEntryScreenState extends State<OrderEntryScreen> {
   final _formKey = GlobalKey<FormState>();
+
   DateTime _orderDate = DateTime.now();
   Map<String, dynamic>? _selectedItem;
   String? _selectedMart;
-  double _quantity = 0;
+  String _quantity = '';
+  String _unit = '';
+  bool _isLoading = false;
+  String _error = '';
 
   List<dynamic> _items = [];
   List<String> _marts = [];
+  List<String> _unitOptions = [];
 
-  Map<String, dynamic>? _editing;
+  Map<String, dynamic>? _editingOrder;
 
   @override
   void initState() {
@@ -33,34 +42,61 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args = GoRouterState.of(context).extra;
-    if (args is Map<String, dynamic>) {
-      _editing = args;
+    final extra = GoRouterState.of(context).extra;
+    if (extra is Map<String, dynamic>) {
+      _editingOrder = extra;
       _preFill();
     }
   }
 
   void _preFill() {
-    if (_editing != null) {
-      _orderDate = DateTime.parse(_editing!['order_date']);
-      _quantity = _editing!['quantity_ordered'];
-      _selectedMart = _editing!['mart_name'] as String;
-      _selectedItem = {
-        'id': _editing!['item_id'],
-        'name': _editing!['item']['name'],
-      };
+    if (_editingOrder == null) return;
+
+    _orderDate = DateTime.parse(_editingOrder!['order_date']);
+    _quantity = _editingOrder!['quantity_ordered'].toString();
+    _unit = _editingOrder!['unit'] as String;
+    _selectedMart = _editingOrder!['mart_name'] as String;
+    _selectedItem = {
+      'id': _editingOrder!['item_id'],
+      'name': _editingOrder!['item']['name'],
+      'default_unit': _unit,
+    };
+
+    // ⚠️ Make sure the existing unit is in our options so the dropdown can display it
+    if (!_unitOptions.contains(_unit)) {
+      _unitOptions = List.from(_unitOptions)..add(_unit);
     }
   }
 
   Future<void> _loadItems() async {
-    final items = await StockService.fetchItems();
-    items.sort((a, b) => a['name'].compareTo(b['name']));
-    if (mounted) setState(() => _items = items);
+    try {
+      final items = await StockService.fetchItems();
+      items.sort(
+        (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+      );
+      setState(() {
+        _items = items;
+        _unitOptions =
+            items.map((e) => e['default_unit'] as String).toSet().toList()
+              ..sort();
+
+        // If we already have an editing unit, ensure it's included:
+        if (_unit.isNotEmpty && !_unitOptions.contains(_unit)) {
+          _unitOptions.add(_unit);
+        }
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    }
   }
 
   Future<void> _loadMarts() async {
-    final marts = await OrderService.fetchMartNames();
-    if (mounted) setState(() => _marts = marts);
+    try {
+      final marts = await OrderService.fetchMartNames();
+      setState(() => _marts = marts);
+    } catch (_) {
+      // ignore
+    }
   }
 
   Future<void> _pickDate() async {
@@ -71,50 +107,59 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       firstDate: DateTime(today.year - 1),
       lastDate: today,
     );
-    if (picked != null && mounted) setState(() => _orderDate = picked);
+    if (picked != null) setState(() => _orderDate = picked);
   }
 
-  void _submit() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate() ||
         _selectedItem == null ||
         _selectedMart == null) {
       return;
     }
     _formKey.currentState!.save();
+    setState(() => _isLoading = true);
 
-    final data = {
+    final payload = {
       'item_id': _selectedItem!['id'],
       'mart_name': _selectedMart!,
       'order_date': DateFormat('yyyy-MM-dd').format(_orderDate),
-      'quantity_ordered': _quantity,
+      'quantity_ordered': double.parse(_quantity),
+      'unit': _unit,
     };
 
     dynamic result;
-    if (_editing != null) {
-      result = await OrderService.updateOrder(_editing!['id'], data);
+    if (_editingOrder != null) {
+      result = await OrderService.updateOrder(_editingOrder!['id'], payload);
     } else {
       result = await OrderService.createOrder(
-        itemId: data['item_id'],
-        martName: data['mart_name'],
-        orderDate: data['order_date'],
-        quantityOrdered: data['quantity_ordered'],
+        itemId: payload['item_id'],
+        unit: payload['unit'],
+        martName: payload['mart_name'],
+        orderDate: payload['order_date'],
+        quantityOrdered: payload['quantity_ordered'],
       );
     }
+
+    setState(() => _isLoading = false);
 
     if (result != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_editing != null ? 'Order updated' : 'Order added'),
+          content: Text(
+            _editingOrder != null ? 'Order updated' : 'Order added',
+          ),
         ),
       );
       context.pop(true);
+    } else {
+      setState(() => _error = 'Failed to save order');
     }
   }
 
-  Widget _required(String label) {
+  Widget _requiredLabel(String text) {
     return RichText(
       text: TextSpan(
-        text: label,
+        text: text,
         style: const TextStyle(color: Colors.black),
         children: const [
           TextSpan(text: ' *', style: TextStyle(color: Colors.red)),
@@ -128,62 +173,122 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text(_editing != null ? 'EDIT ORDER' : 'ADD ORDER'),
+        title: Text(
+          _editingOrder != null ? 'EDIT ORDER ENTRY' : 'ADD ORDER ENTRY',
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child:
-            (_items.isEmpty || _marts.isEmpty)
+            _error.isNotEmpty
+                ? Center(
+                  child: Text(
+                    _error,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                )
+                : (_items.isEmpty || _marts.isEmpty)
                 ? const Center(child: CircularProgressIndicator())
                 : Form(
                   key: _formKey,
                   child: ListView(
                     children: [
-                      _editing != null
-                          ? TextFormField(
-                            initialValue: DateFormat(
-                              'yyyy-MM-dd',
-                            ).format(_orderDate),
-                            decoration: InputDecoration(
-                              label: _required('Date'),
-                            ),
-                            enabled: false,
-                          )
-                          : ListTile(
-                            title: Text(
-                              'Date: ${DateFormat('yyyy-MM-dd').format(_orderDate)}',
-                            ),
-                            trailing: const Icon(Icons.calendar_today),
-                            onTap: _pickDate,
-                          ),
+                      // Date
+                      CustomDatePicker(
+                        selectedDate: _orderDate,
+                        onTap: _pickDate,
+                        enabled: _editingOrder == null,
+                        label: _requiredLabel('Date'),
+                      ),
                       const SizedBox(height: 12),
 
-                      // Item dropdown
-                      if (_editing != null)
+                      // Item
+                      if (_editingOrder != null)
                         TextFormField(
-                          initialValue: _selectedItem?['name'],
-                          decoration: InputDecoration(label: _required('Item')),
+                          initialValue: _selectedItem!['name'] as String,
+                          decoration: InputDecoration(
+                            label: _requiredLabel('Selected Item'),
+                            border: const OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Colors.grey[200],
+                          ),
                           enabled: false,
                         )
                       else
                         DropdownSearch<Map<String, dynamic>>(
-                          items: _items.cast<Map<String, dynamic>>(),
-                          itemAsString: (i) => i['name'] as String,
+                          selectedItem: _selectedItem,
+                          asyncItems: (filter) async {
+                            await Future.delayed(
+                              const Duration(milliseconds: 300),
+                            );
+                            if (filter.isEmpty)
+                              return _items.cast<Map<String, dynamic>>();
+                            return _items
+                                .cast<Map<String, dynamic>>()
+                                .where(
+                                  (it) => (it['name'] as String)
+                                      .toLowerCase()
+                                      .contains(filter.toLowerCase()),
+                                )
+                                .toList();
+                          },
+                          itemAsString: (it) => it['name'] as String,
+                          onChanged: (it) {
+                            setState(() {
+                              _selectedItem = it;
+                              _unit = it!['default_unit'] as String;
+                              // ensure unitOptions now contains it
+                              if (!_unitOptions.contains(_unit)) {
+                                _unitOptions.add(_unit);
+                              }
+                            });
+                          },
                           dropdownDecoratorProps: DropDownDecoratorProps(
                             dropdownSearchDecoration: InputDecoration(
-                              label: _required('Item'),
+                              label: _requiredLabel('Item'),
                             ),
                           ),
-                          onChanged: (i) => _selectedItem = i,
+                          popupProps: PopupProps.dialog(
+                            showSearchBox: true,
+                            searchFieldProps: const TextFieldProps(
+                              decoration: InputDecoration(
+                                hintText: 'Search item...',
+                              ),
+                            ),
+                          ),
                           validator:
-                              (i) => i == null ? 'Please select an item' : null,
+                              (it) =>
+                                  it == null ? 'Please select an item' : null,
                         ),
                       const SizedBox(height: 12),
 
-                      // Mart dropdown
+                      // Unit
+                      DropdownButtonFormField<String>(
+                        value: _unit.isNotEmpty ? _unit : null,
+                        decoration: InputDecoration(
+                          label: _requiredLabel('Unit'),
+                        ),
+                        items:
+                            _unitOptions
+                                .map(
+                                  (u) => DropdownMenuItem(
+                                    value: u,
+                                    child: Text(u),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (v) => setState(() => _unit = v!),
+                        validator:
+                            (v) => v == null || v.isEmpty ? 'Enter unit' : null,
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Mart
                       DropdownButtonFormField<String>(
                         value: _selectedMart,
-                        decoration: InputDecoration(label: _required('Mart')),
+                        decoration: InputDecoration(
+                          label: _requiredLabel('Mart'),
+                        ),
                         items:
                             _marts
                                 .map(
@@ -193,23 +298,23 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                                   ),
                                 )
                                 .toList(),
-                        onChanged: (v) => setState(() => _selectedMart = v),
+                        onChanged: (m) => setState(() => _selectedMart = m),
                         validator:
-                            (v) => v == null ? 'Please select a mart' : null,
+                            (m) => m == null ? 'Please select a mart' : null,
                       ),
                       const SizedBox(height: 12),
 
                       // Quantity
                       TextFormField(
-                        initialValue: '$_quantity',
+                        initialValue: _quantity,
                         decoration: InputDecoration(
-                          label: _required('Quantity'),
+                          label: _requiredLabel('Quantity'),
                         ),
                         keyboardType: TextInputType.number,
-                        onSaved: (v) => _quantity = double.parse(v ?? '0.0'),
+                        onSaved: (v) => _quantity = v!.trim(),
                         validator:
                             (v) =>
-                                (v == null || v.isEmpty)
+                                v == null || v.isEmpty
                                     ? 'Enter quantity'
                                     : null,
                       ),
@@ -220,8 +325,15 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                           backgroundColor: Colors.green,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        onPressed: _submit,
-                        child: Text(_editing != null ? 'Update Order' : 'SAVE'),
+                        onPressed: _isLoading ? null : _submit,
+                        child:
+                            _isLoading
+                                ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                                : Text(
+                                  _editingOrder != null ? 'UPDATE' : 'SAVE',
+                                ),
                       ),
                     ],
                   ),

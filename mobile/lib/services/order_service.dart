@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../core/dio_client.dart';
 
@@ -45,6 +44,7 @@ class OrderService {
     required String martName,
     required String orderDate, // "YYYY-MM-DD"
     required double quantityOrdered,
+    required String unit,
   }) async {
     try {
       final resp = await DioClient.instance.post(
@@ -54,6 +54,7 @@ class OrderService {
           'mart_name': martName,
           'order_date': orderDate,
           'quantity_ordered': quantityOrdered,
+          'unit': unit, // <-- include unit
         },
       );
       if (resp.statusCode == 201) return resp.data;

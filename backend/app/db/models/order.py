@@ -13,5 +13,6 @@ class Order(Base, AuditMixin):
     quantity_ordered = Column(Float, nullable=False)
     quantity_dispatched = Column(Float, default=0.0)  # updated as dispatch happens
     status = Column(String, default="Pending")  # Pending, Partially Completed, Completed
-
+    unit = Column(String, nullable=False)
+    
     item = relationship("Item")

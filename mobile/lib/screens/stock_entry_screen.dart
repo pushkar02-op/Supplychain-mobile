@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../services/stock_service.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'dart:async';
+import '../widgets/form/custom_date_picker.dart';
 
 class StockEntryScreen extends StatefulWidget {
   const StockEntryScreen({super.key});
@@ -15,7 +16,7 @@ class StockEntryScreen extends StatefulWidget {
 class _StockEntryScreenState extends State<StockEntryScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  DateTime? _receivedDate = DateTime.now();
+  DateTime _receivedDate = DateTime.now();
   Map<String, dynamic>? _selectedItem;
   String _quantity = '';
   String _unit = '';
@@ -79,7 +80,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     final today = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _receivedDate ?? today,
+      initialDate: _receivedDate,
       firstDate: DateTime(today.year - 1),
       lastDate: today,
     );
@@ -115,7 +116,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
 
     final data = {
       'itemId': _selectedItem!['id'],
-      'received_date': _receivedDate!.toIso8601String().split('T')[0],
+      'received_date': _receivedDate.toIso8601String().split('T')[0],
       'quantity': qty,
       'unit': _unit,
       'price_per_unit': price,
@@ -210,12 +211,11 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                   key: _formKey,
                   child: ListView(
                     children: [
-                      ListTile(
-                        title: Text(
-                          'Date: ${_receivedDate!.toIso8601String().split('T')[0]}',
-                        ),
-                        trailing: const Icon(Icons.calendar_today),
+                      CustomDatePicker(
+                        selectedDate: _receivedDate,
                         onTap: _pickDate,
+                        enabled: _editingStock == null,
+                        label: _requiredLabel('Date'),
                       ),
                       const SizedBox(height: 12),
                       if (_editingStock != null)

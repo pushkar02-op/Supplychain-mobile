@@ -186,9 +186,11 @@ class _OrderListScreenState extends State<OrdersScreen> {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Qty: ${o['quantity_ordered']}'),
                                   Text(
-                                    'Dispatched: ${o['quantity_dispatched']}',
+                                    'Order: ${o['quantity_ordered']}${o['unit']}',
+                                  ),
+                                  Text(
+                                    'Dispatched: ${o['quantity_dispatched']}${o['unit']}',
                                   ),
                                 ],
                               ),

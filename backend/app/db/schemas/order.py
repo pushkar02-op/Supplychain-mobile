@@ -5,6 +5,7 @@ from app.db.schemas.item import ItemRead
 
 class OrderBase(BaseModel):
     item_id: int
+    unit: str
     mart_name: str
     order_date: date
     quantity_ordered: float
@@ -19,6 +20,7 @@ class OrderUpdate(BaseModel):
 class OrderRead(OrderBase):
     id: int
     item: ItemRead
+    unit: str
     quantity_dispatched: float
     status: str
     created_at: Optional[datetime]
