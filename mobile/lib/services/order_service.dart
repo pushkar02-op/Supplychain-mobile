@@ -54,13 +54,14 @@ class OrderService {
           'mart_name': martName,
           'order_date': orderDate,
           'quantity_ordered': quantityOrdered,
-          'unit': unit, // <-- include unit
+          'unit': unit,
         },
       );
       if (resp.statusCode == 201) return resp.data;
-      return resp.data['detail'] ?? 'Unknown error';
-    } on DioError catch (e) {
-      return e.response?.data['detail'] ?? 'Error: ${e.message}';
+      throw Exception(resp.data['detail'] ?? 'Unknown error');
+    } on DioException catch (e) {
+      // Rethrow so our UI catch can handle it
+      throw e;
     }
   }
 
@@ -72,9 +73,9 @@ class OrderService {
     try {
       final resp = await DioClient.instance.put('/orders/$orderId', data: data);
       if (resp.statusCode == 200) return resp.data;
-      return resp.data['detail'] ?? 'Unknown error';
-    } on DioError catch (e) {
-      return e.response?.data['detail'] ?? 'Error: ${e.message}';
+      throw Exception(resp.data['detail'] ?? 'Unknown error');
+    } on DioException catch (e) {
+      throw e;
     }
   }
 

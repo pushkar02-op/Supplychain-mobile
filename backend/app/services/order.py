@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.db.models.order import Order
@@ -11,6 +12,20 @@ def get_distinct_mart_names(db: Session) -> List[str]:
     return [row[0] for row in results if row[0]] 
 
 def create_order(db: Session, entry: OrderCreate, created_by: Optional[str] = None) -> Order:
+    existing = db.query(Order).filter_by(
+        item_id=entry.item_id,
+        order_date=entry.order_date,
+        mart_name=entry.mart_name
+    ).first()
+
+    if existing:
+        raise HTTPException(
+        status_code=400,
+        detail={
+        "error": "Duplicate Order",
+        "message": "An order already exists for this item, mart, and date."
+    }
+    )
     db_entry = Order(
         **entry.dict(),
         created_by=created_by,

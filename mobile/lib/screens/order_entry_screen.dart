@@ -1,5 +1,6 @@
 // lib/screens/order_entry_screen.dart
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -126,33 +127,47 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       'quantity_ordered': double.parse(_quantity),
       'unit': _unit,
     };
+    try {
+      dynamic result;
+      if (_editingOrder != null) {
+        result = await OrderService.updateOrder(_editingOrder!['id'], payload);
+      } else {
+        result = await OrderService.createOrder(
+          itemId: payload['item_id'],
+          unit: payload['unit'],
+          martName: payload['mart_name'],
+          orderDate: payload['order_date'],
+          quantityOrdered: payload['quantity_ordered'],
+        );
+      }
 
-    dynamic result;
-    if (_editingOrder != null) {
-      result = await OrderService.updateOrder(_editingOrder!['id'], payload);
-    } else {
-      result = await OrderService.createOrder(
-        itemId: payload['item_id'],
-        unit: payload['unit'],
-        martName: payload['mart_name'],
-        orderDate: payload['order_date'],
-        quantityOrdered: payload['quantity_ordered'],
-      );
-    }
+      setState(() => _isLoading = false);
 
-    setState(() => _isLoading = false);
-
-    if (result != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _editingOrder != null ? 'Order updated' : 'Order added',
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _editingOrder != null ? 'Order updated' : 'Order added',
+            ),
           ),
-        ),
-      );
-      context.pop(true);
-    } else {
-      setState(() => _error = 'Failed to save order');
+        );
+        context.pop(true);
+      }
+    } on DioError catch (dioErr) {
+      // Backend threw HTTPException with detail {"error":..., "message":...}
+      final data = dioErr.response?.data['detail'];
+      setState(() {
+        _error =
+            (data is Map && data['message'] is String)
+                ? data['message']
+                : 'Something went wrong. Please try again.';
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'Something went wrong. Please try again.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -221,8 +236,9 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                             await Future.delayed(
                               const Duration(milliseconds: 300),
                             );
-                            if (filter.isEmpty)
+                            if (filter.isEmpty) {
                               return _items.cast<Map<String, dynamic>>();
+                            }
                             return _items
                                 .cast<Map<String, dynamic>>()
                                 .where(
