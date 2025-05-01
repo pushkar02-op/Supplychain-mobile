@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.db.schemas.dispatch_entry import (
     DispatchEntryCreate,
@@ -23,8 +24,21 @@ def create_route(entry: DispatchEntryCreate, db: Session = Depends(get_db)):
     return create_dispatch_entry(db, entry, created_by="system")  # TODO: current user
 
 @router.get("/", response_model=List[DispatchEntryRead])
-def read_all(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return get_all_dispatch_entries(db, skip, limit)
+def read_all(
+    skip: int = 0,
+    limit: int = 100,
+    dispatch_date: Optional[date] = Query(None),
+    mart_name: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    return get_all_dispatch_entries(
+        db=db,
+        skip=skip,
+        limit=limit,
+        dispatch_date=dispatch_date,
+        mart_name=mart_name
+    )
+
 
 @router.get("/{id}", response_model=DispatchEntryRead)
 def read_one(id: int, db: Session = Depends(get_db)):

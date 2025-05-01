@@ -1,5 +1,6 @@
 from typing import List, Optional
-from datetime import datetime
+from datetime import date, datetime
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.db.models.batch import Batch
 from app.db.models.dispatch_entry import DispatchEntry
@@ -16,7 +17,7 @@ def create_dispatch_entry(
     created_by: Optional[str] = None
 ) -> DispatchEntry:
     # Validate batch
-    batch = db.query(Batch).get(entry.batch_id)
+    batch = db.get(Batch, entry.batch_id)
     if batch is None:
         raise ValueError("Invalid batch_id provided")
 
@@ -27,7 +28,11 @@ def create_dispatch_entry(
         updated_by=created_by,
     )
     db.add(db_entry)
-
+    if batch.quantity < entry.quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not enough stock in batch. Available: {batch.quantity}, Requested: {entry.quantity}"
+        )
     # Update batch quantity
     batch.quantity -= entry.quantity
     batch.updated_at = datetime.utcnow()
@@ -50,8 +55,27 @@ def get_dispatch_entry(db: Session, dispatch_id: int) -> Optional[DispatchEntry]
     return db.query(DispatchEntry).filter(DispatchEntry.id == dispatch_id).first()
 
 
-def get_all_dispatch_entries(db: Session, skip: int = 0, limit: int = 100) -> List[DispatchEntry]:
-    return db.query(DispatchEntry).offset(skip).limit(limit).all()
+def get_all_dispatch_entries(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    dispatch_date: Optional[date] = None,
+    mart_name: Optional[str] = None
+) -> List[DispatchEntry]:
+    query = db.query(DispatchEntry)
+
+    if dispatch_date:
+        query = query.filter(DispatchEntry.dispatch_date == dispatch_date)
+    if mart_name:
+        query = query.filter(DispatchEntry.mart_name == mart_name)
+
+    entries = query.offset(skip).limit(limit).all()
+
+    for entry in entries:
+        entry.item_id = entry.batch.item_id
+        entry.item_name = entry.batch.item.name
+
+    return entries
 
 
 def update_dispatch_entry(

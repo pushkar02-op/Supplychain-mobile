@@ -39,7 +39,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ElevatedButton.icon(
               onPressed: () => context.push('/stock-list'),
               icon: const Icon(Icons.add_box),
-              label: const Text('Stock List'),
+              label: const Text('Stock Entry'),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(

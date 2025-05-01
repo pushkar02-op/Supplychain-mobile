@@ -20,6 +20,7 @@ class BatchUpdate(BatchBase):
 
 class BatchRead(BatchBase):
     id: int
+    item_name: str
 
     class Config:
         orm_mode = True

@@ -12,3 +12,7 @@ class Batch(Base, AuditMixin):
     remarks = Column(String, nullable=True)
 
     item = relationship("Item")
+    
+    @property
+    def item_name(self):
+        return self.item.name if self.item else None
