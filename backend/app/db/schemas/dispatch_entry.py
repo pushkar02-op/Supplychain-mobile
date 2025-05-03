@@ -35,3 +35,20 @@ class DispatchEntryRead(DispatchEntryBase):
         json_encoders = {
             datetime: lambda v: v.isoformat(),
         }
+class BatchDispatchInput(BaseModel):
+    batch_id: int
+    quantity: int
+
+# Update the create schema
+class DispatchEntryMultiCreate(BaseModel):
+    item_id: int
+    mart_name: str
+    dispatch_date: date
+    unit: str
+    remarks: Optional[str] = None
+    batches: list[BatchDispatchInput]
+
+class DispatchEntryCreated(BaseModel):
+    dispatch_id: int
+    batch_id: int
+    quantity: int

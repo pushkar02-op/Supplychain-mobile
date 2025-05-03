@@ -7,6 +7,8 @@ from app.db.schemas.dispatch_entry import (
     DispatchEntryCreate,
     DispatchEntryRead,
     DispatchEntryUpdate,
+    DispatchEntryMultiCreate,
+    DispatchEntryCreated
 )
 from app.services.dispatch_entry import (
     create_dispatch_entry,
@@ -14,6 +16,7 @@ from app.services.dispatch_entry import (
     get_all_dispatch_entries,
     update_dispatch_entry,
     delete_dispatch_entry,
+    create_dispatch_from_order
 )
 from app.db.session import get_db
 
@@ -22,6 +25,11 @@ router = APIRouter(prefix="/dispatch-entries", tags=["Dispatch Entries"])
 @router.post("/", response_model=DispatchEntryRead, status_code=status.HTTP_201_CREATED)
 def create_route(entry: DispatchEntryCreate, db: Session = Depends(get_db)):
     return create_dispatch_entry(db, entry, created_by="system")  # TODO: current user
+
+
+@router.post("/from-order", response_model=List[DispatchEntryRead], status_code=status.HTTP_201_CREATED)
+def dispatch_from_order(entry: DispatchEntryMultiCreate, db: Session = Depends(get_db)):
+    return create_dispatch_from_order(db, entry, created_by="system")
 
 @router.get("/", response_model=List[DispatchEntryRead])
 def read_all(

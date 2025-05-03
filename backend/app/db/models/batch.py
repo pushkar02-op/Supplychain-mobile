@@ -9,6 +9,7 @@ class Batch(Base, AuditMixin):
     quantity = Column(Integer, nullable=False)
     unit = Column(String, nullable=False)
     expiry_date = Column(Date, nullable=True)
+    received_at = Column(Date, nullable=True) 
     remarks = Column(String, nullable=True)
 
     item = relationship("Item")

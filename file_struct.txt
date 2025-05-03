@@ -30,13 +30,28 @@ fruit-vendor-tool/
 │
   
 lib/
-├── main.dart
-├── screens/
-│   └── login_screen.dart
-├── services/
-│   └── auth_service.dart
-├── utils/
-│   └── api_client.dart
+  main.dart
+  auth/
+    login_screen.dart
+  core/
+    api_config.dart
+    dio_client.dart
+  routes/
+    app_router.dart
+  screens/
+    dashboard_screen.dart
+    order_entry_screen.dart
+    orders_screen.dart
+    stock_entry_screen.dart
+    stock_list_screen.dart
+  services/
+    auth_service.dart
+    order_service.dart
+    stock_service.dart
+  widgets/
+    form/
+      custom_date_picker.dart
+    toolbar/
 
 Command for initial migration
 docker-compose exec backend alembic revision --autogenerate -m "Initial migration"

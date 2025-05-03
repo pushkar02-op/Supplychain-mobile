@@ -14,5 +14,6 @@ class DispatchEntry(Base, AuditMixin):
     mart_name = Column(String, nullable=False)
     quantity = Column(Integer, nullable=False)
     unit = Column(String, nullable=False)
+    remarks = Column(String, nullable=True)
 
     batch = relationship("Batch")

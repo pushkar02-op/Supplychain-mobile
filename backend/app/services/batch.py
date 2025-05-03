@@ -46,8 +46,8 @@ def get_all_batches(db: Session, skip: int = 0, limit: int = 100):
 def update_batch(db: Session, batch_id: int, entry_update: BatchUpdate, updated_by: int):
     db_batch = db.query(Batch).filter(Batch.id == batch_id).first()
     if db_batch:
-        if entry_update.expiry_date:
-            db_batch.expiry_date = entry_update.expiry_date
+        if entry_update.received_at:
+            db_batch.received_at = entry_update.received_at
         if entry_update.unit:
             db_batch.unit = entry_update.unit
         if entry_update.quantity:
