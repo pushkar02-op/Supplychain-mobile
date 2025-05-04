@@ -153,7 +153,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
         );
         context.pop(true);
       }
-    } on DioError catch (dioErr) {
+    } on DioException catch (dioErr) {
       // Backend threw HTTPException with detail {"error":..., "message":...}
       final data = dioErr.response?.data['detail'];
       setState(() {

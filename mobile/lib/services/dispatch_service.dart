@@ -38,6 +38,7 @@ class DispatchService {
     int id,
     Map<String, dynamic> data,
   ) async {
+    print(data);
     final resp = await DioClient.instance.put(
       '/dispatch-entries/$id',
       data: data,

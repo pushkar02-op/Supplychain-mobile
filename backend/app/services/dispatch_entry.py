@@ -28,6 +28,17 @@ def create_dispatch_entry(
             400,
             f"Not enough stock in batch. Available: {batch.quantity}, requested: {entry.quantity}"
         )
+    existing_dispatch = db.query(DispatchEntry).filter(
+        DispatchEntry.item_id == entry.item_id,
+        DispatchEntry.mart_name == entry.mart_name,
+        DispatchEntry.dispatch_date == entry.dispatch_date
+    ).first()
+    
+    if existing_dispatch:
+        raise HTTPException(
+            status_code=400,
+            detail="Dispatch entry for this item, date, and marked status already exists."
+        )
 
     dispatch = DispatchEntry(
         batch_id=entry.batch_id,
@@ -69,7 +80,7 @@ def create_dispatch_from_order(
             Order.status != "Completed"
         )
     )
-    print(entry)
+    # print(entry)
     if not order:
         raise HTTPException(
         status_code=400,
@@ -110,6 +121,7 @@ def create_dispatch_from_order(
             updated_or_created_dispatches.append(existing_dispatch)
         else:
             dispatch = DispatchEntry(
+                item_id=entry.item_id,
                 batch_id=batch.id,
                 mart_name=entry.mart_name,
                 dispatch_date=entry.dispatch_date,

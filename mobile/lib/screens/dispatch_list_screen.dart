@@ -196,10 +196,10 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
                                 },
                                 itemBuilder:
                                     (_) => const [
-                                      PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('Edit'),
-                                      ),
+                                      // PopupMenuItem(
+                                      //   value: 'edit',
+                                      //   child: Text('Edit'),
+                                      // ),
                                       PopupMenuItem(
                                         value: 'delete',
                                         child: Text('Delete'),

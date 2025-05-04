@@ -4,6 +4,7 @@ from typing import Optional
 from app.db.schemas.batch import BatchRead
 
 class DispatchEntryBase(BaseModel):
+    item_id: int
     batch_id: int
     mart_name: str
     dispatch_date: date

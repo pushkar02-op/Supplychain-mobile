@@ -38,7 +38,6 @@ class _CreateOrEditDispatchScreenState
   final _remarksCtl = TextEditingController();
 
   // order context
-  late int _orderId;
   late int _itemId;
   late String _martName;
   late String _unit;
@@ -54,7 +53,6 @@ class _CreateOrEditDispatchScreenState
   void initState() {
     super.initState();
     final d = widget.data!;
-    _orderId = d['order_id'] as int;
     _itemId = d['item_id'] as int;
     _alreadyDispatched = (d['quantity_dispatched'] as num? ?? 0).toDouble();
     _orderQuantity = (d['quantity_ordered'] as num? ?? 0).toDouble();
@@ -70,7 +68,6 @@ class _CreateOrEditDispatchScreenState
   Future<void> _loadBatches() async {
     try {
       final all = await DispatchService.fetchBatches(itemId: _itemId);
-      print(all);
       final remaining = (_orderQuantity - _alreadyDispatched).clamp(
         0.0,
         double.infinity,
@@ -137,7 +134,6 @@ class _CreateOrEditDispatchScreenState
               .map((r) => {'batch_id': r.batchId, 'quantity': r.qty})
               .toList(),
     };
-
     try {
       if (widget.data!['id'] != null) {
         await DispatchService.updateDispatch(
@@ -150,7 +146,7 @@ class _CreateOrEditDispatchScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Dispatch saved successfully')),
       );
-      if (mounted) context.pop(true);
+      context.pop(true);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

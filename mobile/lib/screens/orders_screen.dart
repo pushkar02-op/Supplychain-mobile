@@ -203,7 +203,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
                                     );
                                     if (ok == true) _fetchOrders();
                                   } else if (v == 'dispatch') {
-                                    context.push(
+                                    final ok = await context.push(
                                       '/dispatch-entry',
                                       extra: {
                                         'order_id': o['id'],
@@ -219,6 +219,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
                                         'item_name': o['item']?['name'],
                                       },
                                     );
+                                    if (ok == true) _fetchOrders();
                                   } else {
                                     _confirmDelete(o['id']);
                                   }

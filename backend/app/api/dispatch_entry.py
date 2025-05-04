@@ -61,6 +61,8 @@ def read_one(id: int, db: Session = Depends(get_db)):
 
 @router.put("/{id}", response_model=DispatchEntryRead)
 def update_route(id: int, entry: DispatchEntryUpdate, db: Session = Depends(get_db)):
+    print(id)
+    print(entry)
     updated = update_dispatch_entry(db, id, entry, updated_by="system")
     if not updated:
         raise HTTPException(status_code=404, detail="Dispatch entry not found")
