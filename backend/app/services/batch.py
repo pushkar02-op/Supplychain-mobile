@@ -1,6 +1,6 @@
 from datetime import date, datetime
-from typing import Optional
-from sqlalchemy import and_
+from typing import List, Optional
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 from app.db.models import Batch
 from app.db.schemas.batch import BatchCreate, BatchUpdate
@@ -66,3 +66,12 @@ def delete_batch(db: Session, batch_id: int):
         db.commit()
         return True
     return False
+
+
+def get_batches_by_item_with_quantity(db: Session, item_id: int) -> List[Batch]:
+    return db.scalars(
+        select(Batch).where(
+            Batch.item_id == item_id,
+            Batch.quantity > 0
+        ).order_by(Batch.created_at)
+    ).all()

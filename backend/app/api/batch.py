@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.db.schemas.batch import BatchCreate, BatchRead, BatchUpdate
-from app.services.batch import create_batch, get_batch, get_all_batches, update_batch, delete_batch
+from app.services.batch import create_batch, get_batch, get_all_batches, get_batches_by_item_with_quantity, update_batch, delete_batch
 from app.db.session import get_db
 
 router = APIRouter(prefix="/batch", tags=["Batches"])
@@ -15,6 +15,10 @@ def create(entry: BatchCreate, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[BatchRead])
 def read_all(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return get_all_batches(db=db, skip=skip, limit=limit)
+
+@router.get("/by-item/{item_id}", response_model=List[BatchRead])
+def get_batches_by_item(item_id: int, db: Session = Depends(get_db)):
+    return get_batches_by_item_with_quantity(db, item_id)
 
 @router.get("/{batch_id}", response_model=BatchRead)
 def read_one(batch_id: int, db: Session = Depends(get_db)):

@@ -29,7 +29,8 @@ class DispatchService {
       data: data,
     );
     if (resp.statusCode == 200 || resp.statusCode == 201) return resp.data;
-    return resp.data['detail'] ?? 'Unknown error';
+    final detail = resp.data['detail'] ?? 'Unknown error';
+    throw Exception('Create failed: $detail');
   }
 
   /// Update an existing dispatch entry
@@ -41,7 +42,10 @@ class DispatchService {
       '/dispatch-entries/$id',
       data: data,
     );
-    return resp.statusCode == 200 ? resp.data : resp.data['detail'];
+    if (resp.statusCode == 200) return resp.data;
+
+    final detail = resp.data['detail'] ?? resp.statusMessage;
+    throw Exception('Update failed: $detail');
   }
 
   /// Delete a dispatch entry
@@ -60,20 +64,9 @@ class DispatchService {
     throw Exception('Unexpected mart-names format');
   }
 
-  /// Fetch all batches for the “Select Batch” dropdown
-  static Future<List<dynamic>> fetchBatches() async {
-    final resp = await DioClient.instance.get('/batch/');
+  /// Fetch only non‐empty batches for a given item
+  static Future<List<dynamic>> fetchBatches({required int itemId}) async {
+    final resp = await DioClient.instance.get('/batch/by-item/$itemId');
     return resp.data as List<dynamic>;
-  }
-
-  static Future<void> createOrUpdateDispatch(Map<String, dynamic> data) async {
-    if (data['id'] != null) {
-      // PUT or PATCH to update
-      print("Updating dispatch ID ${data['id']} with: $data");
-    } else {
-      // POST to create
-      print("Creating new dispatch with: $data");
-    }
-    await Future.delayed(const Duration(milliseconds: 600)); // simulate network
   }
 }

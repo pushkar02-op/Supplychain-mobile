@@ -55,9 +55,24 @@ def update_order(db: Session, order_id: int, entry_update: OrderUpdate, updated_
     db_entry = get_order(db, order_id)
     if not db_entry:
         return None
-
+    
+    original_quantity = db_entry.quantity_ordered
+    original_status = db_entry.status
+    quantity_dispatched = db_entry.quantity_dispatched or 0
+    
     for key, value in entry_update.dict(exclude_unset=True).items():
         setattr(db_entry, key, value)
+        
+    print(original_quantity)
+    print(quantity_dispatched)
+    print(original_status)
+    
+    # Auto status adjustment logic
+    if db_entry.quantity_ordered <= quantity_dispatched:
+        db_entry.status = "Completed"
+    else:
+        db_entry.status = "Partially Completed"
+
 
     db_entry.updated_by = updated_by
     db_entry.updated_at = datetime.utcnow()

@@ -1,5 +1,5 @@
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, logger, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -29,7 +29,11 @@ def create_route(entry: DispatchEntryCreate, db: Session = Depends(get_db)):
 
 @router.post("/from-order", response_model=List[DispatchEntryRead], status_code=status.HTTP_201_CREATED)
 def dispatch_from_order(entry: DispatchEntryMultiCreate, db: Session = Depends(get_db)):
-    return create_dispatch_from_order(db, entry, created_by="system")
+    try:
+        return create_dispatch_from_order(db, entry, created_by="system")
+    except Exception as e:
+        logger.exception("Failed to create dispatch from order")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/", response_model=List[DispatchEntryRead])
 def read_all(

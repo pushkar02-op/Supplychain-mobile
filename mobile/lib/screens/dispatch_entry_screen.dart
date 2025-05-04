@@ -69,31 +69,27 @@ class _CreateOrEditDispatchScreenState
 
   Future<void> _loadBatches() async {
     try {
-      final all = await DispatchService.fetchBatches();
+      final all = await DispatchService.fetchBatches(itemId: _itemId);
+      print(all);
       final remaining = (_orderQuantity - _alreadyDispatched).clamp(
         0.0,
         double.infinity,
       );
-
-      // filter, then sort FCFS by receivedAt ascending:
-      final filteredRaw =
-          all.where((b) => b['item_id'] == _itemId).toList()..sort(
-            (a, b) => DateTime.parse(
-              a['received_at'],
-            ).compareTo(DateTime.parse(b['received_at'])),
-          );
+      all.sort(
+        (a, b) => DateTime.parse(
+          a['received_at'],
+        ).compareTo(DateTime.parse(b['received_at'])),
+      );
 
       final filtered =
-          filteredRaw
-              .map(
-                (b) => _BatchRow(
-                  batchId: b['id'] as int,
-                  receivedAt: b['received_at'] as String,
-                  unit: b['unit'] as String,
-                  available: (b['quantity'] as num).toDouble(),
-                ),
-              )
-              .toList();
+          all.map((b) {
+            return _BatchRow(
+              batchId: b['id'] as int,
+              receivedAt: b['received_at'] as String,
+              unit: b['unit'] as String,
+              available: (b['quantity'] as num).toDouble(),
+            );
+          }).toList();
 
       // auto-select FCFS to cover remaining
       double toCover = remaining;
@@ -151,9 +147,12 @@ class _CreateOrEditDispatchScreenState
       } else {
         await DispatchService.createDispatch(payload);
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dispatch saved successfully')),
+      );
       if (mounted) context.pop(true);
     } catch (e) {
-      setState(() => _error = 'Save failed: $e');
+      setState(() => _error = e.toString());
     } finally {
       setState(() => _submitting = false);
     }
