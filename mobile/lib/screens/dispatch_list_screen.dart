@@ -1,20 +1,21 @@
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../services/order_service.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
+import '../services/dispatch_service.dart';
 
-class OrdersScreen extends StatefulWidget {
-  const OrdersScreen({super.key});
+class DispatchListScreen extends StatefulWidget {
+  const DispatchListScreen({super.key});
+
   @override
-  State<OrdersScreen> createState() => _OrderListScreenState();
+  State<DispatchListScreen> createState() => _DispatchListScreenState();
 }
 
-class _OrderListScreenState extends State<OrdersScreen> {
+class _DispatchListScreenState extends State<DispatchListScreen> {
   DateTime _selectedDate = DateTime.now();
-  String? _selectedMartFilter;
+  String? _selectedMart;
   List<String> _marts = [];
-  List<Map<String, dynamic>> _orders = [];
+  List<dynamic> _dispatches = [];
   bool _isLoading = false;
   String _error = '';
 
@@ -22,44 +23,45 @@ class _OrderListScreenState extends State<OrdersScreen> {
   void initState() {
     super.initState();
     _loadMarts();
-    _fetchOrders();
+    _fetch();
   }
 
   Future<void> _loadMarts() async {
     try {
-      final list = await OrderService.fetchMartNames();
-      if (mounted) setState(() => _marts = list);
+      final list = await DispatchService.fetchMartNames();
+      setState(() => _marts = list);
     } catch (_) {}
   }
 
-  Future<void> _fetchOrders() async {
+  Future<void> _fetch() async {
     setState(() {
       _isLoading = true;
       _error = '';
     });
     try {
-      final orders = await OrderService.fetchOrders(
-        _selectedDate,
-        martName: _selectedMartFilter,
+      final list = await DispatchService.fetchDispatches(
+        dispatchDate: DateFormat('yyyy-MM-dd').format(_selectedDate),
+        martName: _selectedMart,
       );
-      if (mounted) setState(() => _orders = orders);
+      setState(() => _dispatches = list);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      setState(() => _error = e.toString());
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      setState(() => _isLoading = false);
     }
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final today = DateTime.now();
+    final d = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime(_selectedDate.year - 1),
-      lastDate: DateTime.now(),
+      firstDate: DateTime(today.year - 1),
+      lastDate: today,
     );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
-      _fetchOrders();
+    if (d != null) {
+      setState(() => _selectedDate = d);
+      _fetch();
     }
   }
 
@@ -68,8 +70,8 @@ class _OrderListScreenState extends State<OrdersScreen> {
       context: context,
       builder:
           (_) => AlertDialog(
-            title: const Text('Delete Order'),
-            content: const Text('Confirm delete this order?'),
+            title: const Text('Delete Dispatch'),
+            content: const Text('Really delete this entry?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -83,8 +85,8 @@ class _OrderListScreenState extends State<OrdersScreen> {
           ),
     );
     if (ok == true) {
-      await OrderService.deleteOrder(id);
-      _fetchOrders();
+      await DispatchService.deleteDispatch(id);
+      _fetch();
     }
   }
 
@@ -92,7 +94,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: AppBar(title: const Text('DAILY ORDER')),
+      appBar: AppBar(title: const Text('DISPATCH LIST')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -100,17 +102,16 @@ class _OrderListScreenState extends State<OrdersScreen> {
             Row(
               children: [
                 ElevatedButton.icon(
-                  onPressed: _pickDate,
                   icon: const Icon(Icons.calendar_today),
                   label: Text(DateFormat('yyyy-MM-dd').format(_selectedDate)),
+                  onPressed: _pickDate,
                 ),
                 const SizedBox(width: 12),
 
-                // Mart filter fills remaining space
                 Expanded(
                   child: DropdownButtonFormField2<String>(
                     isExpanded: true,
-                    value: _selectedMartFilter,
+                    value: _selectedMart,
                     decoration: const InputDecoration(
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
@@ -135,26 +136,21 @@ class _OrderListScreenState extends State<OrdersScreen> {
                     ],
                     onChanged: (v) {
                       setState(() {
-                        _selectedMartFilter = v;
-                        _fetchOrders();
+                        _selectedMart = v;
+                        _fetch();
                       });
                     },
                   ),
                 ),
-
                 const SizedBox(width: 12),
 
-                // Add Order button
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                   ),
-                  onPressed: () async {
-                    final ok = await context.push('/order-entry');
-                    if (ok == true) _fetchOrders();
-                  },
                   icon: const Icon(Icons.add),
-                  label: const Text('Add Order'),
+                  label: const Text('New Dispatch'),
+                  onPressed: () => context.push('/orders'),
                 ),
               ],
             ),
@@ -170,71 +166,41 @@ class _OrderListScreenState extends State<OrdersScreen> {
                           style: const TextStyle(color: Colors.red),
                         ),
                       )
-                      : _orders.isEmpty
-                      ? const Center(
-                        child: Text('No orders found for this date and mart'),
-                      )
+                      : _dispatches.isEmpty
+                      ? const Center(child: Text('No dispatches found'))
                       : ListView.builder(
-                        itemCount: _orders.length,
-                        itemBuilder: (_, i) {
-                          final o = _orders[i];
-                          final itemName = o['item']?['name'] ?? 'Unknown';
+                        itemCount: _dispatches.length,
+                        itemBuilder: (ctx, i) {
+                          final d = _dispatches[i];
+                          final batch = d['batch'] ?? {};
                           return Card(
                             margin: const EdgeInsets.only(bottom: 12),
                             child: ListTile(
-                              title: Text('$itemName'),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Order: ${o['quantity_ordered']}${o['unit']}',
-                                  ),
-                                  Text(
-                                    'Dispatched: ${o['quantity_dispatched']}${o['unit']}',
-                                  ),
-                                ],
+                              title: Text(
+                                '${batch['item_name']} — ${d['quantity']} ${d['unit']}',
+                              ),
+                              subtitle: Text(
+                                '${d['dispatch_date']} @ ${d['mart_name']}',
                               ),
                               trailing: PopupMenuButton<String>(
                                 onSelected: (v) async {
                                   if (v == 'edit') {
                                     final ok = await context.push(
-                                      '/order-entry',
-                                      extra: o,
-                                    );
-                                    if (ok == true) _fetchOrders();
-                                  } else if (v == 'dispatch') {
-                                    context.push(
                                       '/dispatch-entry',
-                                      extra: {
-                                        'order_id': o['id'],
-                                        'item_id': o['item_id'],
-                                        'batch_id': o['batch_id'],
-                                        'mart_name': o['mart_name'],
-                                        'quantity_ordered':
-                                            o['quantity_ordered'],
-                                        'quantity_dispatched':
-                                            o['quantity_dispatched'],
-                                        'unit': o['unit'],
-                                        'dispatch_date': o['order_date'],
-                                        'item_name': o['item']?['name'],
-                                      },
+                                      extra: d,
                                     );
+                                    if (ok == true) _fetch();
                                   } else {
-                                    _confirmDelete(o['id']);
+                                    _confirmDelete(d['id'] as int);
                                   }
                                 },
-
                                 itemBuilder:
-                                    (_) => [
-                                      const PopupMenuItem(
-                                        value: 'dispatch',
-                                        child: Text('Dispatch'),
-                                      ),
-                                      const PopupMenuItem(
+                                    (_) => const [
+                                      PopupMenuItem(
                                         value: 'edit',
                                         child: Text('Edit'),
                                       ),
-                                      const PopupMenuItem(
+                                      PopupMenuItem(
                                         value: 'delete',
                                         child: Text('Delete'),
                                       ),

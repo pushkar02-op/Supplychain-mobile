@@ -47,6 +47,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: const Icon(Icons.assignment),
               label: const Text('Daily Orders'),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/dispatch-entries'),
+              icon: const Icon(Icons.assignment),
+              label: const Text('Dispatch Entries'),
+            ),
           ],
         ),
       ),
