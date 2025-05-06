@@ -21,7 +21,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   bool _loading = true, _uploading = false;
   String? _error;
   List<String> _pickedPaths = [];
-  List<String> _uploadResults = [];
+  List<Map<String, dynamic>> _uploadResults = [];
+  bool _showUploadSection = false;
 
   @override
   void initState() {
@@ -59,31 +60,54 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   Future<void> _pickFiles() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
+      type: FileType.any,
     );
-    if (result != null) {
-      setState(() => _pickedPaths = result.paths.whereType<String>().toList());
+
+    if (result != null && result.files.isNotEmpty) {
+      final pdfFiles =
+          result.files
+              .where(
+                (file) =>
+                    file.path != null &&
+                    file.path!.toLowerCase().endsWith('.pdf'),
+              )
+              .toList();
+
+      setState(() {
+        _pickedPaths = pdfFiles.map((file) => file.path!).toList();
+        _showUploadSection = true;
+        _uploadResults.clear(); // clear previous results if new files selected
+      });
     }
   }
 
   Future<void> _uploadFiles() async {
     if (_pickedPaths.isEmpty) return;
+
     setState(() {
       _uploading = true;
       _uploadResults.clear();
       _error = null;
     });
+
     try {
       final responses = await InvoiceService.uploadInvoices(_pickedPaths);
-      for (var r in responses) {
-        _uploadResults.add('${r['file_name']}: Success');
-      }
-      await _fetchInvoices();
+
+      setState(() {
+        _uploadResults = responses;
+        _pickedPaths.clear();
+        _showUploadSection = false; // hide upload form
+      });
+
+      await _fetchInvoices(); // refresh table
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() {
+        _error = e.toString();
+      });
     } finally {
-      setState(() => _uploading = false);
+      setState(() {
+        _uploading = false;
+      });
     }
   }
 
@@ -226,35 +250,171 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Upload Section
-            if (_pickedPaths.isNotEmpty)
+            // ───────────────────────────────────────────────
+            // 1) UPLOAD FORM CARD
+            // ───────────────────────────────────────────────
+            if (_showUploadSection)
               Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      for (var p in _pickedPaths) Text(p.split('/').last),
+                      // header with close button
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Selected Files',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Cancel Upload',
+                            onPressed: () {
+                              setState(() {
+                                _pickedPaths.clear();
+                                _showUploadSection = false;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+
                       const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        icon:
-                            _uploading
-                                ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                                : const Icon(Icons.cloud_upload),
-                        label: const Text('Upload'),
-                        onPressed: _uploading ? null : _uploadFiles,
+                      // file list
+                      ..._pickedPaths.map(
+                        (p) => Text(
+                          '• ${p.split('/').last}',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+                      // Upload button
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          icon:
+                              _uploading
+                                  ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                  : const Icon(Icons.cloud_upload),
+                          label: const Text('Upload'),
+                          onPressed: _uploading ? null : _uploadFiles,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-            const SizedBox(height: 12),
+
+            // ───────────────────────────────────────────────
+            // 2) UPLOAD RESULTS CARD
+            // ───────────────────────────────────────────────
+            if (_uploadResults.isNotEmpty)
+              Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // header + close
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Upload Results',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Dismiss Results',
+                            onPressed: () {
+                              setState(() {
+                                _uploadResults.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+                      // each result
+                      for (final result in _uploadResults)
+                        ListTile(
+                          dense: true,
+                          leading: Icon(
+                            result['success'] == true
+                                ? Icons.check_circle
+                                : Icons.error,
+                            color:
+                                result['success'] == true
+                                    ? Colors.green
+                                    : Colors.red,
+                          ),
+                          title: Text(result['filename'] ?? 'Unnamed file'),
+                          subtitle:
+                              result['success'] == true
+                                  ? null
+                                  : Text(
+                                    result['error'] ?? 'Unknown error',
+                                    style: const TextStyle(
+                                      color: Colors.redAccent,
+                                    ),
+                                  ),
+                        ),
+
+                      const SizedBox(height: 12),
+                      // add more
+                      Center(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add More Files'),
+                          onPressed: () {
+                            setState(() {
+                              _uploadResults.clear();
+                              _pickedPaths.clear();
+                              _showUploadSection = true;
+                            });
+                            _pickFiles();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             // Filters
             Row(
