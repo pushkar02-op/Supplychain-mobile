@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, status
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Depends, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.services.invoice import (
     save_and_process_invoice,
@@ -30,9 +30,18 @@ async def upload_invoices(
     return results
 
 @router.get("/", response_model=List[InvoiceRead])
-def read_all_invoices(db: Session = Depends(get_db)):
-    return get_all_invoices(db)
-
+def read_invoices(
+    invoice_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    mart_name: Optional[str] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    return get_all_invoices(
+        db,
+        invoice_date=invoice_date,
+        mart_name=mart_name,
+        search=search
+    )
 
 @router.get("/{invoice_id}", response_model=InvoiceRead)
 def read_invoice(invoice_id: int, db: Session = Depends(get_db)):

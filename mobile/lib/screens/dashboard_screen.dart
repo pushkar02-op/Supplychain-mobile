@@ -53,6 +53,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: const Icon(Icons.assignment),
               label: const Text('Dispatch Entries'),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/invoices'),
+              icon: const Icon(Icons.assignment),
+              label: const Text('Invoice Entries'),
+            ),
           ],
         ),
       ),

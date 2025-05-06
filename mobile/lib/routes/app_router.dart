@@ -9,6 +9,7 @@ import '../screens/orders_screen.dart';
 import '../screens/stock_list_screen.dart';
 import '../screens/stock_entry_screen.dart';
 import '../screens/order_entry_screen.dart';
+import '../screens/invoice_list_screen.dart';
 
 final storage = FlutterSecureStorage();
 
@@ -52,5 +53,6 @@ final GoRouter appRouter = GoRouter(
         return CreateOrEditDispatchScreen(data: extra);
       },
     ),
+    GoRoute(path: '/invoices', builder: (c, s) => const InvoiceListScreen()),
   ],
 );

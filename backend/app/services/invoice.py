@@ -1,7 +1,7 @@
 import os
 from typing import List, Optional
 from fastapi import UploadFile
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.utils.invoice_parser import process_pdf
 from app.core.config import settings
@@ -99,8 +99,29 @@ def get_invoice_by_id(db: Session, invoice_id: int) -> Invoice:
     return db.query(Invoice).filter(Invoice.id == invoice_id).first()
 
 
-def get_all_invoices(db: Session) -> List[Invoice]:
-    return db.query(Invoice).order_by(Invoice.invoice_date.desc()).all()
+def get_all_invoices(
+    db: Session,
+    invoice_date: Optional[str] = None,
+    mart_name: Optional[str] = None,
+    search: Optional[str] = None,
+) -> List[Invoice]:
+    query = db.query(Invoice)
+
+    if invoice_date:
+        query = query.filter(Invoice.invoice_date == invoice_date)
+
+    if mart_name:
+        query = query.filter(Invoice.mart_name == mart_name)
+
+    if search:
+        search = f"%{search}%"
+        query = query.filter(
+            or_(
+                Invoice.mart_name.ilike(search),
+            )
+        )
+
+    return query.order_by(Invoice.invoice_date.desc()).all()
 
 
 def update_invoice(db: Session, invoice_id: int, data: InvoiceUpdate) -> Optional[Invoice]:
