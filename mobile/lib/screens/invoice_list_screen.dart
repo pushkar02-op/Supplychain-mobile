@@ -546,7 +546,14 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                 ),
                                 trailing: TextButton(
                                   onPressed: () {
-                                    // TODO: open PDF viewer or URL launcher
+                                    print(
+                                      'Navigating to /pdf-viewer with ID: ${inv['id']}',
+                                    );
+
+                                    context.push(
+                                      '/pdf-viewer',
+                                      extra: int.parse(inv['id'].toString()),
+                                    );
                                   },
                                   child: const Text('View'),
                                 ),

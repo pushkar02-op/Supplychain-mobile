@@ -26,6 +26,7 @@ async def save_and_process_invoice(file: UploadFile, db: Session, created_by: st
         return {"filename": filename, "success": False, "error": "Duplicate invoice detected"}
 
     upload_path = os.path.join(settings.INVOICE_UPLOAD_DIR, filename)
+    print(upload_path)
 
     os.makedirs(settings.INVOICE_UPLOAD_DIR, exist_ok=True)
         

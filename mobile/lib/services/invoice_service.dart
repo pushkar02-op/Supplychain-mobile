@@ -1,6 +1,8 @@
-import 'dart:convert';
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import '../core/dio_client.dart';
+import 'package:path_provider/path_provider.dart';
 
 class InvoiceService {
   /// Fetch list of invoices, with optional filters
@@ -124,5 +126,28 @@ class InvoiceService {
       return List<String>.from(data);
     }
     throw Exception('Unexpected mart-names format');
+  }
+
+  /// Downloads PDF for [invoiceId] into a temp file and returns its path.
+  static Future<String> downloadInvoicePdf(int invoiceId) async {
+    print(invoiceId);
+    final dir = await getTemporaryDirectory();
+    final filePath = '${dir.path}/invoice_$invoiceId.pdf';
+    final file = File(filePath);
+    if (await file.exists()) await file.delete();
+
+    final response = await DioClient.instance.download(
+      '/invoices/$invoiceId/download',
+      filePath,
+      options: Options(responseType: ResponseType.bytes),
+    );
+
+    if (response.statusCode == 200) {
+      return filePath;
+    } else {
+      throw Exception(
+        'Failed to download invoice: ${response.statusCode} ${response.statusMessage}',
+      );
+    }
   }
 }

@@ -1,7 +1,8 @@
+import os
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-
+from fastapi.responses import FileResponse
 from app.services.invoice import (
     save_and_process_invoice,
     get_invoice_by_id,
@@ -64,3 +65,24 @@ def delete_invoice_route(invoice_id: int, db: Session = Depends(get_db)):
     if not delete_invoice(db, invoice_id):
         raise HTTPException(status_code=404, detail="Invoice not found")
     return None
+
+@router.get(
+    "/{invoice_id}/download",
+    summary="Download the invoice PDF",
+    response_class=FileResponse,
+)
+def download_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
+    invoice = get_invoice_by_id(db, invoice_id)
+    print(invoice)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    file_path = invoice.file_path
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Invoice file not found on server")
+
+    return FileResponse(
+        path=file_path,
+        media_type="application/pdf",
+        filename=os.path.basename(file_path),
+    )
