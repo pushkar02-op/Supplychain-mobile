@@ -224,7 +224,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                   'total': updatedTotal,
                 });
                 Navigator.pop(context);
-                setState(() {}); // refresh UI
+                await _fetchInvoices();
               },
               child: const Text('Save'),
             ),
@@ -546,10 +546,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                 ),
                                 trailing: TextButton(
                                   onPressed: () {
-                                    print(
-                                      'Navigating to /pdf-viewer with ID: ${inv['id']}',
-                                    );
-
                                     context.push(
                                       '/pdf-viewer',
                                       extra: int.parse(inv['id'].toString()),
@@ -737,7 +733,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                                           await InvoiceService.deleteInvoiceItem(
                                                             it['id'],
                                                           );
-                                                          setState(() {});
+                                                          await _fetchInvoices();
                                                         }
                                                       }
                                                     },
