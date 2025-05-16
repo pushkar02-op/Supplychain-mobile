@@ -13,6 +13,7 @@ router = APIRouter(prefix="/rejection-entries", tags=["Rejection Entries"])
 
 @router.post("/", response_model=RejectionEntryRead, status_code=status.HTTP_201_CREATED)
 def create_route(entry: RejectionEntryCreate, db: Session = Depends(get_db)):
+    print(entry)
     return create_rejection_entry(db, entry, created_by="system")
 
 @router.get("/", response_model=List[RejectionEntryRead])
