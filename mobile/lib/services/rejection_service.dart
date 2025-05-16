@@ -44,4 +44,24 @@ class RejectionService {
       );
     }
   }
+
+  static Future<List<Map<String, dynamic>>> fetchRejections({
+    String? date,
+    List<int>? itemIds,
+  }) async {
+    final params = <String, dynamic>{};
+
+    if (date != null) params['date'] = date;
+    if (itemIds != null && itemIds.isNotEmpty) {
+      for (var id in itemIds) {
+        params.putIfAbsent('item_ids', () => []).add(id);
+      }
+    }
+
+    final resp = await DioClient.instance.get(
+      '/rejection-entries/list',
+      queryParameters: params,
+    );
+    return List<Map<String, dynamic>>.from(resp.data);
+  }
 }

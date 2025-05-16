@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -48,3 +49,15 @@ def create_rejection_entry(
 
 def get_all_rejections(db: Session) -> List[RejectionEntry]:
     return db.query(RejectionEntry).order_by(RejectionEntry.rejection_date.desc()).all()
+
+def get_rejections_by_date_and_items(
+    db: Session,
+    rejection_date: date,
+    item_ids: Optional[List[int]] = None
+) -> List[RejectionEntry]:
+    query = db.query(RejectionEntry).filter(RejectionEntry.rejection_date == rejection_date)
+
+    if item_ids:
+        query = query.filter(RejectionEntry.item_id.in_(item_ids))
+
+    return query.order_by(RejectionEntry.created_at.desc()).all()

@@ -61,9 +61,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: () => context.push('/rejection-entry'),
+              onPressed: () => context.push('/rejection-list'),
               icon: const Icon(Icons.delete),
-              label: const Text('Rejection Entry'),
+              label: const Text('Rejection List'),
             ),
           ],
         ),

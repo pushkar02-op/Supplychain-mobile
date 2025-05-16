@@ -4,6 +4,7 @@ import 'package:mobile/screens/dispatch_entry_screen.dart';
 import 'package:mobile/screens/dispatch_list_screen.dart';
 import 'package:mobile/screens/pdf_view_screen.dart';
 import 'package:mobile/screens/rejection_entry_screen.dart';
+import 'package:mobile/screens/rejection_list_screen.dart';
 
 import '../auth/login_screen.dart';
 import '../screens/dashboard_screen.dart';
@@ -62,6 +63,10 @@ final GoRouter appRouter = GoRouter(
         final invoiceId = state.extra as int;
         return PdfViewerScreen(invoiceId: invoiceId);
       },
+    ),
+    GoRoute(
+      path: '/rejection-list',
+      builder: (context, state) => const RejectionListScreen(),
     ),
     GoRoute(
       path: '/rejection-entry',
