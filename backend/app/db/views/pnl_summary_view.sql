@@ -1,4 +1,5 @@
 CREATE OR REPLACE VIEW mart_daily_pnl AS
+
 WITH
   -- 1) Sales per mart per day, from invoice items
   sales AS (
@@ -9,14 +10,14 @@ WITH
     FROM invoice_item ii
     GROUP BY ii.store_name, DATE(ii.invoice_date)
   ),
-  -- 2) Cost per mart per day, from dispatches joined to stock entries
+  -- 2) Cost per mart per day, from dispatches joined to stock entry
   cost AS (
     SELECT
       de.mart_name          AS mart_name,
       de.dispatch_date      AS date,
       SUM(de.quantity * se.price_per_unit) AS total_cost
-    FROM dispatch_entry de
-    JOIN stock_entry se
+    FROM dispatchentry de
+    JOIN stockentry se
       ON de.batch_id = se.batch_id
     GROUP BY de.mart_name, de.dispatch_date
   )
