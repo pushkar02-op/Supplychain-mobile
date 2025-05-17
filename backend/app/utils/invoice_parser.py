@@ -43,6 +43,8 @@ def clean_and_rename(df: pd.DataFrame, store: str, invoice_date: datetime) -> pd
     df = df.iloc[1:].copy()  # remove header row
     df.columns = ["HSN_CODE","ITEM_CODE","Item","Quantity","UOM","Price","Total","Date","StoreName"]
     df["Total"] = df["Total"].str.replace(",", "")
+    df["Quantity"] = df["Quantity"].str.replace(",", "")
+    df["Price"] = df["Price"].str.replace(",", "")
     df["Item"] = df["Item"].str.replace(r'\n\d{2}.\d{2}.\d{4}\n\w{4}$', '', regex=True)
     df["Item"]  = df["Item"].str.strip("._/\n")
     df["HSN_CODE"] = df["HSN_CODE"].str.replace("\n","")
