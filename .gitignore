@@ -37,3 +37,8 @@ versions/
 # Misc
 **/.env
 *.iml
+
+terraform.tfstate*
+*.pem
+.env
+*.tfvars
