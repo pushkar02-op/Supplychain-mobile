@@ -51,16 +51,10 @@ alembic upgrade head
 
 ### 6. Start the API Server
 
-```sh
-cd app
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Or using Docker:
+using Docker:
 
 ```sh
-docker build -t fruitvendor-backend .
-docker run -p 8000:8000 --env-file .env fruitvendor-backend
+ `docker-compose up --build`
 ```
 
 ---
@@ -136,13 +130,11 @@ Once running, visit [http://localhost:8000/docs](http://localhost:8000/docs) for
 ## 🧑‍💻 Useful Commands
 
 - **Run migrations:**  
-  `alembic upgrade head`
+  `docker-compose exec backend alembic upgrade head   `
 - **Create migration:**  
-  `alembic revision --autogenerate -m "Migration message"`
-- **Start server:**  
-  `uvicorn main:app --reload`
+  `docker-compose exec backend alembic revision --autogenerate -m "Migration message"`
 - **Run with Docker:**  
-  `docker build -t fruitvendor-backend . && docker run -p 8000:8000 --env-file .env fruitvendor-backend`
+  `docker-compose up --build`
 
 ---
 

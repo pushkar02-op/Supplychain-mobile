@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import router as api_router
-import os
 import subprocess
 
 app = FastAPI(title="Fruit Vendor Tool")

@@ -1,0 +1,34 @@
+name: Deploy FastAPI to EC2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Docker Image to Docker Hub
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/supplychain-app:latest .
+          echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/supplychain-app:latest
+
+      - name: SSH into EC2 and deploy container
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/supplychain-app:latest
+            docker stop supplychain-app || true
+            docker rm supplychain-app || true
+            docker run -d --name supplychain-app -p 8000:8000 ${{ secrets.DOCKERHUB_USERNAME }}/supplychain-app:latest
