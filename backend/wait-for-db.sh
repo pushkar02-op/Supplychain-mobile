@@ -10,6 +10,8 @@ fi
 host="$1"
 port="$2"
 
+echo "⏳ Waiting for Postgres on $host:$port"
+
 # Wait until PostgreSQL is accepting connections
 until nc -z "$host" "$port"; do
   echo "❌ Postgres is unavailable - sleeping"

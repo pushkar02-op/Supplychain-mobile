@@ -17,6 +17,7 @@ jobs:
 
       - name: Build and Push Docker Image to Docker Hub
         run: |
+          cd /backend
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/supplychain-app:latest .
           echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/supplychain-app:latest

@@ -55,3 +55,10 @@ lib/
 
 Command for initial migration
 docker-compose exec backend alembic revision --autogenerate -m "Initial migration"
+
+
+[ec2-user@ip-10-0-0-66 ~]$ docker run -e DATABASE_URL='postgresql+psycopg2://supply_chain_admin:pushkar121@supplychain-postgres-db.czo64kkae
+uc7.ap-south-1.rds.amazonaws.com:5432/supply_chain_db' -e JWT_SECRET_KEY='supersecretkey' --name supplychain-app -p 8000:8000 pushkar231299/
+supplychain-app:latest
+
+flutter build apk --release 
