@@ -39,4 +39,13 @@ module "ec2" {
   key_name         = var.key_name
 }
 
-
+module "rds" {
+  source            = "../../modules/rds"
+  project           = var.project
+  env               = var.env
+  db_name           = var.db_name
+  db_username       = var.db_username
+  db_password       = var.db_password
+  subnet_ids        = module.networking.private_subnet_id
+  security_group_id = module.security.rds_security_group_id
+}
