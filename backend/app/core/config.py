@@ -12,7 +12,7 @@ class Settings:
     POSTGRES_PORT = os.getenv("POSTGRES_PORT")
     POSTGRES_HOST = os.getenv("POSTGRES_HOST")
     INVOICE_UPLOAD_DIR: str = "invoices"  
-    # class Config:
-    #     env_file = ".env"
+    class Config:
+        env_file = ".env"
 
 settings = Settings()

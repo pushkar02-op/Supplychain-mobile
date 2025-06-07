@@ -10,6 +10,7 @@ from app.api.user import router as user_router
 from app.api.invoice import router as invoice_router
 from app.api.invoice_item import router as invoice_item_router
 from app.api.order import router as order_router
+from app.api.item_conversion_map import router as conversion_router
 
 router = APIRouter(prefix="/v1")
 
@@ -24,6 +25,7 @@ router.include_router(user_router)
 router.include_router(invoice_router)
 router.include_router(invoice_item_router)
 router.include_router(order_router)
+router.include_router(conversion_router)
 
 
 
