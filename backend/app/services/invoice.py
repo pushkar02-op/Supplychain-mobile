@@ -1,45 +1,68 @@
+"""
+Service functions for invoice management.
+Handles saving, parsing, and CRUD operations for invoices.
+"""
+
+import logging
 import os
-from typing import List, Optional
+import hashlib
+from typing import List, Optional, Dict
 from fastapi import UploadFile
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
-from app.utils.invoice_parser import process_pdf
+import aiofiles
+
 from app.core.config import settings
+from app.core.exceptions import AppException
 from app.db.models.invoice import Invoice
 from app.db.models.invoice_item import InvoiceItem
 from app.db.models.item import Item
-import aiofiles 
-import hashlib
+from app.utils.invoice_parser import process_pdf
 from app.db.schemas.invoice import InvoiceUpdate
 
+logger = logging.getLogger(__name__)
 
-async def save_and_process_invoice(file: UploadFile, db: Session, created_by: str = "system") -> dict:
+
+async def save_and_process_invoice(
+    file: UploadFile, db: Session, created_by: str = "system"
+) -> Dict[str, Optional[int or str or bool]]:
+    """
+    Save uploaded PDF, parse it, insert invoice and items.
+
+    Args:
+        file (UploadFile): Uploaded PDF.
+        db (Session): Database session.
+        created_by (str): Creator identifier.
+
+    Returns:
+        dict: Result {filename, success, invoice_id/error}.
+    """
     filename = file.filename
+    logger.info(f"Processing invoice file '{filename}'")
     file_bytes = await file.read()
-
-    # ➕ Generate file hash
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-    # ✅ Check for duplicate
     existing = db.query(Invoice).filter_by(file_hash=file_hash).first()
     if existing:
-        return {"filename": filename, "success": False, "error": "Duplicate invoice detected"}
+        logger.warning("Duplicate invoice detected")
+        return {
+            "filename": filename,
+            "success": False,
+            "error": "Duplicate invoice detected",
+        }
 
     upload_path = os.path.join(settings.INVOICE_UPLOAD_DIR, filename)
-    print(upload_path)
-
     os.makedirs(settings.INVOICE_UPLOAD_DIR, exist_ok=True)
-        
     async with aiofiles.open(upload_path, "wb") as f:
         await f.write(file_bytes)
+    logger.debug(f"Saved file to {upload_path}")
 
     try:
-        df, extracted_date, mart_name = process_pdf(upload_path)
-
+        df, invoice_date, mart_name = process_pdf(upload_path)
         total_amount = float(df["Total"].sum())
 
-        new_invoice = Invoice(
-            invoice_date=extracted_date,
+        inv = Invoice(
+            invoice_date=invoice_date,
             mart_name=mart_name,
             total_amount=total_amount,
             file_path=upload_path,
@@ -47,56 +70,72 @@ async def save_and_process_invoice(file: UploadFile, db: Session, created_by: st
             created_by=created_by,
             updated_by=created_by,
             is_verified=False,
-            remarks="Uploaded from mobile"
+            remarks="Uploaded from mobile",
         )
-
-        db.add(new_invoice)
+        db.add(inv)
         db.commit()
-        db.refresh(new_invoice)
+        db.refresh(inv)
+        logger.debug(f"Created invoice id={inv.id}")
 
-        invoice_items = []
-
+        items = []
         for _, row in df.iterrows():
-            item_name = row['Item']
-            existing_item = db.query(Item).filter(func.lower(Item.name) == item_name.lower()).first()
-
+            name = row["Item"]
+            existing_item = (
+                db.query(Item).filter(func.lower(Item.name) == name.lower()).first()
+            )
             if not existing_item:
                 new_item = Item(
-                    name=item_name,
-                    default_unit=row['UOM'],
+                    name=name,
+                    default_unit=row["UOM"],
                     created_by=created_by,
-                    updated_by=created_by
+                    updated_by=created_by,
                 )
                 db.add(new_item)
                 db.flush()
                 item_id = new_item.id
+                logger.debug(f"Created item id={item_id} for invoice")
             else:
                 item_id = existing_item.id
 
-            invoice_items.append(InvoiceItem(
-                invoice_id=new_invoice.id,
-                item_id=item_id,
-                hsn_code=row["HSN_CODE"],
-                item_code=row["ITEM_CODE"],
-                item_name=item_name,
-                quantity=row["Quantity"],
-                uom=row["UOM"],
-                price=row["Price"],
-                total=row["Total"],
-                invoice_date=extracted_date,
-                store_name=mart_name,
-                created_by=created_by,
-                updated_by=created_by
-            ))
-
-        db.bulk_save_objects(invoice_items)
+            items.append(
+                InvoiceItem(
+                    invoice_id=inv.id,
+                    item_id=item_id,
+                    hsn_code=row["HSN_CODE"],
+                    item_code=row["ITEM_CODE"],
+                    item_name=name,
+                    quantity=row["Quantity"],
+                    uom=row["UOM"],
+                    price=row["Price"],
+                    total=row["Total"],
+                    invoice_date=invoice_date,
+                    store_name=mart_name,
+                    created_by=created_by,
+                    updated_by=created_by,
+                )
+            )
+        db.bulk_save_objects(items)
         db.commit()
+        logger.info(f"Invoice {inv.id} and {len(items)} items saved")
+        return {"filename": filename, "success": True, "invoice_id": inv.id}
 
-        return {"filename": filename, "success": True, "invoice_id": new_invoice.id}
     except Exception as e:
-        return {"filename": filename, "success": False, "error": str(e)}
-    
-def get_invoice_by_id(db: Session, invoice_id: int) -> Invoice:
+        logger.exception("Failed to process invoice")
+        raise AppException("Invoice processing failed", status_code=500)
+
+
+def get_invoice_by_id(db: Session, invoice_id: int) -> Optional[Invoice]:
+    """
+    Retrieve an invoice by ID.
+
+    Args:
+        db (Session): Database session.
+        invoice_id (int): Invoice ID.
+
+    Returns:
+        Optional[Invoice]: Invoice or None.
+    """
+    logger.debug(f"Retrieving invoice id={invoice_id}")
     return db.query(Invoice).filter(Invoice.id == invoice_id).first()
 
 
@@ -106,42 +145,74 @@ def get_all_invoices(
     mart_name: Optional[str] = None,
     search: Optional[str] = None,
 ) -> List[Invoice]:
-    query = db.query(Invoice)
+    """
+    Retrieve all invoices with optional filters.
 
+    Args:
+        db (Session): Database session.
+        invoice_date (Optional[str]): Filter by date.
+        mart_name (Optional[str]): Filter by mart name.
+        search (Optional[str]): Search term.
+
+    Returns:
+        List[Invoice]: List of invoices.
+    """
+    logger.debug("Fetching invoices with filters")
+    query = db.query(Invoice)
     if invoice_date:
         query = query.filter(Invoice.invoice_date == invoice_date)
-
     if mart_name:
         query = query.filter(Invoice.mart_name == mart_name)
-
     if search:
-        search = f"%{search}%"
-        query = query.filter(
-            or_(
-                Invoice.mart_name.ilike(search),
-            )
-        )
-
+        term = f"%{search}%"
+        query = query.filter(or_(Invoice.mart_name.ilike(term)))
     return query.order_by(Invoice.invoice_date.desc()).all()
 
 
-def update_invoice(db: Session, invoice_id: int, data: InvoiceUpdate) -> Optional[Invoice]:
-    invoice = get_invoice_by_id(db, invoice_id)
-    if not invoice:
+def update_invoice(
+    db: Session, invoice_id: int, data: InvoiceUpdate
+) -> Optional[Invoice]:
+    """
+    Update an existing invoice.
+
+    Args:
+        db (Session): Database session.
+        invoice_id (int): Invoice ID.
+        data (InvoiceUpdate): Fields to update.
+
+    Returns:
+        Optional[Invoice]: Updated invoice or None.
+    """
+    logger.info(f"Updating invoice id={invoice_id}")
+    inv = get_invoice_by_id(db, invoice_id)
+    if not inv:
+        logger.error(f"Invoice not found id={invoice_id}")
         return None
-
-    for field, value in data.dict(exclude_unset=True).items():
-        setattr(invoice, field, value)
-
+    for field, val in data.dict(exclude_unset=True).items():
+        setattr(inv, field, val)
     db.commit()
-    db.refresh(invoice)
-    return invoice
+    db.refresh(inv)
+    logger.debug(f"Invoice id={invoice_id} updated")
+    return inv
 
 
 def delete_invoice(db: Session, invoice_id: int) -> bool:
-    invoice = get_invoice_by_id(db, invoice_id)
-    if not invoice:
+    """
+    Delete an invoice by ID.
+
+    Args:
+        db (Session): Database session.
+        invoice_id (int): Invoice ID.
+
+    Returns:
+        bool: True if deleted, False otherwise.
+    """
+    logger.info(f"Deleting invoice id={invoice_id}")
+    inv = get_invoice_by_id(db, invoice_id)
+    if not inv:
+        logger.error(f"Invoice not found id={invoice_id}")
         return False
-    db.delete(invoice)
+    db.delete(inv)
     db.commit()
+    logger.debug(f"Invoice id={invoice_id} deleted")
     return True

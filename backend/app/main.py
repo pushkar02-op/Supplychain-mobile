@@ -1,33 +1,64 @@
-from app.core.logging_config import setup_logging
+"""
+Application entrypoint for the AGRO FastAPI service.
+Configures logging, exception handlers, CORS, and database migrations on startup.
+"""
 
-setup_logging()
+import logging
+import subprocess
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import router as api_router
-import subprocess
-from app.core.exceptions import register_exception_handlers
 
+from app.core.logging_config import setup_logging
+from app.core.exceptions import register_exception_handlers
+from app.api import router as api_router
+
+# Initialize logging early
+setup_logging()
+logger = logging.getLogger(__name__)
+
+# Create FastAPI app
 app = FastAPI(title="AGRO")
+
+# Register global exception handlers
 register_exception_handlers(app)
 
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Or specify ["http://localhost:3000"] etc.
+    allow_origins=["*"],  # TODO: restrict origins in production
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+# Include API routes
 app.include_router(api_router)
 
 
 @app.on_event("startup")
-def startup():
+def startup() -> None:
+    """
+    Startup event handler.
+    Runs database migrations automatically.
+    """
+    # Generate new migration file (if needed)
     try:
-        print("🔄 Autogenerating migration...")
+        logger.info("🔄 Autogenerating migration...")
+        # Uncomment the line below to enable auto-migration generation
         # subprocess.run(["alembic", "revision", "--autogenerate", "-m", "Auto migration"], check=True)
-    except subprocess.CalledProcessError:
-        print("⚠️  No changes or error during auto migration")
+        logger.debug("Auto-migration generation step completed (skipped comment)")
+    except subprocess.CalledProcessError as e:
+        logger.warning(
+            f"No migration changes detected or error during auto-generation: {e}"
+        )
 
-    print("⬆️  Applying migrations...")
-    subprocess.run(["alembic", "upgrade", "head"], check=True)
+    # Apply migrations
+    try:
+        logger.info("⬆️  Applying migrations...")
+        subprocess.run(["alembic", "upgrade", "head"], check=True)
+        logger.info("Database migrations applied successfully")
+    except subprocess.CalledProcessError as e:
+        logger.exception(f"Error applying migrations: {e}")
+        # Depending on your needs, you might want to stop the app if migrations fail:
+        # raise
