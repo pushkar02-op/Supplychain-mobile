@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class InventorySummaryRead(BaseModel):
     item_id: int
     item_name: str
@@ -7,4 +8,4 @@ class InventorySummaryRead(BaseModel):
     available_quantity: float
 
     class Config:
-        orm_mode = True
+        from_attributes = True

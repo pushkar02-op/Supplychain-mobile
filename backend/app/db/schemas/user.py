@@ -2,11 +2,13 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 
+
 class UserBase(BaseModel):
     username: str
     full_name: str
     is_admin: bool
     is_active: bool
+
 
 class UserRead(UserBase):
     id: int
@@ -15,6 +17,7 @@ class UserRead(UserBase):
 
     class Config:
         orm_mode = True
+
 
 class UserUpdate(BaseModel):
     full_name: Optional[str]

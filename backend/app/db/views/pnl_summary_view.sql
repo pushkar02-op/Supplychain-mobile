@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW mart_daily_pnl AS
+CREATE OR REPLACE VIEW pnl_summary AS
 
 WITH
   -- 1) Sales per mart per day, from invoice items
