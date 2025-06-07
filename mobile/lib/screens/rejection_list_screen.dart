@@ -43,10 +43,7 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
   }
 
   Future<void> _loadRejections() async {
-    final date =
-        _selectedDate != null
-            ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
-            : null;
+    final date = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
     final data = await RejectionService.fetchRejections(
       date: date,

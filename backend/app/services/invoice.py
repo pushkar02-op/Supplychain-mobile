@@ -6,7 +6,7 @@ Handles saving, parsing, and CRUD operations for invoices.
 import logging
 import os
 import hashlib
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
 from fastapi import UploadFile
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 async def save_and_process_invoice(
     file: UploadFile, db: Session, created_by: str = "system"
-) -> Dict[str, Optional[int or str or bool]]:
+) -> Dict[str, Optional[Union[int, str, bool]]]:
     """
     Save uploaded PDF, parse it, insert invoice and items.
 
