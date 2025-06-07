@@ -1,6 +1,7 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
@@ -21,7 +22,7 @@ config = context.config
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-    
+
 # Overriding sqlalchemy.url with .env variable
 DATABASE_URL = os.getenv("DATABASE_URL")
 print(DATABASE_URL)
@@ -65,6 +66,7 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
+
 # ✅ Helper: Run all SQL files from views directory
 def apply_custom_sql_views(connection):
     views_dir = os.path.join(os.path.dirname(__file__), "../app/db/views")
@@ -76,7 +78,7 @@ def apply_custom_sql_views(connection):
             with open(file_path, "r") as f:
                 sql = f.read()
                 connection.execute(text(sql))  # use raw SQL
-                
+
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
@@ -85,19 +87,19 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    
 
     connectable = create_engine(DATABASE_URL, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata, compare_type=True,
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
         )
 
         with context.begin_transaction():
             context.run_migrations()
             apply_custom_sql_views(connection)
-
 
 
 if context.is_offline_mode():

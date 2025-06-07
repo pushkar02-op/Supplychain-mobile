@@ -1,9 +1,14 @@
+from app.core.logging_config import setup_logging
+
+setup_logging()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import router as api_router
 import subprocess
+from app.core.exceptions import register_exception_handlers
 
-app = FastAPI(title="Fruit Vendor Tool")
+app = FastAPI(title="AGRO")
+register_exception_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,

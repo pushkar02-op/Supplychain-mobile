@@ -26,6 +26,3 @@ router.include_router(invoice_router)
 router.include_router(invoice_item_router)
 router.include_router(order_router)
 router.include_router(conversion_router)
-
-
-

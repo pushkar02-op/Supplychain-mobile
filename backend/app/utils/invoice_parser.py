@@ -3,6 +3,7 @@ import pandas as pd
 import pdfplumber
 from datetime import datetime
 
+
 def extract_raw_table(input_file: str) -> pd.DataFrame:
     rows = []
     with pdfplumber.open(input_file) as pdf:
@@ -11,6 +12,7 @@ def extract_raw_table(input_file: str) -> pd.DataFrame:
             if tbl:
                 rows.extend(tbl)
     return pd.DataFrame(rows)
+
 
 def find_store_and_date(df: pd.DataFrame):
     for idx, row in df.iterrows():
@@ -22,17 +24,23 @@ def find_store_and_date(df: pd.DataFrame):
     invoice_date = datetime.strptime(date_txt, "%d.%m.%Y")
     return store, invoice_date
 
+
 def normalize_rows(df: pd.DataFrame) -> pd.DataFrame:
     df = df.iloc[8:].copy()
     # drop header repeats & trailing totals
     first = df[0].tolist().index("Sr.No")
-    df = pd.concat([df.iloc[first:first+1], df[df[0] != "Sr.No"]]).reset_index(drop=True)
+    df = pd.concat([df.iloc[first : first + 1], df[df[0] != "Sr.No"]]).reset_index(
+        drop=True
+    )
     if "Grand Total of Qty" in df[0].values:
         end = df[df[0] == "Grand Total of Qty"].index[0]
         df = df.iloc[:end]
     return df
 
-def clean_and_rename(df: pd.DataFrame, store: str, invoice_date: datetime) -> pd.DataFrame:
+
+def clean_and_rename(
+    df: pd.DataFrame, store: str, invoice_date: datetime
+) -> pd.DataFrame:
     df["StoreName"] = store
     df["Date"] = invoice_date
 
@@ -41,21 +49,28 @@ def clean_and_rename(df: pd.DataFrame, store: str, invoice_date: datetime) -> pd
 
     # rename & clean
     df = df.iloc[1:].copy()  # remove header row
-    df.columns = ["HSN_CODE","ITEM_CODE","Item","Quantity","UOM","Price","Total","Date","StoreName"]
+    df.columns = [
+        "HSN_CODE",
+        "ITEM_CODE",
+        "Item",
+        "Quantity",
+        "UOM",
+        "Price",
+        "Total",
+        "Date",
+        "StoreName",
+    ]
     df["Total"] = df["Total"].str.replace(",", "")
     df["Quantity"] = df["Quantity"].str.replace(",", "")
     df["Price"] = df["Price"].str.replace(",", "")
-    df["Item"] = df["Item"].str.replace(r'\n\d{2}.\d{2}.\d{4}\n\w{4}$', '', regex=True)
-    df["Item"]  = df["Item"].str.strip("._/\n")
-    df["HSN_CODE"] = df["HSN_CODE"].str.replace("\n","")
+    df["Item"] = df["Item"].str.replace(r"\n\d{2}.\d{2}.\d{4}\n\w{4}$", "", regex=True)
+    df["Item"] = df["Item"].str.strip("._/\n")
+    df["HSN_CODE"] = df["HSN_CODE"].str.replace("\n", "")
     df["ITEM_CODE"] = df["ITEM_CODE"].str.split("\n").str[0]
 
-    df = df.astype({
-        "Quantity":"float",
-        "Price":"float",
-        "Total":"float"
-    })
-    return df.round({"Quantity":2,"Price":2,"Total":2})
+    df = df.astype({"Quantity": "float", "Price": "float", "Total": "float"})
+    return df.round({"Quantity": 2, "Price": 2, "Total": 2})
+
 
 def process_pdf(input_file: str):
     raw = extract_raw_table(input_file)
@@ -63,4 +78,3 @@ def process_pdf(input_file: str):
     rows = normalize_rows(raw)
     clean = clean_and_rename(rows, store, invoice_date)
     return clean, invoice_date, store
- 
