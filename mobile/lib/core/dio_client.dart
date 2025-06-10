@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'api_config.dart';
+import 'package:flutter/foundation.dart'; // <-- Add this for debugPrint
 
 class DioClient {
   static final _storage = FlutterSecureStorage();
@@ -8,6 +9,7 @@ class DioClient {
 
   // Setup Dio client with JWT interceptor
   static void setup() {
+    print('Setting up DioClient...');
     instance = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl))
       ..interceptors.add(
         InterceptorsWrapper(
@@ -29,6 +31,10 @@ class DioClient {
           },
         ),
       );
+    // Print the baseUrl after setting up Dio
+    print('Dio baseUrl: ${ApiConfig.baseUrl}');
+    debugPrint('Dio baseUrl: ${ApiConfig.baseUrl}');
+    debugPrint('Dio instance baseUrl: ${instance.options.baseUrl}');
   }
 
   // Helper function to handle 401 errors (Unauthorized)

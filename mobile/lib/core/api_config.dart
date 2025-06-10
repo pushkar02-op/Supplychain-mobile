@@ -4,6 +4,7 @@ class ApiConfig {
   static const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     // defaultValue: 'http://3.109.239.195:8000/v1',
-    defaultValue: 'http://localhost:8000/v1',
+    // defaultValue: 'http://localhost:8000/v1',
+    defaultValue: 'http://192.168.31.226:8000/v1',
   );
 }
