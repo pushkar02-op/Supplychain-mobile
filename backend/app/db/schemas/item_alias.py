@@ -18,10 +18,3 @@ class ItemAliasRead(ItemAliasBase):
 
     class Config:
         orm_mode = True
-
-
-class ItemAliasUpdate(BaseModel):
-    master_item_id: Optional[int]
-    alias_code: Optional[str]
-    alias_name: Optional[str]
-    alias_unit: Optional[str]
