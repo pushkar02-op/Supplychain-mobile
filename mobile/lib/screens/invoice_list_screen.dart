@@ -93,6 +93,22 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     try {
       final responses = await InvoiceService.uploadInvoices(_pickedPaths);
 
+      for (final resp in responses) {
+        if (resp['unmapped_items'] != null &&
+            resp['unmapped_items'].isNotEmpty) {
+          final invoiceId = resp['invoice_id'];
+          final unmappedItems = List<Map<String, dynamic>>.from(
+            resp['unmapped_items'],
+          );
+          if (mounted) {
+            await context.push(
+              '/map-items',
+              extra: {'invoice_id': invoiceId, 'unmapped_items': unmappedItems},
+            );
+          }
+        }
+      }
+
       setState(() {
         _uploadResults = responses;
         _pickedPaths.clear();

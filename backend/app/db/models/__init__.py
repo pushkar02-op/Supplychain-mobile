@@ -9,3 +9,5 @@ from .invoice_item import InvoiceItem
 from .order import Order
 from .item_conversion_map import ItemConversionMap
 from .audit_log import AuditLog
+from .item_alias import ItemAlias
+from .inventory_txn import InventoryTxn

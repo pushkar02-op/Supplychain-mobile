@@ -51,7 +51,7 @@ class RejectionService {
   }) async {
     final params = <String, dynamic>{};
 
-    if (date != null) params['date'] = date;
+    if (date != null) params['rejection_date'] = date;
     if (itemIds != null && itemIds.isNotEmpty) {
       for (var id in itemIds) {
         params.putIfAbsent('item_ids', () => []).add(id);

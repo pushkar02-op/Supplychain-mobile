@@ -2,6 +2,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/screens/dispatch_entry_screen.dart';
 import 'package:mobile/screens/dispatch_list_screen.dart';
+import 'package:mobile/screens/map_items_screen.dart';
 import 'package:mobile/screens/pdf_view_screen.dart';
 import 'package:mobile/screens/rejection_entry_screen.dart';
 import 'package:mobile/screens/rejection_list_screen.dart';
@@ -71,6 +72,18 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/rejection-entry',
       builder: (context, state) => const RejectionEntryScreen(),
+    ),
+    GoRoute(
+      path: '/map-items',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>;
+        return MapItemsScreen(
+          invoiceId: extra['invoice_id'],
+          unmappedItems: List<Map<String, dynamic>>.from(
+            extra['unmapped_items'],
+          ),
+        );
+      },
     ),
   ],
 );

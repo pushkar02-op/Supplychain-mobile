@@ -18,6 +18,9 @@ from app.db.schemas.dispatch_entry import (
     DispatchEntryMultiCreate,
     DispatchEntryUpdate,
 )
+from app.services.inventory_txn import create_inventory_txn
+from app.db.schemas.inventory_txn import InventoryTxnCreate
+from app.services.item_conversion_map import get_conversion_factor
 
 logger = logging.getLogger(__name__)
 
@@ -78,11 +81,34 @@ def create_dispatch_entry(
     batch.quantity -= entry.quantity
     batch.updated_at = datetime.utcnow()
     _update_order_after_dispatch(db, entry.item_id, entry.mart_name, entry.quantity)
-
     db.flush()
     db.refresh(dispatch)
     db.commit()
     logger.debug(f"Created dispatch id={dispatch.id}")
+
+    try:
+        factor = get_conversion_factor(entry.item_id, entry.unit, batch.unit)
+    except AppException as e:
+        logger.error(f"Conversion lookup failed: {e}")
+        raise
+
+    base_qty = entry.quantity * factor
+
+    create_inventory_txn(
+        db,
+        InventoryTxnCreate(
+            item_id=entry.item_id,
+            batch_id=entry.batch_id,
+            txn_type="OUT",
+            raw_qty=entry.quantity,
+            raw_unit=entry.unit,
+            base_qty=base_qty,
+            base_unit=entry.unit,
+            ref_type="dispatch_entry",
+            ref_id=dispatch.id,
+            remarks="Stock dispatched",
+        ),
+    )
     return dispatch
 
 
@@ -170,6 +196,30 @@ def create_dispatch_from_order(
         db.refresh(d)
     db.commit()
     logger.debug(f"Created/updated {len(results)} dispatch entries")
+
+    try:
+        factor = get_conversion_factor(entry.item_id, entry.unit, batch.unit)
+    except AppException as e:
+        logger.error(f"Conversion lookup failed: {e}")
+        raise
+
+    base_qty = entry.quantity * factor
+
+    create_inventory_txn(
+        db,
+        InventoryTxnCreate(
+            item_id=entry.item_id,
+            batch_id=batch.id,
+            txn_type="OUT",
+            raw_qty=b.quantity,
+            raw_unit=entry.unit,
+            base_qty=base_qty,
+            base_unit=entry.unit,
+            ref_type="dispatch_entry",
+            ref_id=disp.id,
+            remarks="Stock dispatched",
+        ),
+    )
     return results
 
 
@@ -307,6 +357,34 @@ def update_dispatch_entry(
     db.refresh(dispatch)
     db.commit()
     logger.debug(f"Dispatch id={dispatch_id} updated")
+
+    if diff != 0:
+        txn_type = "IN" if diff > 0 else "OUT"
+        try:
+            factor = get_conversion_factor(
+                dispatch.item_id, entry_update.unit, batch.unit
+            )
+        except AppException as e:
+            logger.error(f"Conversion lookup failed: {e}")
+            raise
+
+        base_qty = entry_update.quantity * factor
+
+        create_inventory_txn(
+            db,
+            InventoryTxnCreate(
+                item_id=dispatch.item_id,
+                batch_id=batch.id,
+                txn_type=txn_type,
+                raw_qty=entry_update.quantity,
+                raw_unit=entry_update.unit,
+                base_qty=base_qty,
+                base_unit=entry_update.unit,
+                ref_type="dispatch_entry",
+                ref_id=dispatch.id,
+                remarks="Dispatch {txn_type} from update adjustment",
+            ),
+        )
     return dispatch
 
 
@@ -335,8 +413,8 @@ def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
         logger.error("Batch not found during delete")
         raise AppException("Batch not found", status_code=404)
 
-    batch.quantity += dispatch.quantity
-    batch.updated_at = datetime.utcnow()
+    # batch.quantity += dispatch.quantity
+    # batch.updated_at = datetime.utcnow()
     _update_order_after_dispatch(
         db, batch.item_id, dispatch.mart_name, -dispatch.quantity
     )
@@ -345,4 +423,28 @@ def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
     db.flush()
     db.commit()
     logger.debug(f"Dispatch id={dispatch_id} deleted")
+
+    try:
+        factor = get_conversion_factor(dispatch.item_id, dispatch.unit, batch.unit)
+    except AppException as e:
+        logger.error(f"Conversion lookup failed: {e}")
+        raise
+
+    base_qty = dispatch.quantity * factor
+
+    create_inventory_txn(
+        db,
+        InventoryTxnCreate(
+            item_id=dispatch.item_id,
+            batch_id=batch.id,
+            txn_type="OUT",
+            raw_qty=dispatch.quantity,
+            raw_unit=dispatch.unit,
+            base_qty=base_qty,
+            base_unit=batch.unit,
+            ref_type="dispatch_entry",
+            ref_id=dispatch.id,
+            remarks="Stock dispatched",
+        ),
+    )
     return True

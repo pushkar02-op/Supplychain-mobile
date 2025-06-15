@@ -18,6 +18,16 @@ from app.db.schemas.item_conversion_map import (
 logger = logging.getLogger(__name__)
 
 
+def get_conversion_factor(item_id: int, from_unit: str, to_unit: str) -> float:
+    """
+    Dummy conversion factor function. Replace with actual logic as needed.
+    """
+    if from_unit == to_unit:
+        return 1.0
+    # TODO: Implement actual conversion logic or import from utility module
+    raise NotImplementedError("Unit conversion logic not implemented")
+
+
 def create_conversion(
     db: Session, data: ItemConversionCreate, created_by: str
 ) -> ItemConversionMap:

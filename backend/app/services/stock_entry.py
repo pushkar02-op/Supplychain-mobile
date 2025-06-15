@@ -15,6 +15,9 @@ from app.db.models.stock_entry import StockEntry
 from app.db.models.batch import Batch
 from app.db.models.item import Item
 from app.db.schemas.stock_entry import StockEntryCreate, StockEntryUpdate
+from app.services.inventory_txn import create_inventory_txn
+from app.db.schemas.inventory_txn import InventoryTxnCreate
+from app.services.item_conversion_map import get_conversion_factor
 
 logger = logging.getLogger(__name__)
 
@@ -36,30 +39,33 @@ def create_stock_entry(
     logger.info(
         f"Creating stock entry for item_id={entry.item_id}, qty={entry.quantity}"
     )
+
+    # 1) Find-or-create Batch
     batch = (
         db.query(Batch)
         .filter(
             and_(
-                Batch.item_id == entry.item_id, Batch.received_at == entry.received_date
+                Batch.item_id == entry.item_id,
+                Batch.received_at == entry.received_date,
             )
         )
         .first()
     )
+
     if batch:
         batch.quantity += entry.quantity
         batch.updated_by = created_by
         batch.updated_at = datetime.utcnow()
         db.commit()
         db.flush()
-        batch_id = batch.id
-        logger.debug(f"Added to existing batch id={batch_id}")
+        logger.debug(f"Added to existing batch id={batch.id}")
     else:
         unit = (
             db.query(Item).filter(Item.id == entry.item_id).first().default_unit
             if entry.item_id
             else entry.unit
         )
-        new_batch = Batch(
+        batch = Batch(
             item_id=entry.item_id,
             quantity=entry.quantity,
             unit=unit,
@@ -67,18 +73,45 @@ def create_stock_entry(
             created_by=created_by,
             updated_by=created_by,
         )
-        db.add(new_batch)
+        db.add(batch)
         db.flush()
-        batch_id = new_batch.id
-        logger.debug(f"Created new batch id={batch_id}")
+        logger.debug(f"Created new batch id={batch.id}")
 
+    # 2) Persist StockEntry
     stock = StockEntry(
-        **entry.dict(), batch_id=batch_id, created_by=created_by, updated_by=created_by
+        **entry.dict(), batch_id=batch.id, created_by=created_by, updated_by=created_by
     )
     db.add(stock)
     db.commit()
     db.refresh(stock)
     logger.info(f"Created stock entry id={stock.id}")
+
+    # 3) Add InventoryTxn
+    #    — use `batch.unit` and `batch.id` no matter which branch we hit
+    try:
+        factor = get_conversion_factor(entry.item_id, entry.unit, batch.unit)
+    except AppException as e:
+        logger.error(f"Conversion lookup failed: {e}")
+        raise
+
+    base_qty = entry.quantity * factor
+
+    create_inventory_txn(
+        db,
+        InventoryTxnCreate(
+            item_id=entry.item_id,
+            batch_id=batch.id,
+            txn_type="IN",
+            raw_qty=entry.quantity,
+            raw_unit=entry.unit,
+            base_qty=base_qty,
+            base_unit=batch.unit,
+            ref_type="stock_entry",
+            ref_id=stock.id,
+            remarks="Stock received",
+        ),
+    )
+
     return stock
 
 
@@ -146,12 +179,13 @@ def update_stock_entry(
     orig_qty = entry.quantity
     orig_batch = db.query(Batch).filter(Batch.id == entry.batch_id).first()
     data = entry_update.dict(exclude_unset=True)
-    new_item_id = data.get("item_id", entry.item_id)
-    new_date = data.get("received_date", entry.received_date)
     new_qty = data.get("quantity", entry.quantity)
 
-    # Batch change logic...
-    # (omitted for brevity—use same pattern with logging & AppException)
+    quantity_diff = new_qty - orig_qty
+    if orig_batch:
+        orig_batch.quantity += quantity_diff
+        orig_batch.updated_by = updated_by
+        orig_batch.updated_at = datetime.utcnow()
 
     for k, v in data.items():
         setattr(entry, k, v)
@@ -160,6 +194,33 @@ def update_stock_entry(
     db.commit()
     db.refresh(entry)
     logger.debug(f"Stock entry id={stock_entry_id} updated")
+
+    if quantity_diff != 0:
+        txn_type = "IN" if quantity_diff > 0 else "OUT"
+        # compute factor & base_qty
+        try:
+            factor = get_conversion_factor(entry.item_id, entry.unit, orig_batch.unit)
+        except AppException as e:
+            logger.error(f"Conversion lookup failed: {e}")
+            raise
+
+        base_qty = entry.quantity * factor
+
+        create_inventory_txn(
+            db,
+            InventoryTxnCreate(
+                item_id=entry.item_id,
+                batch_id=entry.batch_id,
+                txn_type=txn_type,
+                raw_qty=entry.quantity,
+                raw_unit=entry.unit,
+                base_qty=base_qty,
+                base_unit=orig_batch.unit,
+                ref_type="stock_entry",
+                ref_id=entry.id,
+                remarks=f"Stock {txn_type} from update adjustment",
+            ),
+        )
     return entry
 
 
@@ -188,4 +249,28 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
     db.delete(entry)
     db.commit()
     logger.debug(f"Stock entry id={stock_entry_id} deleted")
+
+    try:
+        factor = get_conversion_factor(entry.item_id, entry.unit, entry.unit)
+    except AppException as e:
+        logger.error(f"Conversion lookup failed: {e}")
+        raise
+
+    base_qty = entry.quantity * factor
+
+    create_inventory_txn(
+        db,
+        InventoryTxnCreate(
+            item_id=entry.item_id,
+            batch_id=entry.batch_id,
+            txn_type="OUT",
+            raw_qty=entry.quantity,
+            raw_unit=entry.unit,
+            base_qty=base_qty,
+            base_unit=entry.unit,
+            ref_type="stock_entry",
+            ref_id=entry.id,
+            remarks=f"Stock removed due to delete",
+        ),
+    )
     return True

@@ -7,7 +7,6 @@ from sqlalchemy import create_engine, text
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
 from logging.config import fileConfig
 
 from sqlalchemy import pool

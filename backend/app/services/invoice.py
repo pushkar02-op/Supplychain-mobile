@@ -19,6 +19,7 @@ from app.db.models.invoice_item import InvoiceItem
 from app.db.models.item import Item
 from app.utils.invoice_parser import process_pdf
 from app.db.schemas.invoice import InvoiceUpdate
+from app.services.item_alias import get_alias_by_code_or_name
 
 logger = logging.getLogger(__name__)
 
@@ -79,23 +80,40 @@ async def save_and_process_invoice(
 
         items = []
         for _, row in df.iterrows():
-            name = row["Item"]
-            existing_item = (
-                db.query(Item).filter(func.lower(Item.name) == name.lower()).first()
-            )
-            if not existing_item:
-                new_item = Item(
-                    name=name,
-                    default_unit=row["UOM"],
-                    created_by=created_by,
-                    updated_by=created_by,
-                )
-                db.add(new_item)
-                db.flush()
-                item_id = new_item.id
-                logger.debug(f"Created item id={item_id} for invoice")
+            # name = row["Item"]
+            # existing_item = (
+            #     db.query(Item).filter(func.lower(Item.name) == name.lower()).first()
+            # )
+            # if not existing_item:
+            #     new_item = Item(
+            #         name=name,
+            #         default_unit=row["UOM"],
+            #         created_by=created_by,
+            #         updated_by=created_by,
+            #     )
+            #     db.add(new_item)
+            #     db.flush()
+            #     item_id = new_item.id
+            #     logger.debug(f"Created item id={item_id} for invoice")
+            # else:
+            #     item_id = existing_item.id
+            item_code = row["ITEM_CODE"]
+            item_name = row["Item"]
+            item_uom = row["UOM"]
+
+            alias = get_alias_by_code_or_name(db, code=item_code, name=item_name)
+
+            if alias:
+                item_id = alias.master_item_id
             else:
-                item_id = existing_item.id
+                item_id = None  # Will stay unmapped, flagged later in UI
+
+            unmapped_items = []
+            # Inside for loop
+            if item_id is None:
+                unmapped_items.append(
+                    {"item_code": item_code, "item_name": item_name, "uom": item_uom}
+                )
 
             items.append(
                 InvoiceItem(
@@ -103,7 +121,7 @@ async def save_and_process_invoice(
                     item_id=item_id,
                     hsn_code=row["HSN_CODE"],
                     item_code=row["ITEM_CODE"],
-                    item_name=name,
+                    item_name=item_name,
                     quantity=row["Quantity"],
                     uom=row["UOM"],
                     price=row["Price"],
@@ -117,7 +135,12 @@ async def save_and_process_invoice(
         db.bulk_save_objects(items)
         db.commit()
         logger.info(f"Invoice {inv.id} and {len(items)} items saved")
-        return {"filename": filename, "success": True, "invoice_id": inv.id}
+        return {
+            "filename": filename,
+            "success": True,
+            "invoice_id": inv.id,
+            "unmapped_items": unmapped_items,
+        }
 
     except Exception as e:
         logger.exception("Failed to process invoice")
