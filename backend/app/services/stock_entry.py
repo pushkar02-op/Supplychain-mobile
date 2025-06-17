@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
-
+from app.db.models.uom import UOM
 from app.core.exceptions import AppException
 from app.db.models.stock_entry import StockEntry
 from app.db.models.batch import Batch
@@ -60,11 +60,13 @@ def create_stock_entry(
         db.flush()
         logger.debug(f"Added to existing batch id={batch.id}")
     else:
-        unit = (
-            db.query(Item).filter(Item.id == entry.item_id).first().default_unit
-            if entry.item_id
-            else entry.unit
-        )
+        item = db.query(Item).filter(Item.id == entry.item_id).first()
+        uom_code = None
+        if item and item.default_uom_id:
+
+            uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
+            uom_code = uom.code if uom else None
+        unit = uom_code if uom_code else entry.unit
         batch = Batch(
             item_id=entry.item_id,
             quantity=entry.quantity,

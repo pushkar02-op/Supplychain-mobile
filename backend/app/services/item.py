@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import AppException
 from app.db.models import Item
 from app.db.models.batch import Batch
-from app.db.schemas.item import ItemCreate, ItemUpdate
+from app.db.schemas.item import ItemCreate, ItemRead, ItemUpdate
+from app.db.models.uom import UOM
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,14 @@ def get_item(db: Session, item_id: int) -> Optional[Item]:
         Optional[Item]: The item or None.
     """
     logger.debug(f"Retrieving item id={item_id}")
-    return db.query(Item).filter(Item.id == item_id).first()
+    item = db.query(Item).filter(Item.id == item_id).first()
+    if not item:
+        return None
+    uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
+    item_data = ItemRead.from_orm(item)
+    item_data.default_unit = uom.code if uom else None
+    print(item_data)
+    return item_data
 
 
 def get_all_items(db: Session, skip: int = 0, limit: int = 100) -> List[Item]:
@@ -68,7 +76,14 @@ def get_all_items(db: Session, skip: int = 0, limit: int = 100) -> List[Item]:
         List[Item]: List of items.
     """
     logger.debug(f"Fetching items skip={skip}, limit={limit}")
-    return db.query(Item).offset(skip).limit(limit).all()
+    items = db.query(Item).offset(skip).limit(limit).all()
+    uoms = {u.id: u.code for u in db.query(UOM).all()}
+    result = []
+    for item in items:
+        item_data = ItemRead.from_orm(item)
+        item_data.default_unit = uoms.get(item.default_uom_id)
+        result.append(item_data)
+    return result
 
 
 def get_items_with_available_batches(db: Session) -> List[Item]:
@@ -83,7 +98,14 @@ def get_items_with_available_batches(db: Session) -> List[Item]:
     """
     logger.debug("Fetching items with available batches")
     subq = select(Batch.item_id).where(Batch.quantity > 0).distinct().subquery()
-    return db.query(Item).filter(Item.id.in_(select(subq.c.item_id))).all()
+    items = db.query(Item).filter(Item.id.in_(select(subq.c.item_id))).all()
+    uoms = {u.id: u.code for u in db.query(UOM).all()}
+    result = []
+    for item in items:
+        item_data = ItemRead.from_orm(item)
+        item_data.default_unit = uoms.get(item.default_uom_id)
+        result.append(item_data)
+    return result
 
 
 def update_item(
@@ -112,8 +134,10 @@ def update_item(
     item.updated_by = updated_by
     db.commit()
     db.refresh(item)
-    logger.debug(f"Item id={item_id} updated")
-    return item
+    uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
+    item_data = ItemRead.from_orm(item)
+    item_data.default_unit = uom.code if uom else None
+    return item_data
 
 
 def delete_item(db: Session, item_id: int) -> bool:

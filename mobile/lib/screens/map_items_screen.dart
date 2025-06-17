@@ -22,7 +22,6 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
   void initState() {
     super.initState();
     rows = widget.unmappedItems.map((e) => _MapRow.fromJson(e)).toList();
-    print(widget.unmappedItems);
   }
 
   Future<void> _saveMapping(_MapRow row) async {
@@ -31,7 +30,7 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
     final payload = {
       "alias_code": row.aliasCode,
       "alias_name": row.aliasName,
-      "alias_unit": row.aliasUnit,
+      // "alias_unit": row.aliasUnit,
       "master_item_id": row.selectedMasterItem!['id'],
     };
 

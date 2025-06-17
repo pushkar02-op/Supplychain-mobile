@@ -20,6 +20,7 @@ from app.db.models.item import Item
 from app.utils.invoice_parser import process_pdf
 from app.db.schemas.invoice import InvoiceUpdate
 from app.services.item_alias import get_alias_by_code_or_name
+from app.db.models.uom import UOM
 
 logger = logging.getLogger(__name__)
 
@@ -79,24 +80,29 @@ async def save_and_process_invoice(
         logger.debug(f"Created invoice id={inv.id}")
 
         items = []
+        unmapped_items = []
         for _, row in df.iterrows():
-            # name = row["Item"]
-            # existing_item = (
-            #     db.query(Item).filter(func.lower(Item.name) == name.lower()).first()
-            # )
-            # if not existing_item:
-            #     new_item = Item(
-            #         name=name,
-            #         default_unit=row["UOM"],
-            #         created_by=created_by,
-            #         updated_by=created_by,
-            #     )
-            #     db.add(new_item)
-            #     db.flush()
-            #     item_id = new_item.id
-            #     logger.debug(f"Created item id={item_id} for invoice")
-            # else:
-            #     item_id = existing_item.id
+            name = row["Item"]
+            existing_item = (
+                db.query(Item).filter(func.lower(Item.name) == name.lower()).first()
+            )
+            uom_id = (
+                db.query(UOM).filter(func.lower(UOM.code) == row["UOM"].lower()).first()
+            )
+            if not existing_item:
+                new_item = Item(
+                    name=name,
+                    item_code=row["ITEM_CODE"],
+                    default_uom_id=uom_id.id if uom_id else None,
+                    created_by=created_by,
+                    updated_by=created_by,
+                )
+                db.add(new_item)
+                db.flush()
+                item_id = new_item.id
+                logger.debug(f"Created item id={item_id} for invoice")
+            else:
+                item_id = existing_item.id
             item_code = row["ITEM_CODE"]
             item_name = row["Item"]
             item_uom = row["UOM"]
@@ -108,11 +114,36 @@ async def save_and_process_invoice(
             else:
                 item_id = None  # Will stay unmapped, flagged later in UI
 
-            unmapped_items = []
-            # Inside for loop
             if item_id is None:
+                # Example: suggest items with similar names or codes
+                suggestions = (
+                    db.query(Item)
+                    .filter(
+                        or_(
+                            Item.name.ilike(f"%{item_name}%"),
+                            Item.item_code.ilike(f"%{item_code}%"),
+                        )
+                    )
+                    .limit(10)
+                    .all()
+                )
+                uoms = {u.id: u.code for u in db.query(UOM).all()}
+                suggested_items = [
+                    {
+                        "id": s.id,
+                        "name": s.name,
+                        "item_code": s.item_code,
+                        "uom": uoms.get(s.default_uom_id),
+                    }
+                    for s in suggestions
+                ]
                 unmapped_items.append(
-                    {"item_code": item_code, "item_name": item_name, "uom": item_uom}
+                    {
+                        "item_code": item_code,
+                        "item_name": item_name,
+                        "uom": item_uom,
+                        "suggested_items": suggested_items,
+                    }
                 )
 
             items.append(
