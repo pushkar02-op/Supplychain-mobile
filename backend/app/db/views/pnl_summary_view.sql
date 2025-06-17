@@ -16,7 +16,7 @@ WITH
       de.mart_name          AS mart_name,
       de.dispatch_date      AS date,
       SUM(de.quantity * se.price_per_unit) AS total_cost
-    FROM dispatchentry de
+    FROM dispatch_entry de
     JOIN stockentry se
       ON de.batch_id = se.batch_id
     GROUP BY de.mart_name, de.dispatch_date

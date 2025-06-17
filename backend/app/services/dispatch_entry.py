@@ -202,8 +202,7 @@ def create_dispatch_from_order(
     except AppException as e:
         logger.error(f"Conversion lookup failed: {e}")
         raise
-
-    base_qty = entry.quantity * factor
+    base_qty = b.quantity * factor
 
     create_inventory_txn(
         db,
@@ -216,7 +215,7 @@ def create_dispatch_from_order(
             base_qty=base_qty,
             base_unit=entry.unit,
             ref_type="dispatch_entry",
-            ref_id=disp.id,
+            ref_id=disp.id if "disp" in locals() else existing.id,
             remarks="Stock dispatched",
         ),
     )
