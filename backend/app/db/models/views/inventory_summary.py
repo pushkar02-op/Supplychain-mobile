@@ -7,6 +7,6 @@ class InventorySummary(Base):
     __table_args__ = {"extend_existing": True}
 
     item_id = Column(Integer, primary_key=True)
-    item_name = Column(String)
+    name = Column(String)
     unit = Column(String)
-    available_quantity = Column(Float)
+    current_stock = Column(Float)

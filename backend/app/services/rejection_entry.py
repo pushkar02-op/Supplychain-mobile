@@ -58,7 +58,7 @@ def create_rejection_entry(
     )
     try:
         db.add(rej)
-        # batch.quantity -= entry.quantity
+        batch.quantity -= entry.quantity
         db.commit()
         db.refresh(rej)
         logger.debug(f"Created rejection id={rej.id}")

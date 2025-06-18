@@ -3,9 +3,9 @@ from pydantic import BaseModel
 
 class InventorySummaryRead(BaseModel):
     item_id: int
-    item_name: str
+    name: str
     unit: str
-    available_quantity: float
+    current_stock: float
 
     class Config:
         from_attributes = True
