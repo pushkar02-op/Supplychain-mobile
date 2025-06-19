@@ -18,14 +18,39 @@ from app.db.schemas.item_conversion_map import (
 logger = logging.getLogger(__name__)
 
 
-def get_conversion_factor(item_id: int, from_unit: str, to_unit: str) -> float:
+def get_conversion_factor(
+    db: Session, item_id: int, from_unit: str, to_unit: str
+) -> float:
     """
-    Dummy conversion factor function. Replace with actual logic as needed.
+    Returns the conversion factor to convert from 'from_unit' to 'to_unit' for a given item.
+    If from_unit == to_unit, returns 1.0.
+    Raises AppException if no conversion is found.
     """
     if from_unit == to_unit:
         return 1.0
-    # TODO: Implement actual conversion logic or import from utility module
-    raise NotImplementedError("Unit conversion logic not implemented")
+
+    conv = (
+        db.query(ItemConversionMap)
+        .filter_by(item_id=item_id, source_unit=from_unit, target_unit=to_unit)
+        .first()
+    )
+    if conv:
+        return conv.conversion_factor
+
+    conv_rev = (
+        db.query(ItemConversionMap)
+        .filter_by(item_id=item_id, source_unit=to_unit, target_unit=from_unit)
+        .first()
+    )
+    if conv_rev and conv_rev.conversion_factor != 0:
+        logger.warning(
+            f"Using reverse conversion for item_id={item_id} from {to_unit} to {from_unit}"
+        )
+        return 1.0 / conv_rev.conversion_factor
+
+    raise AppException(
+        f"No conversion factor found for item_id={item_id} from '{from_unit}' to '{to_unit}'"
+    )
 
 
 def create_conversion(

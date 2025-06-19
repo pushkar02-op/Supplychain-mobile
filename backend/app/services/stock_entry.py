@@ -91,7 +91,7 @@ def create_stock_entry(
     # 3) Add InventoryTxn
     #    — use `batch.unit` and `batch.id` no matter which branch we hit
     try:
-        factor = get_conversion_factor(entry.item_id, entry.unit, batch.unit)
+        factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
     except AppException as e:
         logger.error(f"Conversion lookup failed: {e}")
         raise
@@ -201,7 +201,9 @@ def update_stock_entry(
         txn_type = "IN" if quantity_diff > 0 else "OUT"
         # compute factor & base_qty
         try:
-            factor = get_conversion_factor(entry.item_id, entry.unit, orig_batch.unit)
+            factor = get_conversion_factor(
+                db, entry.item_id, entry.unit, orig_batch.unit
+            )
         except AppException as e:
             logger.error(f"Conversion lookup failed: {e}")
             raise
@@ -253,7 +255,7 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
     logger.debug(f"Stock entry id={stock_entry_id} deleted")
 
     try:
-        factor = get_conversion_factor(entry.item_id, entry.unit, entry.unit)
+        factor = get_conversion_factor(db, entry.item_id, entry.unit, entry.unit)
     except AppException as e:
         logger.error(f"Conversion lookup failed: {e}")
         raise

@@ -44,7 +44,7 @@ def create_conv(
         ItemConversionRead: The created conversion mapping.
     """
     logger.info("Creating new item conversion mapping")
-    return create_conversion(db=db, entry=entry, created_by="system")
+    return create_conversion(db=db, data=entry, created_by="system")
 
 
 @router.get("/", response_model=List[ItemConversionRead], summary="List conversions")

@@ -64,7 +64,7 @@ def create_rejection_entry(
         logger.debug(f"Created rejection id={rej.id}")
 
         try:
-            factor = get_conversion_factor(batch.item_id, batch.unit, batch.unit)
+            factor = get_conversion_factor(db, batch.item_id, batch.unit, batch.unit)
         except AppException as e:
             logger.error(f"Conversion lookup failed: {e}")
             raise

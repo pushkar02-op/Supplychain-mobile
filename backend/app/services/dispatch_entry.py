@@ -87,7 +87,7 @@ def create_dispatch_entry(
     logger.debug(f"Created dispatch id={dispatch.id}")
 
     try:
-        factor = get_conversion_factor(entry.item_id, entry.unit, batch.unit)
+        factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
     except AppException as e:
         logger.error(f"Conversion lookup failed: {e}")
         raise
@@ -198,7 +198,7 @@ def create_dispatch_from_order(
     logger.debug(f"Created/updated {len(results)} dispatch entries")
 
     try:
-        factor = get_conversion_factor(entry.item_id, entry.unit, batch.unit)
+        factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
     except AppException as e:
         logger.error(f"Conversion lookup failed: {e}")
         raise
@@ -361,7 +361,7 @@ def update_dispatch_entry(
         txn_type = "IN" if diff > 0 else "OUT"
         try:
             factor = get_conversion_factor(
-                dispatch.item_id, entry_update.unit, batch.unit
+                db, dispatch.item_id, entry_update.unit, batch.unit
             )
         except AppException as e:
             logger.error(f"Conversion lookup failed: {e}")
@@ -424,7 +424,7 @@ def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
     logger.debug(f"Dispatch id={dispatch_id} deleted")
 
     try:
-        factor = get_conversion_factor(dispatch.item_id, dispatch.unit, batch.unit)
+        factor = get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit)
     except AppException as e:
         logger.error(f"Conversion lookup failed: {e}")
         raise

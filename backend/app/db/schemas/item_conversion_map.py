@@ -3,11 +3,10 @@ from typing import Optional
 
 
 class ItemConversionBase(BaseModel):
-    source_item_id: int
-    target_item_id: int
-    conversion_factor: float
+    item_id: int
     source_unit: str
     target_unit: str
+    conversion_factor: float
 
 
 class ItemConversionCreate(ItemConversionBase):
