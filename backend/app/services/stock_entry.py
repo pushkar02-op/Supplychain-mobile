@@ -208,7 +208,7 @@ def update_stock_entry(
             logger.error(f"Conversion lookup failed: {e}")
             raise
 
-        base_qty = entry.quantity * factor
+        base_qty = abs(quantity_diff) * factor
 
         create_inventory_txn(
             db,
@@ -216,7 +216,7 @@ def update_stock_entry(
                 item_id=entry.item_id,
                 batch_id=entry.batch_id,
                 txn_type=txn_type,
-                raw_qty=entry.quantity,
+                raw_qty=abs(quantity_diff),
                 raw_unit=entry.unit,
                 base_qty=base_qty,
                 base_unit=orig_batch.unit,
@@ -267,14 +267,14 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         InventoryTxnCreate(
             item_id=entry.item_id,
             batch_id=entry.batch_id,
-            txn_type="OUT",
+            txn_type="IN",
             raw_qty=entry.quantity,
             raw_unit=entry.unit,
             base_qty=base_qty,
             base_unit=entry.unit,
             ref_type="stock_entry",
             ref_id=entry.id,
-            remarks=f"Stock removed due to delete",
+            remarks=f"Stock added due to delete",
         ),
     )
     return True

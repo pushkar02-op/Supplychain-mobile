@@ -367,7 +367,7 @@ def update_dispatch_entry(
             logger.error(f"Conversion lookup failed: {e}")
             raise
 
-        base_qty = entry_update.quantity * factor
+        base_qty = diff * factor
 
         create_inventory_txn(
             db,
@@ -375,7 +375,7 @@ def update_dispatch_entry(
                 item_id=dispatch.item_id,
                 batch_id=batch.id,
                 txn_type=txn_type,
-                raw_qty=entry_update.quantity,
+                raw_qty=diff,
                 raw_unit=entry_update.unit,
                 base_qty=base_qty,
                 base_unit=entry_update.unit,
@@ -436,14 +436,14 @@ def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
         InventoryTxnCreate(
             item_id=dispatch.item_id,
             batch_id=batch.id,
-            txn_type="OUT",
+            txn_type="IN",
             raw_qty=dispatch.quantity,
             raw_unit=dispatch.unit,
             base_qty=base_qty,
             base_unit=batch.unit,
             ref_type="dispatch_entry",
             ref_id=dispatch.id,
-            remarks="Stock dispatched",
+            remarks="Stock dispatch deleted",
         ),
     )
     return True
