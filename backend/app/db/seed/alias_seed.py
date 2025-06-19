@@ -12,9 +12,14 @@ def seed_aliases(db: Session, created_by: str = "system") -> None:
         {
             "alias_name": "APPLE FUJI IMP USA (KG)",
             "alias_code": "590000001",
-            "item_name": "Apple Fuji",
+            "item_name": "APPLE FUJI",
         },
-        {"alias_name": "AVACADO", "alias_code": "590003579", "item_name": "Avocado"},
+        {"alias_name": "Avocado", "alias_code": "590003579", "item_name": "AVACADO"},
+        {
+            "alias_name": "ONION ECONOMY (KG)",
+            "alias_code": "590001600",
+            "item_name": "ONION",
+        },
     ]
     for a in aliases:
         item = db.query(Item).filter_by(name=a["item_name"]).first()

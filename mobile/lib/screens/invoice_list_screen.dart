@@ -583,8 +583,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                     scrollDirection: Axis.horizontal,
                                     child: DataTable(
                                       columns: const [
-                                        DataColumn(label: Text('HSN')),
-                                        DataColumn(label: Text('Code')),
                                         DataColumn(label: Text('Name')),
                                         DataColumn(label: Text('Qty')),
                                         DataColumn(label: Text('UOM')),
@@ -665,12 +663,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                                 }
                                               },
                                               cells: [
-                                                DataCell(
-                                                  Text(it['hsn_code'] ?? ''),
-                                                ),
-                                                DataCell(
-                                                  Text(it['item_code'] ?? ''),
-                                                ),
                                                 DataCell(
                                                   Text(it['item_name'] ?? ''),
                                                 ),
