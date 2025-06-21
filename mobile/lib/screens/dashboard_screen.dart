@@ -65,6 +65,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: const Icon(Icons.delete),
               label: const Text('Rejection List'),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/inventory'),
+              icon: const Icon(Icons.inventory),
+              label: const Text('Inventory'),
+            ),
           ],
         ),
       ),

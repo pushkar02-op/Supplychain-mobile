@@ -27,9 +27,8 @@ class _BatchRow {
     required this.receivedAt,
     required this.unit,
     required this.available,
-    this.selected = false,
-    this.qty = 0,
-  });
+  }) : selected = false,
+       qty = 0;
 }
 
 class _CreateOrEditDispatchScreenState
