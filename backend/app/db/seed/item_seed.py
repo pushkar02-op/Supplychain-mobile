@@ -18,6 +18,7 @@ def seed_items(db: Session, created_by: str = "system") -> None:
         {"name": "APPLE ROYAL GALA", "item_code": "", "default_uom": "KG"},
         {"name": "APPLE SHIMLA VALUE PACK", "item_code": "", "default_uom": "KG"},
         {"name": "AVACADO", "item_code": "", "default_uom": "EA"},
+        {"name": "BABY CORN PEELED 200 GM", "item_code": "", "default_uom": "EA"},
         {"name": "BANANA KARPURAVALLI", "item_code": "", "default_uom": "KG"},
         {"name": "BANANA RAW ", "item_code": "", "default_uom": "KG"},
         {"name": "BANANA ROBUSTA", "item_code": "", "default_uom": "KG"},
@@ -38,11 +39,13 @@ def seed_items(db: Session, created_by: str = "system") -> None:
         {"name": "CAPSICUM GREEN", "item_code": "", "default_uom": "KG"},
         {"name": "CAPSICUM RED ", "item_code": "", "default_uom": "KG"},
         {"name": "CAPSICUM YELLOW ", "item_code": "", "default_uom": "KG"},
+        {"name": "CARROT DELHI", "item_code": "", "default_uom": "KG"},
         {"name": "CARROT REGULAR ", "item_code": "", "default_uom": "KG"},
         {"name": "CHILLI GREEN ", "item_code": "", "default_uom": "KG"},
         {"name": "COCCINIEA ", "item_code": "", "default_uom": "KG"},
         {"name": "COCONUT TENDER", "item_code": "", "default_uom": "EA"},
         {"name": "COCONUT", "item_code": "", "default_uom": "EA"},
+        {"name": "COCCINIEA", "item_code": "", "default_uom": "KG"},
         {"name": "CORRIANDER S", "item_code": "", "default_uom": "KG"},
         {"name": "CUCUMBER KEERA ", "item_code": "", "default_uom": "KG"},
         {"name": "FRENCH BEANS ", "item_code": "", "default_uom": "KG"},
@@ -54,6 +57,7 @@ def seed_items(db: Session, created_by: str = "system") -> None:
         {"name": "GUAVA WHITE", "item_code": "", "default_uom": "KG"},
         {"name": "KIWI", "item_code": "", "default_uom": "EA"},
         {"name": "LEMON", "item_code": "", "default_uom": "EA"},
+        {"name": "LITCHI", "item_code": "", "default_uom": "KG"},
         {"name": "MANGO ALPHANSO", "item_code": "", "default_uom": "KG"},
         {"name": "MANGO BANGANAPALLI", "item_code": "", "default_uom": "KG"},
         {"name": "MANGO DUSSHERI", "item_code": "", "default_uom": "KG"},
@@ -93,6 +97,7 @@ def seed_items(db: Session, created_by: str = "system") -> None:
         {"name": "WATERMELON ", "item_code": "", "default_uom": "KG"},
         {"name": "WATERMELON KIRAN", "item_code": "", "default_uom": "KG"},
         {"name": "WATERMELON SARASWATI ", "item_code": "", "default_uom": "KG"},
+        {"name": "WOOD APPLE", "item_code": "", "default_uom": "KG"},
     ]
 
     for item in item_data:

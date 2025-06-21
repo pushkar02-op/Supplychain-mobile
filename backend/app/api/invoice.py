@@ -59,7 +59,6 @@ async def upload_invoices(
             continue
         result = await save_and_process_invoice(file, db=db, created_by="system")
         results.append(result)
-        logger.info(results)
     return results
 
 
