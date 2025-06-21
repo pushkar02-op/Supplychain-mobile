@@ -23,6 +23,11 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   List<String> _pickedPaths = [];
   List<Map<String, dynamic>> _uploadResults = [];
   bool _showUploadSection = false;
+  int _page = 1;
+  int _pageSize = 20;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+  int _totalInvoices = 0; // Added state variable for total invoices
 
   @override
   void initState() {
@@ -38,22 +43,46 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     } catch (_) {}
   }
 
-  Future<void> _fetchInvoices() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _fetchInvoices({bool loadMore = false}) async {
+    if (loadMore) {
+      if (_isLoadingMore || !_hasMore) return;
+      setState(() => _isLoadingMore = true);
+    } else {
+      setState(() {
+        _loading = true;
+        _error = null;
+        _page = 1;
+        _hasMore = true;
+        _invoices.clear();
+      });
+    }
     try {
-      final list = await InvoiceService.fetchInvoices(
+      final result = await InvoiceService.fetchInvoices(
         date: _filterDate,
         martName: _filterMart,
         search: _search.isNotEmpty ? _search : null,
+        page: _page,
+        pageSize: _pageSize,
       );
-      setState(() => _invoices = list);
+      final list = List<Map<String, dynamic>>.from(result['results']);
+      setState(() {
+        if (loadMore) {
+          _invoices.addAll(list);
+        } else {
+          _invoices = list;
+        }
+        _totalInvoices = result['total'] ?? 0; // Store total invoices
+        _hasMore = _invoices.length < _totalInvoices;
+        if (_hasMore) _page++;
+      });
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
-      setState(() => _loading = false);
+      if (loadMore) {
+        setState(() => _isLoadingMore = false);
+      } else {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -74,7 +103,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
               .toList();
 
       setState(() {
-        _pickedPaths = pdfFiles.map((file) => file.path!).toList();
+        _pickedPaths =
+            pdfFiles.map((file) => file.path!).toList().cast<String>();
         _showUploadSection = true;
         _uploadResults.clear(); // clear previous results if new files selected
       });
@@ -492,13 +522,14 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            // const SizedBox(height: 12),
 
             // Error
             if (_error != null)
               Center(
                 child: Text(_error!, style: const TextStyle(color: Colors.red)),
               ),
+            // Text('Total: $_totalInvoices invoices'), // Show total invoices
 
             // Invoice List
             Expanded(
@@ -811,6 +842,15 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                         },
                       ),
             ),
+            if (_hasMore && !_loading && !_isLoadingMore)
+              Center(
+                child: ElevatedButton(
+                  onPressed: () => _fetchInvoices(loadMore: true),
+                  child: const Text('Load More'),
+                ),
+              ),
+            if (_isLoadingMore)
+              const Center(child: CircularProgressIndicator()),
           ],
         ),
       ),

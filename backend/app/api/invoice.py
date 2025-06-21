@@ -4,11 +4,13 @@ Provides upload, retrieval, update, deletion, and download of invoices.
 """
 
 import logging
+from operator import or_
 import os
 from fastapi import APIRouter, Depends, Query, UploadFile, File, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from datetime import date
 
 from app.core.exceptions import AppException
 from app.services.invoice import (
@@ -20,6 +22,7 @@ from app.services.invoice import (
 )
 from app.db.schemas.invoice import InvoiceRead, InvoiceUpdate
 from app.db.session import get_db
+from app.db.models.invoice import Invoice
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
@@ -62,34 +65,55 @@ async def upload_invoices(
 
 @router.get(
     "/",
-    response_model=List[InvoiceRead],
     summary="List invoices",
-    description="Retrieve all invoices, with optional date, mart name, or search filters.",
+    description="Retrieve invoices with optional date, mart, search, and pagination.",
 )
 def read_invoices(
-    invoice_date: Optional[str] = Query(
+    invoice_date: Optional[date] = Query(
         None, description="Filter by invoice date (YYYY-MM-DD)"
     ),
     mart_name: Optional[str] = Query(None, description="Filter by mart name"),
     search: Optional[str] = Query(None, description="Search term"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Page size"),
     db: Session = Depends(get_db),
-) -> List[InvoiceRead]:
+) -> JSONResponse:
     """
-    Retrieve all invoices with optional filters.
+    List invoices with optional filters and pagination.
 
     Args:
-        invoice_date (Optional[str]): Filter by date.
+        invoice_date (Optional[date]): Filter by invoice date.
         mart_name (Optional[str]): Filter by mart name.
         search (Optional[str]): Search term.
+        page (int): Page number.
+        page_size (int): Page size.
         db (Session): Database session dependency.
 
     Returns:
-        List[InvoiceRead]: List of invoice records.
+        JSONResponse: A response containing total, page, page_size, and results.
     """
     logger.info("Fetching invoices")
-    return get_all_invoices(
-        db, invoice_date=invoice_date, mart_name=mart_name, search=search
-    )
+    query = db.query(Invoice)
+    if invoice_date:
+        query = query.filter(Invoice.invoice_date == invoice_date)
+    if mart_name:
+        query = query.filter(Invoice.mart_name == mart_name)
+    if search:
+        query = query.filter(
+            or_(
+                Invoice.mart_name.ilike(f"%{search}%"),
+                Invoice.remarks.ilike(f"%{search}%"),
+            )
+        )
+    query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+    total = query.count()
+    invoices = query.offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "results": [InvoiceRead.from_orm(inv) for inv in invoices],
+    }
 
 
 @router.get("/{invoice_id}", response_model=InvoiceRead, summary="Get invoice by ID")
