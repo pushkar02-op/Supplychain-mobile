@@ -1,5 +1,6 @@
 # app/db/seed/item_seed.py
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.db.models.item import Item
 from app.db.models.uom import UOM
@@ -22,11 +23,12 @@ def seed_items(db: Session, created_by: str = "system") -> None:
         {"name": "BANANA ROBUSTA", "item_code": "", "default_uom": "KG"},
         {"name": "BEET ROOT ", "item_code": "", "default_uom": "KG"},
         {
-            "name": "BEST FARM DRAGON FRUIT (WHITE FLESH)",
+            "name": "DRAGON FRUIT",
             "item_code": "",
             "default_uom": "EA",
         },
         {"name": "BITTER GOURD ", "item_code": "", "default_uom": "KG"},
+        {"name": "BLUE BERRY", "item_code": "", "default_uom": "EA"},
         {"name": "BOTTLE GOURD ", "item_code": "", "default_uom": "KG"},
         {"name": "BRINJAL BLACK BIG ", "item_code": "", "default_uom": "KG"},
         {"name": "BRINJAL LONG GREEN", "item_code": "", "default_uom": "KG"},
@@ -49,11 +51,14 @@ def seed_items(db: Session, created_by: str = "system") -> None:
         {"name": "GOOSEBERRY AMLA BIG ", "item_code": "", "default_uom": "KG"},
         {"name": "GRAPES IMP RED GLOBE CHINA ", "item_code": "", "default_uom": "KG"},
         {"name": "GRAPES SONAKA PACK", "item_code": "", "default_uom": "EA"},
+        {"name": "GUAVA WHITE", "item_code": "", "default_uom": "KG"},
         {"name": "KIWI", "item_code": "", "default_uom": "EA"},
         {"name": "LEMON ", "item_code": "", "default_uom": "EA"},
+        {"name": "MANGO ALPHANSO", "item_code": "", "default_uom": "KG"},
         {"name": "MANGO BANGANAPALLI", "item_code": "", "default_uom": "KG"},
         {"name": "MANGO DUSSHERI", "item_code": "", "default_uom": "KG"},
         {"name": "MANGO GULABKHAS ", "item_code": "", "default_uom": "KG"},
+        {"name": "MANGO HIMSAGAR", "item_code": "", "default_uom": "KG"},
         {"name": "MANGO KESAR", "item_code": "", "default_uom": "KG"},
         {"name": "MANGO LANGDA ", "item_code": "", "default_uom": "KG"},
         {"name": "MANGO RASPURI ", "item_code": "", "default_uom": "KG"},
@@ -77,7 +82,9 @@ def seed_items(db: Session, created_by: str = "system") -> None:
         {"name": "PUMPKIN DISCO ", "item_code": "", "default_uom": "KG"},
         {"name": "RAW MANGO ", "item_code": "", "default_uom": "KG"},
         {"name": "SPONGE GOURD ", "item_code": "", "default_uom": "KG"},
+        {"name": "SUGAR BABY MELON", "item_code": "", "default_uom": "KG"},
         {"name": "SUN MELON ", "item_code": "", "default_uom": "KG"},
+        {"name": "SWEET CORN SHELLED 200 GMS", "item_code": "", "default_uom": "EA"},
         {"name": "SWEET POTATO ", "item_code": "", "default_uom": "KG"},
         {"name": "SWEET TAMARIND", "item_code": "", "default_uom": "EA"},
         {"name": "TENDER JACKFRUIT", "item_code": "", "default_uom": "KG"},
@@ -89,16 +96,27 @@ def seed_items(db: Session, created_by: str = "system") -> None:
     ]
 
     for item in item_data:
-        uom = db.query(UOM).filter_by(code=item["default_uom"]).first()
+        uom = (
+            db.query(UOM)
+            .filter(
+                func.lower(func.trim(UOM.code)) == item["default_uom"].strip().lower()
+            )
+            .first()
+        )
         if not uom:
             continue
-        exists = db.query(Item).filter_by(name=item["name"]).first()
+        exists = (
+            db.query(Item)
+            .filter(func.lower(func.trim(Item.name)) == item["name"].strip().lower())
+            .first()
+        )
+
         if not exists:
             db.add(
                 Item(
                     name=item["name"],
                     default_uom_id=uom.id,
-                    item_code=item["item_code"],
+                    item_code=item["item_code"].strip(),
                     created_by=created_by,
                     updated_by=created_by,
                     created_at=datetime.utcnow(),
