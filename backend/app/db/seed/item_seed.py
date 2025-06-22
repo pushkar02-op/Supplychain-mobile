@@ -42,7 +42,6 @@ def seed_items(db: Session, created_by: str = "system") -> None:
         {"name": "CARROT DELHI", "item_code": "", "default_uom": "KG"},
         {"name": "CARROT REGULAR ", "item_code": "", "default_uom": "KG"},
         {"name": "CHILLI GREEN ", "item_code": "", "default_uom": "KG"},
-        {"name": "COCCINIEA ", "item_code": "", "default_uom": "KG"},
         {"name": "COCONUT TENDER", "item_code": "", "default_uom": "EA"},
         {"name": "COCONUT", "item_code": "", "default_uom": "EA"},
         {"name": "COCCINIEA", "item_code": "", "default_uom": "KG"},

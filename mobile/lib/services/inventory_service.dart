@@ -9,7 +9,10 @@ class InventoryService {
     final params = <String, dynamic>{};
     if (itemId != null) params['item_id'] = itemId;
     if (unit != null && unit.isNotEmpty) params['unit'] = unit;
-    final resp = await DioClient.instance.get('/reports/inventory', queryParameters: params);
+    final resp = await DioClient.instance.get(
+      '/reports/inventory',
+      queryParameters: params,
+    );
     if (resp.statusCode == 200) {
       return List<Map<String, dynamic>>.from(resp.data);
     }
@@ -21,12 +24,12 @@ class InventoryService {
     String? unit,
     int limit = 10,
   }) async {
-    final params = <String, dynamic>{
-      'item_id': itemId,
-      'limit': limit,
-    };
+    final params = <String, dynamic>{'item_id': itemId, 'limit': limit};
     if (unit != null && unit.isNotEmpty) params['unit'] = unit;
-    final resp = await DioClient.instance.get('/inventory-txn/', queryParameters: params);
+    final resp = await DioClient.instance.get(
+      '/inventory-txn/',
+      queryParameters: params,
+    );
     if (resp.statusCode == 200) {
       return List<Map<String, dynamic>>.from(resp.data);
     }
