@@ -32,4 +32,9 @@ jobs:
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/supplychain-app:latest
             docker stop supplychain-app || true
             docker rm supplychain-app || true
-            docker run -d --name supplychain-app -p 8000:8000 ${{ secrets.DOCKERHUB_USERNAME }}/supplychain-app:latest
+            docker run -d \
+              --name supplychain-app \
+              -p 8000:8000 \
+              -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
+              -e JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }} \
+              ${{ secrets.DOCKERHUB_USERNAME }}/supplychain-app:latest
