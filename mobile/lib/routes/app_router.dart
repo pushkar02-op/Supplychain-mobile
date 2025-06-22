@@ -14,6 +14,7 @@ import '../screens/stock_list_screen.dart';
 import '../screens/stock_entry_screen.dart';
 import '../screens/order_entry_screen.dart';
 import '../screens/invoice_list_screen.dart';
+import '../screens/inventory_screen.dart';
 
 final storage = FlutterSecureStorage();
 
@@ -84,6 +85,10 @@ final GoRouter appRouter = GoRouter(
           ),
         );
       },
+    ),
+    GoRoute(
+      path: '/inventory',
+      builder: (context, state) => const InventoryScreen(),
     ),
   ],
 );

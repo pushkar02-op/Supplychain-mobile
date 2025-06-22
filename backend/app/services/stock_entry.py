@@ -60,17 +60,17 @@ def create_stock_entry(
         db.flush()
         logger.debug(f"Added to existing batch id={batch.id}")
     else:
-        item = db.query(Item).filter(Item.id == entry.item_id).first()
-        uom_code = None
-        if item and item.default_uom_id:
+        # item = db.query(Item).filter(Item.id == entry.item_id).first()
+        # uom_code = None
+        # if item and item.default_uom_id:
 
-            uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
-            uom_code = uom.code if uom else None
-        unit = uom_code if uom_code else entry.unit
+        # uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
+        # uom_code = uom.code if uom else None
+        # unit = uom_code if uom_code else entry.unit
         batch = Batch(
             item_id=entry.item_id,
             quantity=entry.quantity,
-            unit=unit,
+            unit=entry.unit,
             received_at=entry.received_date,
             created_by=created_by,
             updated_by=created_by,

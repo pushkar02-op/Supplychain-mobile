@@ -6,12 +6,17 @@ import 'package:path_provider/path_provider.dart';
 
 class InvoiceService {
   /// Fetch list of invoices, with optional filters
-  static Future<List<Map<String, dynamic>>> fetchInvoices({
+  static Future<Map<String, dynamic>> fetchInvoices({
     DateTime? date,
     String? martName,
     String? search,
+    int page = 1,
+    int pageSize = 20,
   }) async {
-    final params = <String, dynamic>{};
+    final params = <String, dynamic>{
+      'page': page,
+      'page_size': pageSize,
+    };
     if (date != null) {
       params['invoice_date'] = date.toIso8601String().split('T').first;
     }
@@ -23,7 +28,13 @@ class InvoiceService {
       queryParameters: params,
     );
     if (resp.statusCode == 200) {
-      return List<Map<String, dynamic>>.from(resp.data);
+      final data = resp.data;
+      return {
+        'total': data['total'],
+        'page': data['page'],
+        'page_size': data['page_size'],
+        'results': List<Map<String, dynamic>>.from(data['results']),
+      };
     }
     throw Exception('Failed to load invoices');
   }

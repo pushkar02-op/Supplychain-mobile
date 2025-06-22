@@ -89,20 +89,20 @@ async def save_and_process_invoice(
             uom_id = (
                 db.query(UOM).filter(func.lower(UOM.code) == row["UOM"].lower()).first()
             )
-            if not existing_item:
-                new_item = Item(
-                    name=name,
-                    item_code=row["ITEM_CODE"],
-                    default_uom_id=uom_id.id if uom_id else None,
-                    created_by=created_by,
-                    updated_by=created_by,
-                )
-                db.add(new_item)
-                db.flush()
-                item_id = new_item.id
-                logger.debug(f"Created item id={item_id} for invoice")
-            else:
-                item_id = existing_item.id
+            # if not existing_item:
+            #     new_item = Item(
+            #         name=name,
+            #         item_code=row["ITEM_CODE"],
+            #         default_uom_id=uom_id.id if uom_id else None,
+            #         created_by=created_by,
+            #         updated_by=created_by,
+            #     )
+            #     db.add(new_item)
+            #     db.flush()
+            #     item_id = new_item.id
+            #     logger.debug(f"Created item id={item_id} for invoice")
+            # else:
+            #     item_id = existing_item.id
             item_code = row["ITEM_CODE"]
             item_name = row["Item"]
             item_uom = row["UOM"]

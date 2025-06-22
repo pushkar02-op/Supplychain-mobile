@@ -5,7 +5,8 @@ Configures logging, exception handlers, CORS, and database migrations on startup
 
 import logging
 import subprocess
-
+from app.db.session import SessionLocal
+from app.db.seed.seed_all import seed_all
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -62,3 +63,16 @@ def startup() -> None:
         logger.exception(f"Error applying migrations: {e}")
         # Depending on your needs, you might want to stop the app if migrations fail:
         # raise
+
+    # 2. Seed fallback data (only if enabled in settings)
+    from app.core.config import settings
+
+    if getattr(settings, "SEED_INITIAL_DATA", True):
+        try:
+            logger.info("Seeding fallback data...")
+            db = SessionLocal()
+            seed_all(db, created_by="admin@startup")
+            db.close()
+            logger.info("✅ Initial data seeded")
+        except Exception as e:
+            logger.exception("❌ Seeding initial data failed")

@@ -27,9 +27,8 @@ class _BatchRow {
     required this.receivedAt,
     required this.unit,
     required this.available,
-    this.selected = false,
-    this.qty = 0,
-  });
+  }) : selected = false,
+       qty = 0;
 }
 
 class _CreateOrEditDispatchScreenState
@@ -37,7 +36,6 @@ class _CreateOrEditDispatchScreenState
   final _formKey = GlobalKey<FormState>();
   final _remarksCtl = TextEditingController();
 
-  // order context
   late int _itemId;
   late String _martName;
   late String _unit;
@@ -79,14 +77,16 @@ class _CreateOrEditDispatchScreenState
       );
 
       final filtered =
-          all.map((b) {
-            return _BatchRow(
-              batchId: b['id'] as int,
-              receivedAt: b['received_at'] as String,
-              unit: b['unit'] as String,
-              available: (b['quantity'] as num).toDouble(),
-            );
-          }).toList();
+          all
+              .map(
+                (b) => _BatchRow(
+                  batchId: b['id'] as int,
+                  receivedAt: b['received_at'] as String,
+                  unit: b['unit'] as String,
+                  available: (b['quantity'] as num).toDouble(),
+                ),
+              )
+              .toList();
 
       // auto-select FCFS to cover remaining
       double toCover = remaining;
@@ -100,6 +100,7 @@ class _CreateOrEditDispatchScreenState
       setState(() {
         _rows = filtered;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       setState(() {
@@ -115,11 +116,40 @@ class _CreateOrEditDispatchScreenState
   double get _remaining =>
       (_orderQuantity - _alreadyDispatched).clamp(0.0, double.infinity);
 
-  // only require >0, no upper-bound
-  bool get _canSave => _totalNow > 0;
+  double _totalNowExcluding(_BatchRow exclude) => _rows
+      .where((r) => r.selected && r != exclude)
+      .fold(0.0, (sum, r) => sum + r.qty);
+
+  bool get _canSave => _totalNow > 0 && !_submitting;
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate() || !_canSave) return;
+
+    // Over-dispatch confirmation
+    if (_totalNow > _remaining) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder:
+            (ctx) => AlertDialog(
+              title: const Text('Over-dispatch Warning'),
+              content: Text(
+                'You are dispatching more (${_totalNow.toStringAsFixed(2)} $_unit) than remaining (${_remaining.toStringAsFixed(2)} $_unit).\nProceed?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Proceed'),
+                ),
+              ],
+            ),
+      );
+      if (confirmed != true) return;
+    }
+
     setState(() => _submitting = true);
 
     final payload = {
@@ -131,7 +161,12 @@ class _CreateOrEditDispatchScreenState
       'batches':
           _rows
               .where((r) => r.selected)
-              .map((r) => {'batch_id': r.batchId, 'quantity': r.qty})
+              .map(
+                (r) => {
+                  'batch_id': r.batchId,
+                  'quantity': double.parse(r.qty.toStringAsFixed(2)),
+                },
+              )
               .toList(),
     };
     try {
@@ -143,21 +178,52 @@ class _CreateOrEditDispatchScreenState
       } else {
         await DispatchService.createDispatch(payload);
       }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Dispatch saved successfully')),
       );
       context.pop(true);
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() {
+        _error = _parseError(e);
+      });
     } finally {
       setState(() => _submitting = false);
     }
   }
 
+  String _parseError(Object e) {
+    final msg = e.toString();
+    if (msg.contains('Not enough stock')) {
+      return 'Not enough stock in selected batch. Please refresh and try again.';
+    }
+    if (msg.contains('unique constraint')) {
+      return 'Duplicate dispatch entry for this item, date, and mart.';
+    }
+    return msg;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        body: Center(
+          child:
+              _error != null
+                  ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadBatches,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  )
+                  : const CircularProgressIndicator(),
+        ),
+      );
     }
 
     return Scaffold(
@@ -168,153 +234,205 @@ class _CreateOrEditDispatchScreenState
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child:
-            _error != null
-                ? Center(
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                )
-                : Form(
-                  key: _formKey,
-                  child: ListView(
-                    children: [
-                      // read-only item
-                      TextFormField(
-                        initialValue:
-                            widget.data!['item_name'] as String? ?? '',
-                        decoration: const InputDecoration(
-                          labelText: 'Item',
-                          border: OutlineInputBorder(),
-                        ),
-                        enabled: false,
-                      ),
-                      const SizedBox(height: 12),
-                      // read-only mart
-                      TextFormField(
-                        initialValue: _martName,
-                        decoration: const InputDecoration(
-                          labelText: 'Mart',
-                          border: OutlineInputBorder(),
-                        ),
-                        enabled: false,
-                      ),
-                      const SizedBox(height: 12),
-                      // read-only date
-                      TextFormField(
-                        initialValue: _dispatchDate,
-                        decoration: const InputDecoration(
-                          labelText: 'Date',
-                          border: OutlineInputBorder(),
-                        ),
-                        enabled: false,
-                      ),
-                      const SizedBox(height: 12),
-
-                      // summary
-                      Text(
-                        'Remaining to dispatch: ${_remaining.toStringAsFixed(2)} $_unit',
-                      ),
-                      Text(
-                        'Dispatching now: ${_totalNow.toStringAsFixed(2)} $_unit',
-                        style: TextStyle(
-                          color: _totalNow > _remaining ? Colors.red : null,
-                        ),
-                      ),
-                      const Divider(height: 32),
-
-                      // batch rows: whole row tappable
-                      ..._rows.map((r) {
-                        return InkWell(
-                          onTap: () {
-                            setState(() {
-                              r.selected = !r.selected;
-                              if (!r.selected) {
-                                r.qty = 0;
-                              } else {
-                                // clamp to batch available (no upper bound on order)
-                                r.qty = r.available;
-                              }
-                            });
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                Checkbox(value: r.selected, onChanged: null),
-                                Expanded(
-                                  child: Text(
-                                    '${r.receivedAt} — '
-                                    '${r.available.toStringAsFixed(2)} ${r.unit}',
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 80,
-                                  child: TextFormField(
-                                    enabled: r.selected,
-                                    initialValue: r.qty.toStringAsFixed(2),
-                                    decoration: const InputDecoration(
-                                      labelText: 'Qty',
-                                      isDense: true,
-                                    ),
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    onChanged: (txt) {
-                                      final v = double.tryParse(txt) ?? 0;
-                                      setState(() {
-                                        r.qty = v.clamp(0, r.available);
-                                      });
-                                    },
-                                    validator: (txt) {
-                                      if (!r.selected) return null;
-                                      final v = double.tryParse(txt ?? '') ?? 0;
-                                      if (v <= 0 || v > r.available) {
-                                        return '0–${r.available}';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-
-                      const SizedBox(height: 24),
-                      // remarks
-                      TextFormField(
-                        controller: _remarksCtl,
-                        decoration: const InputDecoration(
-                          labelText: 'Remarks (optional)',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 2,
-                      ),
-                      const SizedBox(height: 24),
-
-                      // save
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _canSave && !_submitting ? _save : null,
-                          child:
-                              _submitting
-                                  ? const CircularProgressIndicator(
-                                    color: Colors.white,
-                                  )
-                                  : const Text('Save Dispatch'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                        ),
-                      ),
-                    ],
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: [
+              // read-only item
+              TextFormField(
+                initialValue: widget.data!['item_name'] as String? ?? '',
+                decoration: InputDecoration(
+                  labelText: 'Item',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: Tooltip(
+                    message: 'The item being dispatched.',
+                    child: const Icon(Icons.info_outline),
                   ),
                 ),
+                enabled: false,
+              ),
+              const SizedBox(height: 12),
+              // read-only mart
+              TextFormField(
+                initialValue: _martName,
+                decoration: InputDecoration(
+                  labelText: 'Mart',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: Tooltip(
+                    message: 'The mart/store for this dispatch.',
+                    child: const Icon(Icons.info_outline),
+                  ),
+                ),
+                enabled: false,
+              ),
+              const SizedBox(height: 12),
+              // read-only date
+              TextFormField(
+                initialValue: _dispatchDate,
+                decoration: InputDecoration(
+                  labelText: 'Date',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: Tooltip(
+                    message: 'The date of dispatch.',
+                    child: const Icon(Icons.info_outline),
+                  ),
+                ),
+                enabled: false,
+              ),
+              const SizedBox(height: 12),
+
+              // summary
+              Row(
+                children: [
+                  Text(
+                    'Remaining to dispatch: ${_remaining.toStringAsFixed(2)} $_unit',
+                  ),
+                  const SizedBox(width: 4),
+                  Tooltip(
+                    message:
+                        'Order quantity minus already dispatched. You should not dispatch more than this unless intentionally over-dispatching.',
+                    child: const Icon(Icons.info_outline, size: 18),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text(
+                    'Dispatching now: ${_totalNow.toStringAsFixed(2)} $_unit',
+                    style: TextStyle(
+                      color: _totalNow > _remaining ? Colors.red : null,
+                    ),
+                  ),
+                  if (_totalNow > _remaining)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Tooltip(
+                        message:
+                            'You are dispatching more than the remaining order quantity.',
+                        child: Icon(Icons.warning, color: Colors.red, size: 18),
+                      ),
+                    ),
+                ],
+              ),
+              const Divider(height: 32),
+
+              // batch rows: whole row tappable
+              ..._rows.map((r) {
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      r.selected = !r.selected;
+                      if (!r.selected) {
+                        r.qty = 0;
+                      } else {
+                        final remaining = _remaining - _totalNowExcluding(r);
+                        r.qty = remaining.clamp(0, r.available);
+                      }
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: r.selected,
+                          onChanged: (val) {
+                            setState(() {
+                              r.selected = val ?? false;
+                              if (!r.selected)
+                                r.qty = 0;
+                              else
+                                r.qty = r.available;
+                            });
+                          },
+                        ),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Text(
+                                '${r.receivedAt} — ${r.available.toStringAsFixed(2)} ${r.unit}',
+                              ),
+                              const SizedBox(width: 4),
+                              Tooltip(
+                                message:
+                                    'Available stock in this batch. You cannot dispatch more than this.',
+                                child: const Icon(Icons.info_outline, size: 16),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: 80,
+                          child: TextFormField(
+                            enabled: r.selected,
+                            initialValue: r.qty.toStringAsFixed(2),
+                            decoration: const InputDecoration(
+                              labelText: 'Qty',
+                              isDense: true,
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            onChanged: (txt) {
+                              final v = double.tryParse(txt) ?? 0;
+                              setState(() {
+                                r.qty = v.clamp(0, r.available);
+                              });
+                            },
+                            validator: (txt) {
+                              if (!r.selected) return null;
+                              final v = double.tryParse(txt ?? '') ?? 0;
+                              if (v <= 0 || v > r.available) {
+                                return '0–${r.available}';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+
+              const SizedBox(height: 24),
+              // remarks
+              TextFormField(
+                controller: _remarksCtl,
+                decoration: const InputDecoration(
+                  labelText: 'Remarks (optional)',
+                  border: OutlineInputBorder(),
+                  counterText: '',
+                ),
+                maxLines: 2,
+                maxLength: 200,
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '${_remarksCtl.text.length}/200',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // save
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _canSave ? _save : null,
+                  child:
+                      _submitting
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Save Dispatch'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
