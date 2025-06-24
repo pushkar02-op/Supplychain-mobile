@@ -267,7 +267,7 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         InventoryTxnCreate(
             item_id=entry.item_id,
             batch_id=entry.batch_id,
-            txn_type="IN",
+            txn_type="OUT",
             raw_qty=entry.quantity,
             raw_unit=entry.unit,
             base_qty=base_qty,
