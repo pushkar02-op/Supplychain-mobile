@@ -123,6 +123,11 @@ def clean_and_rename(
     df.columns = [
         "HSN_CODE",
         "ITEM_CODE",
+        "Item",
+        "Quantity",
+        "UOM",
+        "Price",
+        "Total",
         "Date",
         "StoreName",
     ]
