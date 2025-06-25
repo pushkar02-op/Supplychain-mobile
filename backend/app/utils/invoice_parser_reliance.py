@@ -84,14 +84,16 @@ def normalize_rows(df: pd.DataFrame) -> pd.DataFrame:
     """
     logger.info("Normalizing rows")
     # Start from row 4 (index 3)
-    working = df.iloc[3:].copy().reset_index(drop=True)
-
-    # Optionally, remove trailing rows that are not items (e.g., totals)
-    # Example: if the first column contains "Total" or "Grand Total"
-    if working.shape[0] > 0 and working.iloc[-1, 0] and "total" in str(working.iloc[-1, 0]).lower():
-        # Remove last row if it's a total row
-        working = working.iloc[:-1]
-
+    working = df.iloc[8:].copy()  # drop top metadataAdd commentMore actions
+    # retain header row once
+    first = working[0].tolist().index("Sr.No")
+    header = working.iloc[first : first + 1]
+    body = working[working[0] != "Sr.No"]
+    working = pd.concat([header, body]).reset_index(drop=True)
+    # drop trailing grand total
+    if "Grand Total of Qty" in working[0].values:
+        end = working[working[0] == "Grand Total of Qty"].index[0]
+        working = working.iloc[:end]
     logger.debug(f"Normalized to {len(working)} rows")
     return working
 
@@ -121,11 +123,6 @@ def clean_and_rename(
     df.columns = [
         "HSN_CODE",
         "ITEM_CODE",
-        "Item",
-        "Quantity",
-        "UOM",
-        "Price",
-        "Total",
         "Date",
         "StoreName",
     ]
