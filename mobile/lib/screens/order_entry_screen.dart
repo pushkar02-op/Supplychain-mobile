@@ -71,17 +71,17 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
 
   Future<void> _loadItems() async {
     try {
-      final items = await StockService.fetchItems();
+      final items = await OrderService.fetchItemAliases();
       items.sort(
-        (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+        (a, b) => (a['alias_name'] as String).compareTo(b['alias_name'] as String),
       );
       setState(() {
         _items = items;
-        _unitOptions =
-            items.map((e) => e['default_unit'] as String).toSet().toList()
-              ..sort();
-
-        // If we already have an editing unit, ensure it's included:
+        _unitOptions = items
+            .map((e) => e['alias_name'] as String)
+            .toSet()
+            .toList()
+          ..sort();
         if (_unit.isNotEmpty && !_unitOptions.contains(_unit)) {
           _unitOptions.add(_unit);
         }
@@ -121,7 +121,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     setState(() => _isLoading = true);
 
     final payload = {
-      'item_id': _selectedItem!['id'],
+      'item_id': _selectedItem!['master_item_id'], // Use master_item_id from alias
       'mart_name': _selectedMart!,
       'order_date': DateFormat('yyyy-MM-dd').format(_orderDate),
       'quantity_ordered': double.parse(_quantity),
@@ -248,7 +248,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                                 )
                                 .toList();
                           },
-                          itemAsString: (it) => it['name'] as String,
+                          itemAsString: (it) => it['alias_name'] as String,
                           onChanged: (it) {
                             setState(() {
                               _selectedItem = it;

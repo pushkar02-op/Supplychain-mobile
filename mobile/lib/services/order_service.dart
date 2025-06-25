@@ -83,4 +83,13 @@ class OrderService {
   static Future<void> deleteOrder(int orderId) async {
     await DioClient.instance.delete('/orders/$orderId');
   }
+
+  /// Fetch distinct item aliases
+  static Future<List<Map<String, dynamic>>> fetchItemAliases() async {
+    final resp = await DioClient.instance.get('/item-alias/distinct');
+    if (resp.statusCode != 200) {
+      throw Exception('Failed to fetch item aliases');
+    }
+    return List<Map<String, dynamic>>.from(resp.data);
+  }
 }

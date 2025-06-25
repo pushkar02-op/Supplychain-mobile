@@ -9,7 +9,9 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
+from app.core.auth import get_current_user
 from app.core.exceptions import AppException
+from app.db.models.user import User
 from app.db.schemas.dispatch_entry import (
     DispatchEntryCreate,
     DispatchEntryRead,
@@ -32,7 +34,9 @@ router = APIRouter(prefix="/dispatch-entries", tags=["Dispatch Entries"])
 
 @router.post("/", response_model=DispatchEntryRead, status_code=status.HTTP_201_CREATED)
 def create_route(
-    entry: DispatchEntryCreate, db: Session = Depends(get_db)
+    entry: DispatchEntryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DispatchEntryRead:
     """
     Create a new dispatch entry.
@@ -45,7 +49,7 @@ def create_route(
         DispatchEntryRead: The created dispatch entry.
     """
     logger.info("Creating new dispatch entry")
-    return create_dispatch_entry(db, entry, created_by="system")
+    return create_dispatch_entry(db, entry, created_by=current_user.username)
 
 
 @router.post(
@@ -54,7 +58,9 @@ def create_route(
     status_code=status.HTTP_201_CREATED,
 )
 def dispatch_from_order(
-    entry: DispatchEntryMultiCreate, db: Session = Depends(get_db)
+    entry: DispatchEntryMultiCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> List[DispatchEntryRead]:
     """
     Create multiple dispatch entries from an order.
@@ -71,7 +77,7 @@ def dispatch_from_order(
     """
     logger.info("Creating dispatch entries from order")
     try:
-        return create_dispatch_from_order(db, entry, created_by="system")
+        return create_dispatch_from_order(db, entry, created_by=current_user.username)
     except Exception as e:
         logger.exception("Failed to create dispatch from order")
         raise AppException(str(e), status_code=400)
@@ -133,7 +139,10 @@ def read_one(id: int, db: Session = Depends(get_db)) -> DispatchEntryRead:
 
 @router.put("/{id}", response_model=DispatchEntryRead)
 def update_route(
-    id: int, entry: DispatchEntryUpdate, db: Session = Depends(get_db)
+    id: int,
+    entry: DispatchEntryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DispatchEntryRead:
     """
     Update a dispatch entry by ID.
@@ -150,7 +159,7 @@ def update_route(
         AppException: If the entry is not found (404).
     """
     logger.info(f"Updating dispatch entry id={id}")
-    updated = update_dispatch_entry(db, id, entry, updated_by="system")
+    updated = update_dispatch_entry(db, id, entry, updated_by=current_user.username)
     if not updated:
         logger.error(f"Dispatch entry not found: id={id}")
         raise AppException("Dispatch entry not found", status_code=404)

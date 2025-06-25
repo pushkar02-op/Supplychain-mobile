@@ -19,25 +19,24 @@ from app.services.batch import (
     delete_batch,
 )
 from app.db.session import get_db
+from app.core.auth import get_current_user
+from app.db.models.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/batch", tags=["Batches"])
 
 
 @router.post("/", response_model=BatchRead, status_code=status.HTTP_201_CREATED)
-def create(entry: BatchCreate, db: Session = Depends(get_db)) -> BatchRead:
+def create(
+    entry: BatchCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BatchRead:
     """
     Create a new batch entry.
-
-    Args:
-        entry (BatchCreate): The batch data to create.
-        db (Session): Database session dependency.
-
-    Returns:
-        BatchRead: The created batch object.
     """
-    logger.info("Creating new batch")
-    return create_batch(db=db, entry=entry, created_by=1)
+    logger.info(f"Creating new batch by {current_user.username}")
+    return create_batch(db=db, entry=entry, created_by=current_user.username)
 
 
 @router.get("/", response_model=List[BatchRead])
@@ -100,25 +99,17 @@ def read_one(batch_id: int, db: Session = Depends(get_db)) -> BatchRead:
 
 @router.put("/{batch_id}", response_model=BatchRead)
 def update(
-    batch_id: int, entry_update: BatchUpdate, db: Session = Depends(get_db)
+    batch_id: int,
+    entry_update: BatchUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> BatchRead:
     """
     Update a batch by ID.
-
-    Args:
-        batch_id (int): The ID of the batch to update.
-        entry_update (BatchUpdate): The update data for the batch.
-        db (Session): Database session dependency.
-
-    Returns:
-        BatchRead: The updated batch object.
-
-    Raises:
-        AppException: If the batch is not found (404).
     """
-    logger.info(f"Updating batch_id={batch_id}")
+    logger.info(f"Updating batch_id={batch_id} by {current_user.username}")
     updated = update_batch(
-        db=db, batch_id=batch_id, entry_update=entry_update, updated_by=1
+        db=db, batch_id=batch_id, entry_update=entry_update, updated_by=current_user.username
     )
     if not updated:
         logger.error(f"Batch not found: batch_id={batch_id}")
