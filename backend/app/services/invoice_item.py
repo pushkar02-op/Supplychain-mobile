@@ -112,3 +112,32 @@ def delete_invoice_item(db: Session, item_id: int) -> bool:
     logger.debug(f"Item id={item_id} deleted, recalculating invoice total")
     recalculate_invoice_total(db, invoice_id)
     return True
+
+
+def get_distinct_items_for_mart(db: Session, mart_name: str) -> list[dict]:
+    """
+    Retrieve distinct items for a given mart from invoice items.
+    Returns only item_id, item_code, item_name, uom.
+    """
+    logger.debug(f"Fetching distinct items for mart: {mart_name}")
+    rows = (
+        db.query(
+            InvoiceItem.item_id,
+            InvoiceItem.item_code,
+            InvoiceItem.item_name,
+            InvoiceItem.uom,
+        )
+        .filter(InvoiceItem.store_name == mart_name)
+        .distinct()
+        .all()
+    )
+    logger.info(f"Found {len(rows)} distinct items for mart: {mart_name}")
+    return [
+        {
+            "item_id": r[0],
+            "item_code": r[1],
+            "item_name": r[2],
+            "uom": r[3],
+        }
+        for r in rows
+    ]

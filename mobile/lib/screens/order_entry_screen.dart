@@ -27,16 +27,15 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
   bool _isLoading = false;
   String _error = '';
 
-  List<dynamic> _items = [];
-  List<String> _marts = [];
+  List<Map<String, dynamic>> _items = <Map<String, dynamic>>[];
   List<String> _unitOptions = [];
+  List<String> _marts = [];
 
   Map<String, dynamic>? _editingOrder;
 
   @override
   void initState() {
     super.initState();
-    _loadItems();
     _loadMarts();
   }
 
@@ -59,8 +58,8 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     _selectedMart = _editingOrder!['mart_name'] as String;
     _selectedItem = {
       'id': _editingOrder!['item_id'],
-      'name': _editingOrder!['item']['name'],
-      'default_unit': _unit,
+      'item_name': _editingOrder!['item']['name'],
+      'uom': _unit,
     };
 
     // ⚠️ Make sure the existing unit is in our options so the dropdown can display it
@@ -69,24 +68,20 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     }
   }
 
-  Future<void> _loadItems() async {
+  Future<void> _loadItemsForMart(String martName) async {
+    setState(() {
+      _items = [];
+      _selectedItem = null;
+      _unitOptions = [];
+      _unit = '';
+    });
     try {
-      final items = await OrderService.fetchItemAliases();
-      items.sort(
-        (a, b) => (a['alias_name'] as String).compareTo(b['alias_name'] as String),
-      );
+      final items = await OrderService.fetchDistinctItemsForMart(martName);
       setState(() {
         _items = items;
-        _unitOptions = items
-            .map((e) => e['alias_name'] as String)
-            .toSet()
-            .toList()
-          ..sort();
-        if (_unit.isNotEmpty && !_unitOptions.contains(_unit)) {
-          _unitOptions.add(_unit);
-        }
       });
-    } catch (e) {
+    } catch (e, st) {
+      print('Error loading items: $e\n$st');
       setState(() => _error = e.toString());
     }
   }
@@ -112,6 +107,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
   }
 
   Future<void> _submit() async {
+    print('Submit called');
     if (!_formKey.currentState!.validate() ||
         _selectedItem == null ||
         _selectedMart == null) {
@@ -121,7 +117,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     setState(() => _isLoading = true);
 
     final payload = {
-      'item_id': _selectedItem!['master_item_id'], // Use master_item_id from alias
+      'item_id': _selectedItem!['item_id'],
       'mart_name': _selectedMart!,
       'order_date': DateFormat('yyyy-MM-dd').format(_orderDate),
       'quantity_ordered': double.parse(_quantity),
@@ -134,10 +130,10 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       } else {
         result = await OrderService.createOrder(
           itemId: payload['item_id'],
-          unit: payload['unit'],
           martName: payload['mart_name'],
           orderDate: payload['order_date'],
           quantityOrdered: payload['quantity_ordered'],
+          unit: payload['unit'],
         );
       }
 
@@ -154,6 +150,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
         context.pop(true);
       }
     } on DioException catch (dioErr) {
+      print('Order create error: ${dioErr.response?.data}');
       // Backend threw HTTPException with detail {"error":..., "message":...}
       final data = dioErr.response?.data['detail'];
       setState(() {
@@ -191,6 +188,9 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
         title: Text(
           _editingOrder != null ? 'EDIT ORDER ENTRY' : 'ADD ORDER ENTRY',
         ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -202,7 +202,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                     style: const TextStyle(color: Colors.red),
                   ),
                 )
-                : (_items.isEmpty || _marts.isEmpty)
+                : (_marts.isEmpty)
                 ? const Center(child: CircularProgressIndicator())
                 : Form(
                   key: _formKey,
@@ -217,64 +217,82 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Item
-                      if (_editingOrder != null)
-                        TextFormField(
-                          initialValue: _selectedItem!['name'] as String,
-                          decoration: InputDecoration(
-                            label: _requiredLabel('Selected Item'),
-                            border: const OutlineInputBorder(),
-                            filled: true,
-                            fillColor: Colors.grey[200],
-                          ),
-                          enabled: false,
-                        )
-                      else
-                        DropdownSearch<Map<String, dynamic>>(
-                          selectedItem: _selectedItem,
-                          asyncItems: (filter) async {
-                            await Future.delayed(
-                              const Duration(milliseconds: 300),
-                            );
-                            if (filter.isEmpty) {
-                              return _items.cast<Map<String, dynamic>>();
-                            }
-                            return _items
-                                .cast<Map<String, dynamic>>()
-                                .where(
-                                  (it) => (it['name'] as String)
-                                      .toLowerCase()
-                                      .contains(filter.toLowerCase()),
+                      // Mart
+                      DropdownButtonFormField<String>(
+                        value: _selectedMart,
+                        decoration: InputDecoration(
+                          label: _requiredLabel('Mart'),
+                        ),
+                        items:
+                            _marts
+                                .map(
+                                  (m) => DropdownMenuItem(
+                                    value: m,
+                                    child: Text(m),
+                                  ),
                                 )
-                                .toList();
-                          },
-                          itemAsString: (it) => it['alias_name'] as String,
-                          onChanged: (it) {
+                                .toList(),
+                        onChanged: (m) {
+                          setState(() => _selectedMart = m);
+                          if (m != null) _loadItemsForMart(m);
+                        },
+                        validator:
+                            (m) => m == null ? 'Please select a mart' : null,
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Item
+                      DropdownSearch<Map<String, dynamic>>(
+                        asyncItems: (String filter) async {
+                          await Future.delayed(
+                            const Duration(milliseconds: 300),
+                          );
+                          if (_items.isEmpty) return [];
+                          if (filter.isEmpty) {
+                            return _items.cast<Map<String, dynamic>>();
+                          }
+                          final lower = filter.toLowerCase();
+                          return _items
+                              .cast<Map<String, dynamic>>()
+                              .where(
+                                (item) => (item['item_name'] as String)
+                                    .toLowerCase()
+                                    .contains(lower),
+                              )
+                              .toList();
+                        },
+                        selectedItem: _selectedItem,
+                        itemAsString: (item) => item['item_name'] as String,
+                        dropdownDecoratorProps: DropDownDecoratorProps(
+                          dropdownSearchDecoration: InputDecoration(
+                            label: _requiredLabel('Select Item'),
+                          ),
+                        ),
+                        popupProps: PopupProps.dialog(
+                          showSearchBox: true,
+                          searchFieldProps: const TextFieldProps(
+                            decoration: InputDecoration(
+                              hintText: 'Search item...',
+                            ),
+                          ),
+                        ),
+                        onChanged: (item) {
+                          if (item != null) {
                             setState(() {
-                              _selectedItem = it;
-                              _unit = it!['default_unit'] as String;
-                              // ensure unitOptions now contains it
-                              if (!_unitOptions.contains(_unit)) {
-                                _unitOptions.add(_unit);
-                              }
+                              _selectedItem = item;
+                              _unit = item['uom'] as String;
+                              _unitOptions = [_unit];
                             });
-                          },
-                          dropdownDecoratorProps: DropDownDecoratorProps(
-                            dropdownSearchDecoration: InputDecoration(
-                              label: _requiredLabel('Item'),
-                            ),
-                          ),
-                          popupProps: PopupProps.dialog(
-                            showSearchBox: true,
-                            searchFieldProps: const TextFieldProps(
-                              decoration: InputDecoration(
-                                hintText: 'Search item...',
-                              ),
-                            ),
-                          ),
-                          validator:
-                              (it) =>
-                                  it == null ? 'Please select an item' : null,
+                          }
+                        },
+                        validator:
+                            (item) =>
+                                item == null ? 'Please select an item' : null,
+                      ),
+                      if (_selectedMart != null && _items.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Center(child: CircularProgressIndicator()),
                         ),
                       const SizedBox(height: 12),
 
@@ -299,32 +317,16 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Mart
-                      DropdownButtonFormField<String>(
-                        value: _selectedMart,
-                        decoration: InputDecoration(
-                          label: _requiredLabel('Mart'),
-                        ),
-                        items:
-                            _marts
-                                .map(
-                                  (m) => DropdownMenuItem(
-                                    value: m,
-                                    child: Text(m),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (m) => setState(() => _selectedMart = m),
-                        validator:
-                            (m) => m == null ? 'Please select a mart' : null,
-                      ),
-                      const SizedBox(height: 12),
-
                       // Quantity
                       TextFormField(
                         initialValue: _quantity,
                         decoration: InputDecoration(
                           label: _requiredLabel('Quantity'),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
                         ),
                         keyboardType: TextInputType.number,
                         onSaved: (v) => _quantity = v!.trim(),
@@ -336,13 +338,18 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      ElevatedButton(
+                      ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                         onPressed: _isLoading ? null : _submit,
-                        child:
+                        icon: const Icon(Icons.add),
+                        label:
                             _isLoading
                                 ? const CircularProgressIndicator(
                                   color: Colors.white,

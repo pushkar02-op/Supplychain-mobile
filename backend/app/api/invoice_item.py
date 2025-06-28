@@ -4,21 +4,43 @@ Provides retrieval, update, and deletion of invoice line items.
 """
 
 import logging
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.exceptions import AppException
-from app.db.schemas.invoice_item import InvoiceItemRead, InvoiceItemUpdate
+from app.db.schemas.invoice_item import InvoiceItemRead, InvoiceItemUpdate, InvoiceItemSummary
 from app.services.invoice_item import (
     get_items_by_invoice,
     update_invoice_item,
     delete_invoice_item,
+    get_distinct_items_for_mart,
 )
 from app.db.session import get_db
+from app.db.models.invoice_item import InvoiceItem
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/invoice-items", tags=["Invoice Items"])
+
+
+@router.get("/distinct-items", response_model=list[InvoiceItemSummary])
+def distinct_items_for_mart(
+    mart_name: str = Query(..., description="Mart name"),
+    db: Session = Depends(get_db),
+):
+    """
+    Retrieve distinct invoice items for a given mart.
+    Returns only item_id, item_code, item_name, uom.
+
+    Args:
+        mart_name (str): Mart name.
+        db (Session): Database session dependency.
+
+    Returns:
+        List[InvoiceItemRead]: List of distinct invoice items.
+    """
+    logger.info(f"API: Fetching distinct items for mart: {mart_name}")
+    return get_distinct_items_for_mart(db, mart_name)
 
 
 @router.get(

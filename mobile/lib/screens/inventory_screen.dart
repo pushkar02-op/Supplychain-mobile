@@ -159,7 +159,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Inventory')),
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        title: Text('Your Screen Title'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -187,8 +193,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           final unit = inv['unit'] as String?;
                           final txnKey = _txnKey(itemId, unit);
 
-                          return Card(
+                          return Container(
                             margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.08),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
                             child: ExpansionTile(
                               key: PageStorageKey(txnKey),
                               initiallyExpanded: _expanded[txnKey] ?? false,

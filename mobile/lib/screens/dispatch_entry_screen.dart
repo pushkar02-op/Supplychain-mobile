@@ -227,10 +227,14 @@ class _CreateOrEditDispatchScreenState
     }
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Text(
           widget.data!['id'] != null ? 'Edit Dispatch' : 'New Dispatch',
         ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -330,66 +334,65 @@ class _CreateOrEditDispatchScreenState
                       }
                     });
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      children: [
-                        Checkbox(
-                          value: r.selected,
-                          onChanged: (val) {
-                            setState(() {
-                              r.selected = val ?? false;
-                              if (!r.selected)
-                                r.qty = 0;
-                              else
-                                r.qty = r.available;
-                            });
-                          },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border(
+                        left: BorderSide(
+                          color: r.selected ? Colors.blue : Colors.grey.shade300,
+                          width: 6,
                         ),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Text(
-                                '${r.receivedAt} — ${r.available.toStringAsFixed(2)} ${r.unit}',
-                              ),
-                              const SizedBox(width: 4),
-                              Tooltip(
-                                message:
-                                    'Available stock in this batch. You cannot dispatch more than this.',
-                                child: const Icon(Icons.info_outline, size: 16),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(
-                          width: 80,
-                          child: TextFormField(
-                            enabled: r.selected,
-                            initialValue: r.qty.toStringAsFixed(2),
-                            decoration: const InputDecoration(
-                              labelText: 'Qty',
-                              isDense: true,
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            onChanged: (txt) {
-                              final v = double.tryParse(txt) ?? 0;
-                              setState(() {
-                                r.qty = v.clamp(0, r.available);
-                              });
-                            },
-                            validator: (txt) {
-                              if (!r.selected) return null;
-                              final v = double.tryParse(txt ?? '') ?? 0;
-                              if (v <= 0 || v > r.available) {
-                                return '0–${r.available}';
-                              }
-                              return null;
-                            },
-                          ),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.08),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
                         ),
                       ],
+                    ),
+                    child: ListTile(
+                      title: Text(
+                        '${r.receivedAt} — ${r.available.toStringAsFixed(2)} ${r.unit}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Available: ${r.available.toStringAsFixed(2)} ${r.unit}',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                      trailing: SizedBox(
+                        width: 80,
+                        child: TextFormField(
+                          enabled: r.selected,
+                          initialValue: r.qty.toStringAsFixed(2),
+                          decoration: const InputDecoration(
+                            labelText: 'Qty',
+                            isDense: true,
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          onChanged: (txt) {
+                            final v = double.tryParse(txt) ?? 0;
+                            setState(() {
+                              r.qty = v.clamp(0, r.available);
+                            });
+                          },
+                          validator: (txt) {
+                            if (!r.selected) return null;
+                            final v = double.tryParse(txt ?? '') ?? 0;
+                            if (v <= 0 || v > r.available) {
+                              return '0–${r.available}';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 );
