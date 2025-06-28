@@ -17,7 +17,6 @@ venv/
 # Data & artifacts
 *.sqlite3
 modal_debug*
-versions/
 
 # Flutter / Dart
 **/build/
