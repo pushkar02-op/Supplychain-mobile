@@ -98,7 +98,7 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
-            apply_custom_sql_views(connection)
+            # apply_custom_sql_views(connection)
 
 
 if context.is_offline_mode():
