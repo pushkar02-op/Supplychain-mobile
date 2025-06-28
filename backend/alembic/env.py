@@ -81,7 +81,6 @@ def apply_custom_sql_views(connection):
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
-
     In this scenario we need to create an Engine
     and associate a connection with the context.
 
@@ -98,8 +97,7 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
-    with connectable.connect() as connection:
-        apply_custom_sql_views(connection)
+            # apply_custom_sql_views(connection)
 
 
 if context.is_offline_mode():
