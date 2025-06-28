@@ -37,3 +37,13 @@ class InvoiceItemRead(InvoiceItemBase):
 
     class Config:
         from_attributes = True
+
+
+class InvoiceItemSummary(BaseModel):
+    item_id: int
+    item_code: str
+    item_name: str
+    uom: str
+
+    class Config:
+        from_attributes = True

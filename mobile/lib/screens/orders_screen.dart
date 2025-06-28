@@ -179,18 +179,59 @@ class _OrderListScreenState extends State<OrdersScreen> {
                         itemBuilder: (_, i) {
                           final o = _orders[i];
                           final itemName = o['item']?['name'] ?? 'Unknown';
-                          return Card(
+                          final status = (o['status'] as String?)?.toLowerCase() ?? 'pending';
+
+                          // Choose color based on status
+                          Color statusColor;
+                          switch (status) {
+                            case 'completed':
+                              statusColor = Colors.green.shade400;
+                              break;
+                            case 'partially completed':
+                              statusColor = Colors.yellow.shade700;
+                              break;
+                            default:
+                              statusColor = Colors.red.shade400;
+                          }
+
+                          return Container(
                             margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border(
+                                left: BorderSide(
+                                  color: statusColor,
+                                  width: 6,
+                                ),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.08),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
                             child: ListTile(
-                              title: Text('$itemName'),
+                              title: Text(
+                                '$itemName',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Text('Order: ${o['quantity_ordered']}${o['unit']}', style: const TextStyle(color: Colors.black87)),
+                                  Text('Dispatched: ${o['quantity_dispatched']}${o['unit']}', style: const TextStyle(color: Colors.black87)),
                                   Text(
-                                    'Order: ${o['quantity_ordered']}${o['unit']}',
-                                  ),
-                                  Text(
-                                    'Dispatched: ${o['quantity_dispatched']}${o['unit']}',
+                                    'Status: ${o['status']}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      color: statusColor,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -210,10 +251,8 @@ class _OrderListScreenState extends State<OrdersScreen> {
                                         'item_id': o['item_id'],
                                         'batch_id': o['batch_id'],
                                         'mart_name': o['mart_name'],
-                                        'quantity_ordered':
-                                            o['quantity_ordered'],
-                                        'quantity_dispatched':
-                                            o['quantity_dispatched'],
+                                        'quantity_ordered': o['quantity_ordered'],
+                                        'quantity_dispatched': o['quantity_dispatched'],
                                         'unit': o['unit'],
                                         'dispatch_date': o['order_date'],
                                         'item_name': o['item']?['name'],
@@ -224,22 +263,20 @@ class _OrderListScreenState extends State<OrdersScreen> {
                                     _confirmDelete(o['id']);
                                   }
                                 },
-
-                                itemBuilder:
-                                    (_) => [
-                                      const PopupMenuItem(
-                                        value: 'dispatch',
-                                        child: Text('Dispatch'),
-                                      ),
-                                      const PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('Edit'),
-                                      ),
-                                      const PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Delete'),
-                                      ),
-                                    ],
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
+                                    value: 'dispatch',
+                                    child: Text('Dispatch'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Text('Edit'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text('Delete'),
+                                  ),
+                                ],
                               ),
                             ),
                           );

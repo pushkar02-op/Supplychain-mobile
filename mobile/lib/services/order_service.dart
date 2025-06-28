@@ -92,4 +92,19 @@ class OrderService {
     }
     return List<Map<String, dynamic>>.from(resp.data);
   }
+
+  /// Fetch distinct items for a specific mart
+  static Future<List<Map<String, dynamic>>> fetchDistinctItemsForMart(
+    String martName,
+  ) async {
+    final resp = await DioClient.instance.get(
+      '/invoice-items/distinct-items',
+      queryParameters: {'mart_name': martName},
+    );
+    print(resp.data);
+    if (resp.statusCode != 200) {
+      throw Exception('Failed to fetch items for mart');
+    }
+    return List<Map<String, dynamic>>.from(resp.data);
+  }
 }
