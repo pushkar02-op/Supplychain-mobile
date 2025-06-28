@@ -11,17 +11,6 @@ from app.db.models.item_alias import ItemAlias
 def seed_aliases(db: Session, created_by: str = "system") -> None:
     aliases = [
         {
-            "alias_name": "APPLE FUJI IMP USA (KG)",
-            "alias_code": "590000001",
-            "item_name": "APPLE FUJI",
-        },
-        {"alias_name": "Avocado", "alias_code": "590003579", "item_name": "AVACADO"},
-        {
-            "alias_name": "ONION ECONOMY (KG)",
-            "alias_code": "590001600",
-            "item_name": "ONION",
-        },
-        {
             "alias_name": "APPLE FUJI (KG)",
             "alias_code": "1982",
             "item_name": "APPLE FUJI ",
@@ -90,7 +79,7 @@ def seed_aliases(db: Session, created_by: str = "system") -> None:
         {
             "alias_name": "BEST FARM DRAGON FRUIT (WHITE FLESH)",
             "alias_code": "590003307",
-            "item_name": "DRAGON FRUIT",
+            "item_name": "DRAGON FRUIT (WHITE FLESH)",
         },
         {
             "alias_name": "BITTER GOURD (KG)",
@@ -108,6 +97,11 @@ def seed_aliases(db: Session, created_by: str = "system") -> None:
             "item_name": "BOTTLE GOURD ",
         },
         {
+            "alias_name": "BOTTLE GOURD ROUND KG",
+            "alias_code": "590000582",
+            "item_name": "BOTTLE GOURD ",
+        },
+        {
             "alias_name": "BOTTLE GOURD EA",
             "alias_code": "590001217",
             "item_name": "BOTTLE GOURD ",
@@ -118,9 +112,19 @@ def seed_aliases(db: Session, created_by: str = "system") -> None:
             "item_name": "BRINJAL BLACK BIG ",
         },
         {
+            "alias_name": "BRINJAL LONG GREEN",
+            "alias_code": "590000162",
+            "item_name": "BRINJAL LONG GREEN",
+        },
+        {
             "alias_name": "BRINJAL LONG PURPLE (KG)",
             "alias_code": "590000163",
             "item_name": "BRINJAL LONG PURPLE ",
+        },
+        {
+            "alias_name": "BRINJAL NAGPURE (KG)",
+            "alias_code": "590000164",
+            "item_name": "BRINJAL NAGPURE",
         },
         {
             "alias_name": "BUTTON MUSHROOM 200GM TP",
@@ -265,6 +269,11 @@ def seed_aliases(db: Session, created_by: str = "system") -> None:
             "item_name": "MANGO HIMSAGAR",
         },
         {
+            "alias_name": "MANGO JARDALU",
+            "alias_code": "590000656",
+            "item_name": "MANGO JARDALU",
+        },
+        {
             "alias_name": "MANGO KESAR",
             "alias_code": "590000724",
             "item_name": "MANGO KESAR",
@@ -275,9 +284,19 @@ def seed_aliases(db: Session, created_by: str = "system") -> None:
             "item_name": "MANGO LANGDA ",
         },
         {
+            "alias_name": "MANGO NEELAM (KG)",
+            "alias_code": "590000048",
+            "item_name": "MANGO NEELAM",
+        },
+        {
             "alias_name": "MANGO RASPURI KG",
             "alias_code": "590000604",
             "item_name": "MANGO RASPURI ",
+        },
+        {
+            "alias_name": "MANGO SINDURI KG",
+            "alias_code": "590000577",
+            "item_name": "MANGO SINDURI",
         },
         {
             "alias_name": "MANGO TOTAPURI",
@@ -315,6 +334,11 @@ def seed_aliases(db: Session, created_by: str = "system") -> None:
             "alias_name": "ORANGE IMPORTED EGYPT (KG)",
             "alias_code": "590000025",
             "item_name": "ORANGE IMPORTED EGYPT ",
+        },
+        {
+            "alias_name": "ONION 2 KG NB",
+            "alias_code": "590002355",
+            "item_name": "ONION",
         },
         {
             "alias_name": "ORANGE SMALL (KG)",
