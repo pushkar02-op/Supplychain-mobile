@@ -70,13 +70,16 @@ def run_migrations_offline() -> None:
 def apply_custom_sql_views(connection):
     views_dir = os.path.join(os.path.dirname(__file__), "../app/db/views")
     if not os.path.isdir(views_dir):
+        print("⚠️ Views directory does not exist, skipping.")
         return
-    for file in os.listdir(views_dir):
+
+    for file in sorted(os.listdir(views_dir)):
         if file.endswith(".sql"):
             file_path = os.path.join(views_dir, file)
-            with open(file_path, "r") as f:
+            print(f"🔹 Applying view: {file}")
+            with open(file_path, "r", encoding="utf-8") as f:
                 sql = f.read()
-                connection.execute(text(sql))  # use raw SQL
+                connection.execute(text(sql))
 
 
 def run_migrations_online() -> None:
@@ -97,7 +100,31 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
-            apply_custom_sql_views(connection)
+
+            # Check if all required tables exist
+            REQUIRED_TABLES = ["item", "inventory_txn", "uom", "mart", "dispatch_entry"]
+
+            placeholders = ", ".join([f":t{i}" for i in range(len(REQUIRED_TABLES))])
+
+            query = text(
+                f"""
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_name IN ({placeholders})
+            """
+            )
+
+            params = {f"t{i}": table for i, table in enumerate(REQUIRED_TABLES)}
+
+            result = connection.execute(query, params)
+            count = result.scalar()
+
+            if count == len(REQUIRED_TABLES):
+                print("✅ All required tables detected, applying views.")
+                apply_custom_sql_views(connection)
+            else:
+                print(
+                    f"⚠️ Not all required tables exist ({count}/{len(REQUIRED_TABLES)}), skipping view application."
+                )
 
 
 if context.is_offline_mode():
