@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import AppException
 from app.db.models.order import Order
 from app.db.models.invoice import Invoice
+from app.db.models.mart import Mart
 from app.db.schemas.order import OrderCreate, OrderUpdate
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,9 @@ def get_distinct_mart_names(db: Session) -> List[str]:
         List[str]: List of mart names.
     """
     logger.debug("Fetching distinct mart names from invoices")
-    results = db.query(Invoice.mart_name).distinct().all()
+    results = (
+        db.query(Mart.name).join(Invoice, Invoice.mart_id == Mart.id).distinct().all()
+    )
     names = [row[0] for row in results if row[0]]
     logger.info(f"Found {len(names)} mart names")
     return names
@@ -111,7 +114,9 @@ def get_orders(
     if order_date:
         q = q.filter(Order.order_date == order_date)
     if mart_name:
-        q = q.filter(Order.mart_name == mart_name)
+        from app.db.models.mart import Mart
+
+        q = q.join(Mart, Order.mart_id == Mart.id).filter(Mart.name == mart_name)
     return q.order_by(Order.created_at.desc()).all()
 
 

@@ -7,7 +7,7 @@ import logging
 from operator import or_
 import os
 from fastapi import APIRouter, Depends, Query, UploadFile, File, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from fastapi.responses import FileResponse, JSONResponse
 from datetime import date
@@ -71,7 +71,7 @@ def read_invoices(
     invoice_date: Optional[date] = Query(
         None, description="Filter by invoice date (YYYY-MM-DD)"
     ),
-    mart_name: Optional[str] = Query(None, description="Filter by mart name"),
+    mart_id: Optional[int] = Query(None, description="Filter by mart id"),
     search: Optional[str] = Query(None, description="Search term"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Page size"),
@@ -82,7 +82,7 @@ def read_invoices(
 
     Args:
         invoice_date (Optional[date]): Filter by invoice date.
-        mart_name (Optional[str]): Filter by mart name.
+        mart_id (Optional[int]): Filter by mart id.
         search (Optional[str]): Search term.
         page (int): Page number.
         page_size (int): Page size.
@@ -92,26 +92,34 @@ def read_invoices(
         JSONResponse: A response containing total, page, page_size, and results.
     """
     logger.info("Fetching invoices")
-    query = db.query(Invoice)
+    query = db.query(Invoice).options(joinedload(Invoice.mart))
     if invoice_date:
         query = query.filter(Invoice.invoice_date == invoice_date)
-    if mart_name:
-        query = query.filter(Invoice.mart_name == mart_name)
+    if mart_id:
+        query = query.filter(Invoice.mart_id == mart_id)
     if search:
-        query = query.filter(
+        query = query.join(Invoice.mart).filter(
             or_(
-                Invoice.mart_name.ilike(f"%{search}%"),
+                Invoice.mart.has(name=search),
                 Invoice.remarks.ilike(f"%{search}%"),
             )
         )
     query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
     total = query.count()
     invoices = query.offset((page - 1) * page_size).limit(page_size).all()
+    results = []
+    for inv in invoices:
+        results.append(
+            {
+                **InvoiceRead.from_orm(inv).dict(),
+                "mart_name": inv.mart.name if inv.mart else None,
+            }
+        )
     return {
         "total": total,
         "page": page,
         "page_size": page_size,
-        "results": [InvoiceRead.from_orm(inv) for inv in invoices],
+        "results": results,
     }
 
 

@@ -4,7 +4,7 @@ from typing import Optional
 
 class MartBase(BaseModel):
     name: str
-    company_id: int
+    company_name: str
 
 
 class MartCreate(MartBase):

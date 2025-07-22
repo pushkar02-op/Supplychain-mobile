@@ -13,6 +13,6 @@ def create(mart: MartCreate, db: Session = Depends(get_db)):
     return create_mart(db, mart)
 
 
-@router.get("/company/{company_id}", response_model=List[MartRead])
-def list_by_company(company_id: int, db: Session = Depends(get_db)):
-    return get_marts_by_company(db, company_id)
+@router.get("/company/{company_name}", response_model=List[MartRead])
+def list_by_company(company_name: str, db: Session = Depends(get_db)):
+    return get_marts_by_company(db, company_name)

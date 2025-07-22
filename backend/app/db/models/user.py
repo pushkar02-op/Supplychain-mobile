@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
-from sqlalchemy.orm import relationship
 from .base_class import Base
 from .mixins import AuditMixin
 
@@ -12,6 +11,3 @@ class User(Base, AuditMixin):
     hashed_password = Column(String, nullable=False)
     is_admin = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
-
-    company_id = Column(Integer, ForeignKey("company.id"), nullable=True)
-    company = relationship("Company", back_populates="users")

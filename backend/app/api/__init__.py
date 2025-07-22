@@ -15,7 +15,6 @@ from app.api.reports import router as reports_router
 from app.api.item_alias import router as item_alias_router
 from app.api.uom import router as uom_router
 from app.api.inventory_txn import router as inventory_txn_router
-from app.api.company import router as company_router
 from app.api.mart import router as mart_router
 from app.api.item_management import router as item_management_router
 
@@ -38,6 +37,5 @@ router.include_router(reports_router)
 router.include_router(item_alias_router)
 router.include_router(uom_router)
 router.include_router(inventory_txn_router)
-router.include_router(company_router)
 router.include_router(mart_router)
 router.include_router(item_management_router)

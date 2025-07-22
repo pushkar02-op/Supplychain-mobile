@@ -21,6 +21,7 @@ from app.utils.invoice_parser import process_pdf
 from app.db.schemas.invoice import InvoiceUpdate
 from app.services.item_alias import get_alias_by_code_or_name
 from app.db.models.uom import UOM
+from app.db.models.mart import Mart
 
 logger = logging.getLogger(__name__)
 
@@ -58,14 +59,16 @@ async def save_and_process_invoice(
     async with aiofiles.open(upload_path, "wb") as f:
         await f.write(file_bytes)
     logger.debug(f"Saved file to {upload_path}")
-
     try:
         df, invoice_date, mart_name = process_pdf(upload_path)
         total_amount = float(df["Total"].sum())
 
+        mart = db.query(Mart).filter(Mart.name == mart_name).first()
+        if not mart:
+            raise AppException("Mart not found", status_code=404)
         inv = Invoice(
             invoice_date=invoice_date,
-            mart_name=mart_name,
+            mart_id=mart.id,
             total_amount=total_amount,
             file_path=upload_path,
             file_hash=file_hash,

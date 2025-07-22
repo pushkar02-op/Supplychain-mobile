@@ -5,7 +5,8 @@ from typing import Optional
 
 class InvoiceRead(BaseModel):
     id: int
-    mart_name: str
+    mart_id: int
+    mart_name: Optional[str] = None
     invoice_date: date
     total_amount: float
     file_path: str
