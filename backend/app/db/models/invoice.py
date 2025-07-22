@@ -16,7 +16,7 @@ class Invoice(Base, AuditMixin):
     is_verified = Column(Boolean, default=False)
     remarks = Column(String, nullable=True)
 
+    mart = relationship("Mart")
     items = relationship(
         "InvoiceItem", back_populates="invoice", cascade="all, delete-orphan"
     )
-    mart = relationship("Mart")

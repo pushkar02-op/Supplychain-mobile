@@ -59,7 +59,6 @@ def get_item(db: Session, item_id: int) -> Optional[Item]:
     uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
     item_data = ItemRead.from_orm(item)
     item_data.default_unit = uom.code if uom else None
-    print(item_data)
     return item_data
 
 

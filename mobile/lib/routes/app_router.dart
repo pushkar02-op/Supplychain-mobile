@@ -15,6 +15,9 @@ import '../screens/stock_entry_screen.dart';
 import '../screens/order_entry_screen.dart';
 import '../screens/invoice_list_screen.dart';
 import '../screens/inventory_screen.dart';
+import '../screens/item_list_screen.dart';
+import '../screens/item_management_screen.dart';
+import '../screens/alias_mapping_screen.dart';
 
 final storage = FlutterSecureStorage();
 
@@ -89,6 +92,20 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/inventory',
       builder: (context, state) => const InventoryScreen(),
+    ),
+    GoRoute(
+      path: '/items',
+      builder: (context, state) => const ItemListScreen(),
+    ),
+    GoRoute(
+      path: '/item-edit',
+      builder:
+          (context, state) =>
+              ItemManagementScreen(data: state.extra as Map<String, dynamic>?),
+    ),
+    GoRoute(
+      path: '/alias-mapping',
+      builder: (context, state) => const AliasMappingScreen(),
     ),
   ],
 );

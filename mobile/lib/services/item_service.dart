@@ -30,4 +30,36 @@ class ItemService {
   static Future<void> reprocessStock(int invoiceId) async {
     await DioClient.instance.post('/invoices/$invoiceId/process-stock');
   }
+
+  static Future<List<Map<String, dynamic>>> fetchItems() async {
+    final res = await DioClient.instance.get('/item-management/');
+    return List<Map<String, dynamic>>.from(res.data);
+  }
+
+  static Future<void> deleteItem(int id) async {
+    await DioClient.instance.delete('/item/\$id');
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchUOMs() async {
+    final res = await DioClient.instance.get('/item-management/uoms');
+    return List<Map<String, dynamic>>.from(res.data);
+  }
+
+  static Future<void> createOrUpdateItem(Map<String, dynamic> payload) async {
+    await DioClient.instance.post('/item-management/', data: payload);
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchUnmappedAliases() async {
+    final res = await DioClient.instance.get(
+      '/item-management/unmapped-aliases',
+    );
+    return List<Map<String, dynamic>>.from(res.data);
+  }
+
+  static Future<void> mapAlias(int aliasId, int itemId) async {
+    await DioClient.instance.post(
+      '/item-management/map-alias',
+      data: {'alias_id': aliasId, 'item_id': itemId},
+    );
+  }
 }
