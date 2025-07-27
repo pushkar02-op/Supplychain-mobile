@@ -5,130 +5,68 @@ from sqlalchemy.orm import Session
 from app.db.models.item import Item
 from app.db.models.uom import UOM
 from datetime import datetime
+import pandas as pd
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def seed_items(db: Session, created_by: str = "system") -> None:
-    item_data = [
-        {"name": "APPLE AMBRI ", "item_code": "", "default_uom": "KG"},
-        {"name": "APPLE FUJI", "item_code": "", "default_uom": "KG"},
-        {"name": "APPLE GRANNY SMITH ", "item_code": "", "default_uom": "KG"},
-        {"name": "APPLE JAMMU KASHMIR VALUE", "item_code": "", "default_uom": "KG"},
-        {"name": "APPLE PINK LADY", "item_code": "", "default_uom": "KG"},
-        {"name": "APPLE RED DELICIOUS ", "item_code": "", "default_uom": "KG"},
-        {"name": "APPLE ROYAL GALA ", "item_code": "", "default_uom": "KG"},
-        {"name": "APPLE SHIMLA", "item_code": "", "default_uom": "KG"},
-        {"name": "AVACADO", "item_code": "", "default_uom": "EA"},
-        {"name": "BABY CORN PEELED 200 GM", "item_code": "", "default_uom": "EA"},
-        {"name": "BANANA KARPURAVALLI ", "item_code": "", "default_uom": "KG"},
-        {"name": "BANANA RAW ", "item_code": "", "default_uom": "KG"},
-        {"name": "BANANA ROBUSTA", "item_code": "", "default_uom": "KG"},
-        {"name": "BEET ROOT ", "item_code": "", "default_uom": "KG"},
-        {
-            "name": "DRAGON FRUIT (WHITE FLESH)",
-            "item_code": "",
-            "default_uom": "EA",
-        },
-        {"name": "BITTER GOURD ", "item_code": "", "default_uom": "KG"},
-        {"name": "BLUE BERRY", "item_code": "", "default_uom": "KG"},
-        {"name": "BOTTLE GOURD ", "item_code": "", "default_uom": "KG"},
-        {"name": "BRINJAL BLACK BIG ", "item_code": "", "default_uom": "KG"},
-        {"name": "BRINJAL LONG GREEN", "item_code": "", "default_uom": "KG"},
-        {"name": "BRINJAL LONG PURPLE ", "item_code": "", "default_uom": "KG"},
-        {"name": "BRINJAL NAGPURE", "item_code": "", "default_uom": "KG"},
-        {"name": "BUTTON MUSHROOM 200GM TP", "item_code": "", "default_uom": "EA"},
-        {"name": "CABBAGE REGULAR ", "item_code": "", "default_uom": "KG"},
-        {"name": "CAPSICUM GREEN", "item_code": "", "default_uom": "KG"},
-        {"name": "CAPSICUM RED ", "item_code": "", "default_uom": "KG"},
-        {"name": "CAPSICUM YELLOW ", "item_code": "", "default_uom": "KG"},
-        {"name": "CARROT DELHI", "item_code": "", "default_uom": "KG"},
-        {"name": "CARROT REGULAR ", "item_code": "", "default_uom": "KG"},
-        {"name": "CHILLI GREEN ", "item_code": "", "default_uom": "KG"},
-        {"name": "COCONUT TENDER", "item_code": "", "default_uom": "EA"},
-        {"name": "COCONUT", "item_code": "", "default_uom": "EA"},
-        {"name": "COCCINIEA", "item_code": "", "default_uom": "KG"},
-        {"name": "CORRIANDER S", "item_code": "", "default_uom": "KG"},
-        {"name": "CUCUMBER KEERA ", "item_code": "", "default_uom": "KG"},
-        {"name": "FRENCH BEANS ", "item_code": "", "default_uom": "KG"},
-        {"name": "GARLIC INDIAN ", "item_code": "", "default_uom": "KG"},
-        {"name": "GINGER ", "item_code": "", "default_uom": "KG"},
-        {"name": "GOOSEBERRY AMLA BIG ", "item_code": "", "default_uom": "KG"},
-        {"name": "GRAPES IMP RED GLOBE CHINA ", "item_code": "", "default_uom": "KG"},
-        {"name": "GRAPES SONAKA PACK", "item_code": "", "default_uom": "EA"},
-        {"name": "GUAVA WHITE", "item_code": "", "default_uom": "KG"},
-        {"name": "KIWI", "item_code": "", "default_uom": "EA"},
-        {"name": "LEMON", "item_code": "", "default_uom": "EA"},
-        {"name": "LITCHI", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO ALPHANSO", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO BANGANAPALLI", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO DUSSHERI", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO GULABKHAS ", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO HIMSAGAR", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO JARDALU", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO KESAR", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO LANGDA ", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO NEELAM", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO RASPURI ", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO SINDURI", "item_code": "", "default_uom": "KG"},
-        {"name": "MANGO TOTAPURI", "item_code": "", "default_uom": "KG"},
-        {"name": "MINT LEAVES BUNCH", "item_code": "", "default_uom": "EA"},
-        {"name": "MOSAMBI SMALL", "item_code": "", "default_uom": "KG"},
-        {"name": "MUSK MELON ", "item_code": "", "default_uom": "KG"},
-        {"name": "OKRA", "item_code": "", "default_uom": "KG"},
-        {"name": "ONION", "item_code": "", "default_uom": "KG"},
-        {"name": "ORANGE IMPORTED EGYPT ", "item_code": "", "default_uom": "KG"},
-        {"name": "ORANGE SMALL ", "item_code": "", "default_uom": "KG"},
-        {"name": "P GARLIC", "item_code": "", "default_uom": "KG"},
-        {"name": "PAPAYA DISCO", "item_code": "", "default_uom": "KG"},
-        {"name": "PEARS BABUGOSHA ", "item_code": "", "default_uom": "KG"},
-        {"name": "PEARS IMP PACKHAM RSA ", "item_code": "", "default_uom": "KG"},
-        {"name": "PINEAPPLE", "item_code": "", "default_uom": "EA"},
-        {"name": "PLUM IMPORTED CHINA ", "item_code": "", "default_uom": "KG"},
-        {"name": "POINTED GOURD", "item_code": "", "default_uom": "KG"},
-        {"name": "POMEGRANATE KESAR ", "item_code": "", "default_uom": "KG"},
-        {"name": "POTATO", "item_code": "", "default_uom": "KG"},
-        {"name": "PUMPKIN DISCO ", "item_code": "", "default_uom": "KG"},
-        {"name": "RAW MANGO ", "item_code": "", "default_uom": "KG"},
-        {"name": "SPONGE GOURD ", "item_code": "", "default_uom": "KG"},
-        {"name": "SUGAR BABY MELON", "item_code": "", "default_uom": "KG"},
-        {"name": "SUN MELON ", "item_code": "", "default_uom": "KG"},
-        {"name": "SWEET CORN SHELLED 200 GMS", "item_code": "", "default_uom": "EA"},
-        {"name": "SWEET POTATO ", "item_code": "", "default_uom": "KG"},
-        {"name": "SWEET TAMARIND", "item_code": "", "default_uom": "EA"},
-        {"name": "TENDER JACKFRUIT", "item_code": "", "default_uom": "KG"},
-        {"name": "TOMATO", "item_code": "", "default_uom": "KG"},
-        {"name": "WATER MELON NAMDHARI", "item_code": "", "default_uom": "KG"},
-        {"name": "WATERMELON", "item_code": "", "default_uom": "KG"},
-        {"name": "WATERMELON KIRAN", "item_code": "", "default_uom": "KG"},
-        {"name": "WATERMELON SARASWATI ", "item_code": "", "default_uom": "KG"},
-        {"name": "WOOD APPLE", "item_code": "", "default_uom": "KG"},
-    ]
+    # Define path to Excel file
+    base_dir = os.path.dirname(__file__)
+    # Construct a relative path to the 'data' subdirectory
+    excel_path = os.path.join(base_dir, "data", "item.xlsx")
 
-    for item in item_data:
+    # Read Excel file
+    try:
+        df = pd.read_excel(excel_path, engine="openpyxl")
+    except Exception as e:
+        logger.error(f"Failed to read Excel file: {e}")
+        return
+
+    # Normalize column names
+    df.columns = [col.strip().lower() for col in df.columns]
+
+    # Expected columns: name, item_code, default_uom
+    required_columns = {"name", "item_code", "default_uom"}
+    if not required_columns.issubset(df.columns):
+        logger.error(
+            f"Missing required columns in Excel file. Required: {required_columns}"
+        )
+        return
+
+    for _, row in df.iterrows():
+        name = str(row["name"]).strip()
+        item_code = str(row["item_code"]).strip()
+        default_uom = str(row["default_uom"]).strip()
+
         uom = (
             db.query(UOM)
-            .filter(
-                func.lower(func.trim(UOM.code)) == item["default_uom"].strip().lower()
-            )
+            .filter(func.lower(func.trim(UOM.code)) == default_uom.lower())
             .first()
         )
         if not uom:
+            logger.warning(f"Skipping item '{name}' — UOM '{default_uom}' not found.")
             continue
+
         exists = (
             db.query(Item)
-            .filter(func.lower(func.trim(Item.name)) == item["name"].strip().lower())
+            .filter(func.lower(func.trim(Item.name)) == name.lower())
             .first()
         )
-
         if not exists:
             db.add(
                 Item(
-                    name=item["name"],
+                    name=name,
                     default_uom_id=uom.id,
-                    item_code=item["item_code"].strip(),
+                    item_code=item_code,
                     created_by=created_by,
                     updated_by=created_by,
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow(),
                 )
             )
+
     db.commit()
+    logger.info("Item seeding complete.")
