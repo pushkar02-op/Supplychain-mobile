@@ -35,8 +35,17 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
   Future<void> _fetchData() async {
     try {
       final fetchedUoms = await ItemService.fetchUOMs();
-      fetchedAliases =
-          await ItemService.fetchUnmappedAliases(); // <-- Assign here
+      final unmappedInvoiceItems = await ItemService.fetchUnmappedAliases();
+
+      // Transform unmapped items to look like aliases for the UI
+      final unmappedAsAliases =
+          unmappedInvoiceItems.map((item) {
+            return {
+              'id': item['invoice_item_id'],
+              'alias_name': item['item_name'],
+              'alias_code': item['item_code'],
+            };
+          }).toList();
 
       final currentItem = widget.data;
       // Prefill for edit mode
@@ -64,9 +73,11 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
 
       setState(() {
         uoms = fetchedUoms;
+        fetchedAliases = unmappedAsAliases; // For the "Add" dialog
         aliasOptions = [
-          ...fetchedAliases,
+          ...unmappedAsAliases,
           ...existingAliases.where(
+            // Already linked aliases
             (ea) => !fetchedAliases.any((fa) => fa['id'] == ea['id']),
           ),
         ];
@@ -124,6 +135,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                 .where((a) => selectedAliasIds.contains(a['id']))
                 .map(
                   (a) => {
+                    'id': a['id'],
                     'alias_code': a['alias_code'],
                     'alias_name': a['alias_name'],
                   },

@@ -11,10 +11,10 @@ class ItemListScreen extends StatefulWidget {
 
 class _ItemListScreenState extends State<ItemListScreen> {
   List<Map<String, dynamic>> items = [];
-  List<Map<String, dynamic>> unmappedAliases = [];
+  List<Map<String, dynamic>> unmappedInvoiceItems = [];
   bool isLoading = true;
   String error = '';
-  int? selectedAliasId;
+  int? selectedInvoiceItemId;
   int? selectedItemId;
 
   @override
@@ -25,11 +25,11 @@ class _ItemListScreenState extends State<ItemListScreen> {
 
   Future<void> _fetchItems() async {
     try {
-      final res = await ItemService.fetchItems();
-      final aliases = await ItemService.fetchUnmappedAliases();
+      final fetchedItems = await ItemService.fetchItems();
+      final invoiceItems = await ItemService.fetchUnmappedAliases();
       setState(() {
-        items = res;
-        unmappedAliases = aliases;
+        items = fetchedItems;
+        unmappedInvoiceItems = invoiceItems;
       });
     } catch (e) {
       setState(() => error = e.toString());
@@ -43,51 +43,54 @@ class _ItemListScreenState extends State<ItemListScreen> {
     _fetchItems();
   }
 
-  Future<void> _mapAliasToItem(int aliasId, int itemId) async {
-    await ItemService.mapAlias(aliasId, itemId);
+  Future<void> _mapInvoiceItemToItem(int invoiceItemId, int itemId) async {
+    await ItemService.mapAlias(invoiceItemId, itemId);
     _fetchItems();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Alias mapped successfully')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Invoice item mapped successfully')),
+    );
   }
 
-  void _showAliasMappingDialog() {
+  void _showInvoiceMappingDialog() {
+    selectedInvoiceItemId = null;
+    selectedItemId = null;
+
     showDialog(
       context: context,
       builder: (_) {
         return AlertDialog(
-          title: const Text('Map Alias to Item'),
+          title: const Text('Map Invoice Item to Item'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<int>(
-                value: selectedAliasId,
+                value: selectedInvoiceItemId,
                 isExpanded: true,
                 items:
-                    unmappedAliases
-                        .map<DropdownMenuItem<int>>(
-                          (alias) => DropdownMenuItem<int>(
-                            value: alias['id'] as int,
-                            child: Text(alias['alias_name']),
-                          ),
-                        )
-                        .toList(),
-                onChanged: (val) => setState(() => selectedAliasId = val),
-                decoration: const InputDecoration(labelText: 'Select Alias'),
+                    unmappedInvoiceItems.map((inv) {
+                      return DropdownMenuItem<int>(
+                        value: inv['invoice_item_id'],
+                        child: Text(
+                          '${inv['item_name']} (${inv['item_code']})',
+                        ),
+                      );
+                    }).toList(),
+                onChanged: (val) => setState(() => selectedInvoiceItemId = val),
+                decoration: const InputDecoration(
+                  labelText: 'Unmapped Invoice Item',
+                ),
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
                 value: selectedItemId,
                 isExpanded: true,
                 items:
-                    items
-                        .map<DropdownMenuItem<int>>(
-                          (item) => DropdownMenuItem<int>(
-                            value: item['id'] as int,
-                            child: Text(item['name']),
-                          ),
-                        )
-                        .toList(),
+                    items.map((item) {
+                      return DropdownMenuItem<int>(
+                        value: item['id'],
+                        child: Text(item['name']),
+                      );
+                    }).toList(),
                 onChanged: (val) => setState(() => selectedItemId = val),
                 decoration: const InputDecoration(labelText: 'Select Item'),
               ),
@@ -100,8 +103,11 @@ class _ItemListScreenState extends State<ItemListScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                if (selectedAliasId != null && selectedItemId != null) {
-                  _mapAliasToItem(selectedAliasId!, selectedItemId!);
+                if (selectedInvoiceItemId != null && selectedItemId != null) {
+                  _mapInvoiceItemToItem(
+                    selectedInvoiceItemId!,
+                    selectedItemId!,
+                  );
                   Navigator.pop(context);
                 }
               },
@@ -121,8 +127,8 @@ class _ItemListScreenState extends State<ItemListScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.link),
-            tooltip: "Map Alias",
-            onPressed: _showAliasMappingDialog,
+            tooltip: "Map Invoice Item",
+            onPressed: _showInvoiceMappingDialog,
           ),
           IconButton(
             icon: const Icon(Icons.add),
@@ -164,11 +170,9 @@ class _ItemListScreenState extends State<ItemListScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 'Aliases:',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                               Wrap(
                                 spacing: 6,
@@ -186,11 +190,9 @@ class _ItemListScreenState extends State<ItemListScreen> {
                                         : [const Text('No aliases')],
                               ),
                               const SizedBox(height: 8),
-                              Text(
+                              const Text(
                                 'Conversions:',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                               conversions.isNotEmpty
                                   ? Column(
@@ -200,14 +202,10 @@ class _ItemListScreenState extends State<ItemListScreen> {
                                             children: [
                                               Text(
                                                 '1 ${item['default_uom_code'] ?? ''} = ',
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                ),
                                               ),
                                               Text(
                                                 '${c['conversion_factor']} ${c['target_unit']}',
                                                 style: const TextStyle(
-                                                  fontSize: 13,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),

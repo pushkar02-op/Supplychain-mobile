@@ -16,3 +16,5 @@ class ItemConversionMap(Base, AuditMixin):
             "item_id", "source_unit", "target_unit", name="uq_item_unit_conversion"
         ),
     )
+
+    item = relationship("Item", back_populates="conversions")

@@ -1,46 +1,33 @@
 # backend/app/api/item_management.py
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.db.session import get_db
-from app.db.models import Item, ItemAlias, UOM, ItemConversionMap
+from app.core.auth import get_current_user
+from app.db.models import Item, ItemAlias, UOM, User
+from app.db.models.invoice_item import InvoiceItem
 from app.db.schemas.item_management import (
     ItemManagementCreateUpdate,
     ItemManagementRead,
     UOMRead,
     AliasMapInput,
 )
-from app.db.schemas.item_alias import ItemAliasRead
-from app.core.auth import get_current_user
-from app.db.models.user import User
+from app.db.session import get_db
+from app.services import item_management as svc
 
 router = APIRouter(prefix="/item-management", tags=["Item Management"])
 
 
+class InvoiceItemMapInput(BaseModel):
+    invoice_item_id: int
+    master_item_id: int
+
+
 @router.get("/", response_model=List[ItemManagementRead])
 def get_items(db: Session = Depends(get_db)):
-    items = db.query(Item).all()
-    result = []
-    for item in items:
-        aliases = db.query(ItemAlias).filter(ItemAlias.master_item_id == item.id).all()
-        conversions = (
-            db.query(ItemConversionMap)
-            .filter(ItemConversionMap.item_id == item.id)
-            .all()
-        )
-        uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
-        result.append(
-            ItemManagementRead(
-                id=item.id,
-                name=item.name,
-                default_uom_code=uom.code if uom else None,
-                aliases=aliases,
-                conversions=conversions,
-            )
-        )
-    return result
+    return svc.get_master_items_details(db)
 
 
 @router.get("/uoms", response_model=List[UOMRead])
@@ -48,15 +35,9 @@ def get_uoms(db: Session = Depends(get_db)):
     return db.query(UOM).order_by(UOM.code).all()
 
 
-@router.get("/unmapped-aliases", response_model=List[ItemAliasRead])
-def get_unmapped_aliases(db: Session = Depends(get_db)):
-    aliases = (
-        db.query(ItemAlias)
-        .filter(ItemAlias.master_item_id == None)
-        .order_by(ItemAlias.alias_name)
-        .all()
-    )
-    return aliases
+@router.get("/unmapped-invoice-items", summary="Fetch unmapped invoice items")
+def fetchUnmappedInvoiceItems(db: Session = Depends(get_db)) -> List[dict]:
+    return svc.get_unmapped_invoice_items_with_suggestions(db)
 
 
 @router.post("/", response_model=ItemManagementRead)
@@ -64,73 +45,11 @@ def create_or_update_item(
     payload: ItemManagementCreateUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
-    item = None
-    if payload.id:
-        item = db.query(Item).filter(Item.id == payload.id).first()
-        if not item:
-            raise HTTPException(status_code=404, detail="Item not found")
-        item.name = payload.name
-        item.default_uom_id = payload.default_uom_id
-    else:
-        item = Item(
-            name=payload.name,
-            default_uom_id=payload.default_uom_id,
-            created_by=current_user.username,
-        )
-        db.add(item)
-        db.flush()
-
-    # Clear and re-add aliases
-    db.query(ItemAlias).filter(
-        ItemAlias.master_item_id == item.id,
-        ~ItemAlias.id.in_([a.id for a in payload.aliases]),
-    ).update({"master_item_id": None})
-    for alias in payload.aliases:
-        db_alias = (
-            db.query(ItemAlias).filter(ItemAlias.alias_code == alias.alias_code).first()
-        )
-        if db_alias:
-            db_alias.master_item_id = item.id
-        else:
-            db.add(
-                ItemAlias(
-                    master_item_id=item.id,
-                    alias_code=alias.alias_code,
-                    alias_name=alias.alias_name,
-                    created_by=current_user.username,
-                )
-            )
-
-    # Clear and re-add conversions
-    db.query(ItemConversionMap).filter(ItemConversionMap.item_id == item.id).delete()
-    for conv in payload.conversions:
-        db.add(
-            ItemConversionMap(
-                item_id=item.id,
-                source_unit=conv.source_unit,
-                target_unit=conv.target_unit,
-                conversion_factor=conv.conversion_factor,
-                created_by=current_user.username,
-            )
-        )
-
-    db.commit()
-    db.refresh(item)
-
-    # Return full details
-    aliases = db.query(ItemAlias).filter(ItemAlias.master_item_id == item.id).all()
-    conversions = (
-        db.query(ItemConversionMap).filter(ItemConversionMap.item_id == item.id).all()
-    )
-    uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
-    return ItemManagementRead(
-        id=item.id,
-        name=item.name,
-        default_uom_code=uom.code if uom else None,
-        aliases=aliases,
-        conversions=conversions,
-    )
+) -> ItemManagementRead:
+    item = svc.create_or_update_master_item(db, payload, current_user)
+    # We can leverage the existing get_master_items_details to return the full object,
+    # but that would be inefficient. A direct construction is better.
+    return ItemManagementRead.from_orm(item)
 
 
 @router.post("/map-alias")
@@ -141,3 +60,45 @@ def map_alias_to_item(payload: AliasMapInput, db: Session = Depends(get_db)):
     alias.master_item_id = payload.item_id
     db.commit()
     return {"message": "Alias mapped successfully"}
+
+
+@router.post(
+    "/map-invoice-item", summary="Map an unmapped invoice item to a master item"
+)
+def map_invoice_item(
+    payload: InvoiceItemMapInput,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    invoice_item = db.get(InvoiceItem, payload.invoice_item_id)
+    if not invoice_item:
+        raise HTTPException(status_code=404, detail="Invoice item not found")
+    if invoice_item.item_id:
+        raise HTTPException(
+            status_code=400, detail="This invoice item is already mapped."
+        )
+
+    master_item = db.get(Item, payload.master_item_id)
+    if not master_item:
+        raise HTTPException(status_code=404, detail="Master item not found")
+
+    # 1. Map the invoice item
+    invoice_item.item_id = payload.master_item_id
+
+    # 2. Create an alias for future auto-mapping
+    existing_alias = (
+        db.query(ItemAlias)
+        .filter_by(alias_code=invoice_item.item_code, alias_name=invoice_item.item_name)
+        .first()
+    )
+    if not existing_alias:
+        new_alias = ItemAlias(
+            master_item_id=payload.master_item_id,
+            alias_code=invoice_item.item_code,
+            alias_name=invoice_item.item_name,
+            created_by=current_user.username,
+        )
+        db.add(new_alias)
+
+    db.commit()
+    return {"message": "Invoice item mapped and alias created successfully"}

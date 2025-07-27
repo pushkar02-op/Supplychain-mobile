@@ -127,7 +127,7 @@ def seed_marts(db: Session, created_by: str = "system"):
             updated_at=datetime.utcnow(),
         ),
         Mart(
-            name="Darbhanga",
+            name="CPC-BH-DARBHANGA1",
             company_name="Zomato",
             created_by=created_by,
             updated_by=created_by,

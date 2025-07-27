@@ -1,5 +1,6 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy.orm import relationship
 from .base_class import Base
 from .mixins import AuditMixin
 
@@ -9,3 +10,5 @@ class UOM(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String(10), unique=True, nullable=False)
     description = Column(Text, nullable=True)
+
+    default_for_items = relationship("Item", back_populates="default_uom")

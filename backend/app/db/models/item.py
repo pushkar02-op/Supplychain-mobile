@@ -12,4 +12,16 @@ class Item(Base, AuditMixin):
     aliases = relationship(
         "ItemAlias", back_populates="item", cascade="all, delete-orphan"
     )
-    default_uom = relationship("UOM")
+    default_uom = relationship("UOM", back_populates="default_for_items")
+
+    conversions = relationship(
+        "ItemConversionMap",
+        back_populates="item",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    @property
+    def default_uom_code(self) -> str | None:
+        """Provides direct access to the UOM code for Pydantic."""
+        return self.default_uom.code if self.default_uom else None

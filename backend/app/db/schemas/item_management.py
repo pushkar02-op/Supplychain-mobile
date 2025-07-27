@@ -14,6 +14,7 @@ class UOMRead(BaseModel):
 
 
 class ItemAliasInput(BaseModel):
+    id: Optional[int] = None
     alias_code: Optional[str]
     alias_name: str
 

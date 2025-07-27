@@ -51,15 +51,15 @@ class ItemService {
 
   static Future<List<Map<String, dynamic>>> fetchUnmappedAliases() async {
     final res = await DioClient.instance.get(
-      '/item-management/unmapped-aliases',
+      '/item-management/unmapped-invoice-items',
     );
     return List<Map<String, dynamic>>.from(res.data);
   }
 
-  static Future<void> mapAlias(int aliasId, int itemId) async {
+  static Future<void> mapAlias(int invoiceItemId, int masterItemId) async {
     await DioClient.instance.post(
-      '/item-management/map-alias',
-      data: {'alias_id': aliasId, 'item_id': itemId},
+      '/item-management/map-invoice-item',
+      data: {'invoice_item_id': invoiceItemId, 'master_item_id': masterItemId},
     );
   }
 }
