@@ -245,4 +245,4 @@ def process_pdf_blinkit(input_file: str) -> Tuple[pd.DataFrame, datetime, str]:
 
     logger.info(f"Processed Blinkit PDF for store {store} on {invoice_date.date()}")
 
-    return clean_df, invoice_date, store
+    # return clean_df, invoice_date, store

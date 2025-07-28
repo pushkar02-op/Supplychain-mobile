@@ -573,6 +573,170 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
             // Upload and Results Cards — Add here if needed
             const SizedBox(height: 12),
 
+            // ───────────────────────────────────────────────
+            // 1) UPLOAD FORM CARD
+            // ───────────────────────────────────────────────
+            if (_showUploadSection)
+              Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // header with close button
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Selected Files',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Cancel Upload',
+                            onPressed: () {
+                              setState(() {
+                                _pickedPaths.clear();
+                                _showUploadSection = false;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+                      // file list
+                      ..._pickedPaths.map(
+                        (p) => Text(
+                          '• ${p.split('/').last}',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+                      // Upload button
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          icon:
+                              _uploading
+                                  ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                  : const Icon(Icons.cloud_upload),
+                          label: const Text('Upload'),
+                          onPressed: _uploading ? null : _uploadFiles,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // ───────────────────────────────────────────────
+            // 2) UPLOAD RESULTS CARD
+            // ───────────────────────────────────────────────
+            if (_uploadResults.isNotEmpty)
+              Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // header + close
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Upload Results',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Dismiss Results',
+                            onPressed: () {
+                              setState(() {
+                                _uploadResults.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+                      // each result
+                      for (final result in _uploadResults)
+                        ListTile(
+                          dense: true,
+                          leading: Icon(
+                            result['success'] == true
+                                ? Icons.check_circle
+                                : Icons.error,
+                            color:
+                                result['success'] == true
+                                    ? Colors.green
+                                    : Colors.red,
+                          ),
+                          title: Text(result['filename'] ?? 'Unnamed file'),
+                          subtitle:
+                              result['success'] == true
+                                  ? null
+                                  : Text(
+                                    result['error'] ?? 'Unknown error',
+                                    style: const TextStyle(
+                                      color: Colors.redAccent,
+                                    ),
+                                  ),
+                        ),
+
+                      const SizedBox(height: 12),
+                      // add more
+                      Center(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add More Files'),
+                          onPressed: () {
+                            setState(() {
+                              _uploadResults.clear();
+                              _pickedPaths.clear();
+                              _showUploadSection = true;
+                            });
+                            _pickFiles();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // 👇 The fixed scrollable list
             Expanded(
               child:
