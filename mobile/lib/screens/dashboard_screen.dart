@@ -56,8 +56,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () => context.push('/invoices'),
-              icon: const Icon(Icons.assignment),
-              label: const Text('Invoice Entries'),
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('Invoices'),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(

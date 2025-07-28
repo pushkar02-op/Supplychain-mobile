@@ -214,7 +214,7 @@ def parse_grouped_items(
                 "HSN_CODE": hsn_code,
                 "Item": product_name,
                 "Quantity": quantity,
-                "UOM": uom,
+                "UOM": "KG" if uom == "Kilogram" else "EA",
                 "Price": price,
                 "Total": amount,
             }

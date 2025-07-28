@@ -13,14 +13,13 @@ class InvoiceService {
     int page = 1,
     int pageSize = 20,
   }) async {
-    final params = <String, dynamic>{
-      'page': page,
-      'page_size': pageSize,
-    };
+    final params = <String, dynamic>{'page': page, 'page_size': pageSize};
     if (date != null) {
       params['invoice_date'] = date.toIso8601String().split('T').first;
     }
-    if (martName != null) params['mart_name'] = martName;
+    if (martName != null && martName.isNotEmpty) {
+      params['mart_name'] = martName;
+    }
     if (search != null && search.isNotEmpty) params['search'] = search;
 
     final resp = await DioClient.instance.get(

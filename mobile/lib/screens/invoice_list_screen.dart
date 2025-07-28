@@ -279,6 +279,206 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     );
   }
 
+  Widget _buildInvoiceCard(Map<String, dynamic> inv) {
+    return ExpansionTile(
+      title: Text(
+        inv['mart_name'],
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(
+        '${DateFormat('MMM dd, yyyy').format(DateTime.parse(inv['invoice_date']))}   ₹ ${inv['total_amount'].toStringAsFixed(2)}',
+      ),
+      trailing: Wrap(
+        spacing: 4,
+        children: [
+          Tooltip(
+            message:
+                inv['is_verified'] ? 'Mark as Unverified' : 'Mark as Verified',
+            child: IconButton(
+              icon: Icon(
+                inv['is_verified']
+                    ? Icons.check_circle
+                    : Icons.hourglass_bottom,
+              ),
+              onPressed: () async {
+                await InvoiceService.updateInvoice(
+                  inv['id'],
+                  !(inv['is_verified'] as bool),
+                  inv['remarks'] as String? ?? '',
+                );
+                _fetchInvoices();
+              },
+            ),
+          ),
+          Tooltip(
+            message: 'Delete Invoice',
+            child: IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: () => _confirmDelete(inv['id']),
+            ),
+          ),
+        ],
+      ),
+
+      children: [
+        ListTile(
+          title: Text(inv['file_path'].toString().split('/').last),
+          trailing: TextButton(
+            onPressed: () {
+              context.push(
+                '/pdf-viewer',
+                extra: int.parse(inv['id'].toString()),
+              );
+            },
+            child: const Text('View'),
+          ),
+        ),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: InvoiceService.fetchInvoiceItems(inv['id']),
+          builder: (ctx, snap) {
+            if (!snap.hasData) {
+              return const LinearProgressIndicator();
+            }
+            final items = snap.data!;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: const [
+                  DataColumn(label: Text('Name')),
+                  DataColumn(label: Text('Qty')),
+                  DataColumn(label: Text('UOM')),
+                  DataColumn(label: Text('Price')),
+                  DataColumn(label: Text('Total')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows:
+                    items.map((it) {
+                      return DataRow(
+                        onLongPress: () async {
+                          final selected = await showMenu<String>(
+                            context: context,
+                            position: RelativeRect.fill,
+                            items: [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Edit'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Delete'),
+                              ),
+                            ],
+                          );
+
+                          if (selected == 'edit') {
+                            await _showEditItemDialog(it);
+                            setState(() {}); // refresh UI
+                          } else if (selected == 'delete') {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder:
+                                  (_) => AlertDialog(
+                                    title: const Text('Delete Item'),
+                                    content: const Text(
+                                      'Are you sure you want to delete this item?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed:
+                                            () => Navigator.pop(context, false),
+                                        child: const Text('No'),
+                                      ),
+                                      TextButton(
+                                        onPressed:
+                                            () => Navigator.pop(context, true),
+                                        child: const Text('Yes'),
+                                      ),
+                                    ],
+                                  ),
+                            );
+                            if (confirmed == true) {
+                              await InvoiceService.deleteInvoiceItem(it['id']);
+                              setState(() {});
+                            }
+                          }
+                        },
+                        cells: [
+                          DataCell(Text(it['item_name'] ?? '')),
+                          DataCell(Text(it['quantity'].toString())),
+                          DataCell(Text(it['uom'] ?? '')),
+                          DataCell(
+                            Text((it['price'] as num).toStringAsFixed(2)),
+                          ),
+                          DataCell(
+                            Text((it['total'] as num).toStringAsFixed(2)),
+                          ),
+                          DataCell(
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert, size: 18),
+                              onSelected: (value) async {
+                                if (value == 'edit') {
+                                  await _showEditItemDialog(it);
+                                } else if (value == 'delete') {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder:
+                                        (_) => AlertDialog(
+                                          title: const Text('Delete Item'),
+                                          content: const Text(
+                                            'Are you sure you want to delete this item?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed:
+                                                  () => Navigator.pop(
+                                                    context,
+                                                    false,
+                                                  ),
+                                              child: const Text('No'),
+                                            ),
+                                            TextButton(
+                                              onPressed:
+                                                  () => Navigator.pop(
+                                                    context,
+                                                    true,
+                                                  ),
+                                              child: const Text('Yes'),
+                                            ),
+                                          ],
+                                        ),
+                                  );
+                                  if (confirmed == true) {
+                                    await InvoiceService.deleteInvoiceItem(
+                                      it['id'],
+                                    );
+                                    await _fetchInvoices();
+                                  }
+                                }
+                              },
+                              itemBuilder:
+                                  (context) => [
+                                    const PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('Edit'),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('Delete'),
+                                    ),
+                                  ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final availableHeight =
@@ -300,548 +500,114 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ───────────────────────────────────────────────
-              // 1) UPLOAD FORM CARD
-              // ───────────────────────────────────────────────
-              if (_showUploadSection)
-                Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // header with close button
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Selected Files',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close),
-                              tooltip: 'Cancel Upload',
-                              onPressed: () {
-                                setState(() {
-                                  _pickedPaths.clear();
-                                  _showUploadSection = false;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 8),
-                        // file list
-                        ..._pickedPaths.map(
-                          (p) => Text(
-                            '• ${p.split('/').last}',
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-                        // Upload button
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: ElevatedButton.icon(
-                            icon:
-                                _uploading
-                                    ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                    : const Icon(Icons.cloud_upload),
-                            label: const Text('Upload'),
-                            onPressed: _uploading ? null : _uploadFiles,
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Filter row
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _selectDate,
+                  icon: const Icon(Icons.calendar_today),
+                  label: Text(
+                    _filterDate == null
+                        ? 'All Dates'
+                        : DateFormat('yyyy-MM-dd').format(_filterDate!),
                   ),
                 ),
-
-              // ───────────────────────────────────────────────
-              // 2) UPLOAD RESULTS CARD
-              // ───────────────────────────────────────────────
-              if (_uploadResults.isNotEmpty)
-                Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // header + close
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Upload Results',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close),
-                              tooltip: 'Dismiss Results',
-                              onPressed: () {
-                                setState(() {
-                                  _uploadResults.clear();
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 8),
-                        // each result
-                        for (final result in _uploadResults)
-                          ListTile(
-                            dense: true,
-                            leading: Icon(
-                              result['success'] == true
-                                  ? Icons.check_circle
-                                  : Icons.error,
-                              color:
-                                  result['success'] == true
-                                      ? Colors.green
-                                      : Colors.red,
-                            ),
-                            title: Text(result['filename'] ?? 'Unnamed file'),
-                            subtitle:
-                                result['success'] == true
-                                    ? null
-                                    : Text(
-                                      result['error'] ?? 'Unknown error',
-                                      style: const TextStyle(
-                                        color: Colors.redAccent,
-                                      ),
-                                    ),
-                          ),
-
-                        const SizedBox(height: 12),
-                        // add more
-                        Center(
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add More Files'),
-                            onPressed: () {
-                              setState(() {
-                                _uploadResults.clear();
-                                _pickedPaths.clear();
-                                _showUploadSection = true;
-                              });
-                              _pickFiles();
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // Filters
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _selectDate,
-                    icon: const Icon(Icons.calendar_today),
-                    label: Text(
-                      _filterDate == null
-                          ? 'All Dates'
-                          : DateFormat('yyyy-MM-dd').format(_filterDate!),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField2<String>(
-                      isExpanded: true,
-                      value: _filterMart,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        border: OutlineInputBorder(),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField2<String>(
+                    isExpanded: true,
+                    value: _filterMart,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                      dropdownStyleData: DropdownStyleData(
-                        maxHeight: 200,
-                        width: 200, // You can adjust this as needed
-                      ),
-                      hint: const Text('All Marts'),
-                      items: [
-                        const DropdownMenuItem<String>(
-                          value: null,
-                          child: Text('All Marts'),
-                        ),
-                        ..._marts.map(
-                          (m) => DropdownMenuItem(value: m, child: Text(m)),
-                        ),
-                      ],
-                      onChanged: (v) {
-                        setState(() {
-                          _filterMart = v;
-                          _fetchInvoices();
-                        });
-                      },
+                      border: OutlineInputBorder(),
                     ),
-                  ),
-
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      decoration: const InputDecoration(hintText: 'Search…'),
-                      onChanged: (v) {
-                        _search = v;
+                    dropdownStyleData: DropdownStyleData(
+                      maxHeight: 200,
+                      width: 200,
+                    ),
+                    hint: const Text('All Marts'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('All Marts'),
+                      ),
+                      ..._marts.map(
+                        (m) => DropdownMenuItem(value: m, child: Text(m)),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      setState(() {
+                        _filterMart = v;
                         _fetchInvoices();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              // const SizedBox(height: 12),
-
-              // Error
-              if (_error != null)
-                Center(
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red),
+                      });
+                    },
                   ),
                 ),
-              // Text('Total: $_totalInvoices invoices'), // Show total invoices
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(hintText: 'Search…'),
+                    onSubmitted: (v) {
+                      _search = v;
+                      _fetchInvoices();
+                    },
+                  ),
+                ),
+              ],
+            ),
 
-              // Invoice List
-              SizedBox(
-                height: availableHeight,
-                child:
-                    _loading
-                        ? const Center(child: CircularProgressIndicator())
-                        : _invoices.isEmpty
-                        ? const Center(child: Text('No invoices found'))
-                        : ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _invoices.length,
+            const SizedBox(height: 12),
+
+            if (_error != null)
+              Center(
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              ),
+
+            // Upload and Results Cards — Add here if needed
+            const SizedBox(height: 12),
+
+            // 👇 The fixed scrollable list
+            Expanded(
+              child:
+                  _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : NotificationListener<ScrollNotification>(
+                        onNotification: (scrollNotification) {
+                          if (scrollNotification.metrics.pixels >=
+                                  scrollNotification.metrics.maxScrollExtent -
+                                      100 &&
+                              !_isLoadingMore &&
+                              _hasMore) {
+                            _fetchInvoices(loadMore: true);
+                          }
+                          return false;
+                        },
+                        child: ListView.builder(
+                          padding: const EdgeInsets.only(top: 12, bottom: 24),
+                          itemCount: _invoices.length + (_hasMore ? 1 : 0),
                           itemBuilder: (ctx, i) {
+                            if (i == _invoices.length) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
                             final inv = _invoices[i];
-                            return ExpansionTile(
-                              title: Text(
-                                inv['mart_name'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${DateFormat('MMM dd, yyyy').format(DateTime.parse(inv['invoice_date']))}   ₹ ${inv['total_amount'].toStringAsFixed(2)}',
-                              ),
-                              trailing: Wrap(
-                                spacing: 4,
-                                children: [
-                                  Tooltip(
-                                    message:
-                                        inv['is_verified']
-                                            ? 'Mark as Unverified'
-                                            : 'Mark as Verified',
-                                    child: IconButton(
-                                      icon: Icon(
-                                        inv['is_verified']
-                                            ? Icons.check_circle
-                                            : Icons.hourglass_bottom,
-                                      ),
-                                      onPressed: () async {
-                                        await InvoiceService.updateInvoice(
-                                          inv['id'],
-                                          !(inv['is_verified'] as bool),
-                                          inv['remarks'] as String? ?? '',
-                                        );
-                                        _fetchInvoices();
-                                      },
-                                    ),
-                                  ),
-                                  Tooltip(
-                                    message: 'Delete Invoice',
-                                    child: IconButton(
-                                      icon: const Icon(Icons.delete),
-                                      onPressed:
-                                          () => _confirmDelete(inv['id']),
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              children: [
-                                ListTile(
-                                  title: Text(
-                                    inv['file_path'].toString().split('/').last,
-                                  ),
-                                  trailing: TextButton(
-                                    onPressed: () {
-                                      context.push(
-                                        '/pdf-viewer',
-                                        extra: int.parse(inv['id'].toString()),
-                                      );
-                                    },
-                                    child: const Text('View'),
-                                  ),
-                                ),
-                                FutureBuilder<List<Map<String, dynamic>>>(
-                                  future: InvoiceService.fetchInvoiceItems(
-                                    inv['id'],
-                                  ),
-                                  builder: (ctx, snap) {
-                                    if (!snap.hasData) {
-                                      return const LinearProgressIndicator();
-                                    }
-                                    final items = snap.data!;
-                                    return SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: DataTable(
-                                        columns: const [
-                                          DataColumn(label: Text('Name')),
-                                          DataColumn(label: Text('Qty')),
-                                          DataColumn(label: Text('UOM')),
-                                          DataColumn(label: Text('Price')),
-                                          DataColumn(label: Text('Total')),
-                                          DataColumn(label: Text('Actions')),
-                                        ],
-                                        rows:
-                                            items.map((it) {
-                                              return DataRow(
-                                                onLongPress: () async {
-                                                  final selected =
-                                                      await showMenu<String>(
-                                                        context: context,
-                                                        position:
-                                                            RelativeRect.fill,
-                                                        items: [
-                                                          const PopupMenuItem(
-                                                            value: 'edit',
-                                                            child: Text('Edit'),
-                                                          ),
-                                                          const PopupMenuItem(
-                                                            value: 'delete',
-                                                            child: Text(
-                                                              'Delete',
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      );
-
-                                                  if (selected == 'edit') {
-                                                    await _showEditItemDialog(
-                                                      it,
-                                                    );
-                                                    setState(
-                                                      () {},
-                                                    ); // refresh UI
-                                                  } else if (selected ==
-                                                      'delete') {
-                                                    final confirmed = await showDialog<
-                                                      bool
-                                                    >(
-                                                      context: context,
-                                                      builder:
-                                                          (_) => AlertDialog(
-                                                            title: const Text(
-                                                              'Delete Item',
-                                                            ),
-                                                            content: const Text(
-                                                              'Are you sure you want to delete this item?',
-                                                            ),
-                                                            actions: [
-                                                              TextButton(
-                                                                onPressed:
-                                                                    () => Navigator.pop(
-                                                                      context,
-                                                                      false,
-                                                                    ),
-                                                                child:
-                                                                    const Text(
-                                                                      'No',
-                                                                    ),
-                                                              ),
-                                                              TextButton(
-                                                                onPressed:
-                                                                    () => Navigator.pop(
-                                                                      context,
-                                                                      true,
-                                                                    ),
-                                                                child:
-                                                                    const Text(
-                                                                      'Yes',
-                                                                    ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                    );
-                                                    if (confirmed == true) {
-                                                      await InvoiceService.deleteInvoiceItem(
-                                                        it['id'],
-                                                      );
-                                                      setState(() {});
-                                                    }
-                                                  }
-                                                },
-                                                cells: [
-                                                  DataCell(
-                                                    Text(it['item_name'] ?? ''),
-                                                  ),
-                                                  DataCell(
-                                                    Text(
-                                                      it['quantity'].toString(),
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    Text(it['uom'] ?? ''),
-                                                  ),
-                                                  DataCell(
-                                                    Text(
-                                                      (it['price'] as num)
-                                                          .toStringAsFixed(2),
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    Text(
-                                                      (it['total'] as num)
-                                                          .toStringAsFixed(2),
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    PopupMenuButton<String>(
-                                                      icon: const Icon(
-                                                        Icons.more_vert,
-                                                        size: 18,
-                                                      ),
-                                                      onSelected: (
-                                                        value,
-                                                      ) async {
-                                                        if (value == 'edit') {
-                                                          await _showEditItemDialog(
-                                                            it,
-                                                          );
-                                                        } else if (value ==
-                                                            'delete') {
-                                                          final confirmed = await showDialog<
-                                                            bool
-                                                          >(
-                                                            context: context,
-                                                            builder:
-                                                                (
-                                                                  _,
-                                                                ) => AlertDialog(
-                                                                  title: const Text(
-                                                                    'Delete Item',
-                                                                  ),
-                                                                  content:
-                                                                      const Text(
-                                                                        'Are you sure you want to delete this item?',
-                                                                      ),
-                                                                  actions: [
-                                                                    TextButton(
-                                                                      onPressed:
-                                                                          () => Navigator.pop(
-                                                                            context,
-                                                                            false,
-                                                                          ),
-                                                                      child:
-                                                                          const Text(
-                                                                            'No',
-                                                                          ),
-                                                                    ),
-                                                                    TextButton(
-                                                                      onPressed:
-                                                                          () => Navigator.pop(
-                                                                            context,
-                                                                            true,
-                                                                          ),
-                                                                      child:
-                                                                          const Text(
-                                                                            'Yes',
-                                                                          ),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                          );
-                                                          if (confirmed ==
-                                                              true) {
-                                                            await InvoiceService.deleteInvoiceItem(
-                                                              it['id'],
-                                                            );
-                                                            await _fetchInvoices();
-                                                          }
-                                                        }
-                                                      },
-                                                      itemBuilder:
-                                                          (context) => [
-                                                            const PopupMenuItem(
-                                                              value: 'edit',
-                                                              child: Text(
-                                                                'Edit',
-                                                              ),
-                                                            ),
-                                                            const PopupMenuItem(
-                                                              value: 'delete',
-                                                              child: Text(
-                                                                'Delete',
-                                                              ),
-                                                            ),
-                                                          ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              );
-                                            }).toList(),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            );
+                            return _buildInvoiceCard(inv);
                           },
                         ),
-              ),
-              if (_hasMore && !_loading && !_isLoadingMore)
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () => _fetchInvoices(loadMore: true),
-                    child: const Text('Load More'),
-                  ),
-                ),
-              if (_isLoadingMore)
-                const Center(child: CircularProgressIndicator()),
-            ],
-          ),
+                      ),
+            ),
+          ],
         ),
       ),
     );
