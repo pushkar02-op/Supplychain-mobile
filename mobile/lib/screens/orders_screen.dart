@@ -27,9 +27,14 @@ class _OrderListScreenState extends State<OrdersScreen> {
 
   Future<void> _loadMarts() async {
     try {
-      final list = await OrderService.fetchMartNames();
-      if (mounted) setState(() => _marts = list);
-    } catch (_) {}
+      final marts =
+          await OrderService.fetchMartList(); // returns List<Map<String, dynamic>>
+      setState(() {
+        _marts = marts.map((mart) => mart['name'] as String).toList();
+      });
+    } catch (e) {
+      debugPrint('Failed to load marts: $e');
+    }
   }
 
   Future<void> _fetchOrders() async {
@@ -179,7 +184,9 @@ class _OrderListScreenState extends State<OrdersScreen> {
                         itemBuilder: (_, i) {
                           final o = _orders[i];
                           final itemName = o['item']?['name'] ?? 'Unknown';
-                          final status = (o['status'] as String?)?.toLowerCase() ?? 'pending';
+                          final status =
+                              (o['status'] as String?)?.toLowerCase() ??
+                              'pending';
 
                           // Choose color based on status
                           Color statusColor;
@@ -200,10 +207,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(8),
                               border: Border(
-                                left: BorderSide(
-                                  color: statusColor,
-                                  width: 6,
-                                ),
+                                left: BorderSide(color: statusColor, width: 6),
                               ),
                               boxShadow: [
                                 BoxShadow(
@@ -224,8 +228,24 @@ class _OrderListScreenState extends State<OrdersScreen> {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Order: ${o['quantity_ordered']}${o['unit']}', style: const TextStyle(color: Colors.black87)),
-                                  Text('Dispatched: ${o['quantity_dispatched']}${o['unit']}', style: const TextStyle(color: Colors.black87)),
+                                  Text(
+                                    'Mart:  ${o['mart_name']}',
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Order: ${o['quantity_ordered']}${o['unit']}',
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Dispatched: ${o['quantity_dispatched']}${o['unit']}',
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                    ),
+                                  ),
                                   Text(
                                     'Status: ${o['status']}',
                                     style: TextStyle(
@@ -251,8 +271,10 @@ class _OrderListScreenState extends State<OrdersScreen> {
                                         'item_id': o['item_id'],
                                         'batch_id': o['batch_id'],
                                         'mart_name': o['mart_name'],
-                                        'quantity_ordered': o['quantity_ordered'],
-                                        'quantity_dispatched': o['quantity_dispatched'],
+                                        'quantity_ordered':
+                                            o['quantity_ordered'],
+                                        'quantity_dispatched':
+                                            o['quantity_dispatched'],
                                         'unit': o['unit'],
                                         'dispatch_date': o['order_date'],
                                         'item_name': o['item']?['name'],
@@ -263,20 +285,21 @@ class _OrderListScreenState extends State<OrdersScreen> {
                                     _confirmDelete(o['id']);
                                   }
                                 },
-                                itemBuilder: (_) => [
-                                  const PopupMenuItem(
-                                    value: 'dispatch',
-                                    child: Text('Dispatch'),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Edit'),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Delete'),
-                                  ),
-                                ],
+                                itemBuilder:
+                                    (_) => [
+                                      const PopupMenuItem(
+                                        value: 'dispatch',
+                                        child: Text('Dispatch'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Edit'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Delete'),
+                                      ),
+                                    ],
                               ),
                             ),
                           );

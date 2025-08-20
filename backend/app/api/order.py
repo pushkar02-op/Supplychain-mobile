@@ -38,6 +38,7 @@ def create(entry: OrderCreate, db: Session = Depends(get_db)) -> OrderRead:
         OrderRead: The created order.
     """
     logger.info("Creating new order")
+    print(f"Order data: {entry}")
     return create_order(db=db, entry=entry, created_by="system")
 
 
@@ -59,11 +60,17 @@ def read_all(
         List[OrderRead]: List of orders.
     """
     logger.info(f"Fetching orders date={order_date}, mart={mart_name}")
-    return get_orders(db=db, order_date=order_date, mart_name=mart_name)
+    orders = get_orders(db=db, order_date=order_date, mart_name=mart_name)
+
+    for order in orders:
+        if order.mart:
+            order.mart_name = order.mart.name
+
+    return orders
 
 
-@router.get("/mart-names", response_model=List[str], summary="List mart names")
-def get_mart_names(db: Session = Depends(get_db)) -> List[str]:
+@router.get("/mart-names", response_model=List[dict], summary="List mart names")
+def get_mart_names(db: Session = Depends(get_db)) -> List[dict]:
     """
     Retrieve distinct mart names from orders.
 
@@ -71,7 +78,7 @@ def get_mart_names(db: Session = Depends(get_db)) -> List[str]:
         db (Session): Database session dependency.
 
     Returns:
-        List[str]: List of mart names.
+        List[dict]: List of mart names.
     """
     logger.info("Fetching distinct mart names")
     return get_distinct_mart_names(db)

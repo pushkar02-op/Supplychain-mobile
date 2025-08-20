@@ -3,19 +3,24 @@ from pydantic import BaseModel
 from typing import Optional
 from app.db.schemas.item import ItemRead
 
+
 class OrderBase(BaseModel):
     item_id: int
     unit: str
-    mart_name: str
+    mart_id: int
+    mart_name: Optional[str]
     order_date: date
     quantity_ordered: float
+
 
 class OrderCreate(OrderBase):
     pass
 
+
 class OrderUpdate(BaseModel):
     quantity_ordered: Optional[float] = None
-    mart_name: Optional[str] = None
+    mart_id: Optional[int] = None
+
 
 class OrderRead(OrderBase):
     id: int

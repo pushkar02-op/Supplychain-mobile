@@ -21,6 +21,9 @@ def clean_product_name(raw_name: str) -> str:
         name,
         flags=re.IGNORECASE,
     )
+    name = name.strip()
+    # Remove prefix: "BH-" or "BH -"
+    name = re.sub(r"^BH\s*-\s*", "", name, flags=re.IGNORECASE)
 
     return name.strip()
 
@@ -84,7 +87,7 @@ def normalize_rows_from_lines(lines: list) -> list:
 
     # Extract item lines (header + data)
     item_lines = lines[
-        header_idx : end_idx - 2
+        header_idx : end_idx - 1
     ]  # -2 if you want to stop 2 lines before
 
     # Filter out lines that are exactly 'Per' or 'Qty. Unit Rate Amount'
@@ -115,41 +118,49 @@ def is_code_line(line):
 
 def group_raw_items(lines: list[str]) -> list[list[str]]:
     """
-    Groups Blinkit items in two patterns:
-     - Pattern 1: code-first → only the code line is the group.
-     - Pattern 2: name-first → [name line, code line, optional detail line].
+    Groups item lines based on custom Blinkit logic:
+    1. Line starts with 6-digit product code and includes 8-digit HSN => item name is between them.
+    2. If item name is not in the same line, it's split in the previous and next line.
+    3. Grouping supports code-name-line, name-code-line, and multi-line patterns.
     """
     grouped = []
     i = 0
     n = len(lines)
 
     while i < n:
-        line = lines[i].strip()
+        current = lines[i].strip()
 
-        # If this is a code-first line (Pattern 1):
-        if is_code_line(line):
-            # Pattern 1: stand-alone code line
-            grouped.append([line])
+        # Match lines starting with 6-digit code followed by text and then HSN
+        match = re.match(r"^(\d{6})\s+(.+?)\s+(\d{8})\b", current)
+        if match:
+            item_code = match.group(1)
+            item_name = match.group(2)
+            hsn = match.group(3)
+            grouped.append(
+                [
+                    f"{item_code} {item_name} {hsn} {current[len(match.group(0)):].strip()}"
+                ]
+            )
             i += 1
             continue
 
-        # If name-first: next line must be code (Pattern 2)
-        if i + 1 < n and is_code_line(lines[i + 1].strip()):
-            name = line
-            code = lines[i + 1].strip()
-            group = [name, code]
-            i += 2
+        # Match lines starting with 6-digit code immediately followed by HSN → item name is outside
+        match = re.match(r"^(\d{6})\s+(\d{8})\b", current)
+        if match and i > 0 and i + 1 < n:
+            # Previous line is partial item name, next line is rest
+            name_line_1 = lines[i - 1].strip()
+            name_line_2 = lines[i + 1].strip()
 
-            # Optional 3rd line of details
-            if i < n and not is_code_line(lines[i].strip()):
-                detail = lines[i].strip()
-                group.append(detail)
-                i += 1
+            item_code = match.group(1)
+            hsn = match.group(2)
+            rest = current[len(match.group(0)) :].strip()
 
-            grouped.append(group)
+            full_name = f"{name_line_1} {name_line_2}"
+            grouped.append([f"{item_code} {full_name} {hsn} {rest}"])
+            i += 2  # skip current and next
             continue
 
-        # Otherwise skip
+        # fallback - skip line
         i += 1
 
     return grouped
@@ -230,19 +241,16 @@ def process_pdf_blinkit(input_file: str) -> Tuple[pd.DataFrame, datetime, str]:
     # Now, pass these lines to your new parsing functions:
     store, invoice_date = find_store_and_date_from_lines(lines)
     item_lines = normalize_rows_from_lines(lines)
+    # print("\n=== Item Lines ===")
+    # for i, line in enumerate(item_lines, 1):
+    #     print(f"{i}: {line}")
 
     grouped = group_raw_items(item_lines)
-    print("\n=== Item Lines ===")
-    for i, line in enumerate(grouped, 1):
-        print(f"{i}: {line}")
 
     clean_df = parse_grouped_items(grouped, store, invoice_date)
-    print("\n=== Parsed Invoice Items ===")
-    print(clean_df.to_string(index=False))
-
-    # Or, if you prefer logging:
-    logger.info(f"\nParsed Invoice Items:\n{clean_df.to_string(index=False)}")
+    # print("\n=== Parsed Invoice Items ===")
+    # print(clean_df.to_string(index=False))
 
     logger.info(f"Processed Blinkit PDF for store {store} on {invoice_date.date()}")
 
-    # return clean_df, invoice_date, store
+    return clean_df, invoice_date, store

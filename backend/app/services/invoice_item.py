@@ -127,7 +127,7 @@ def get_distinct_items_for_mart(db: Session, mart_name: str) -> list[dict]:
             InvoiceItem.item_name,
             InvoiceItem.uom,
         )
-        .filter(InvoiceItem.store_name == mart_name)
+        .filter(InvoiceItem.store_name == mart_name, InvoiceItem.item_id.isnot(None))
         .distinct()
         .all()
     )

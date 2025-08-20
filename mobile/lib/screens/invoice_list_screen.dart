@@ -129,12 +129,12 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           final unmappedItems = List<Map<String, dynamic>>.from(
             resp['unmapped_items'],
           );
-          if (mounted) {
-            await context.push(
-              '/map-items',
-              extra: {'invoice_id': invoiceId, 'unmapped_items': unmappedItems},
-            );
-          }
+          // if (mounted) {
+          //   await context.push(
+          //     '/map-items',
+          //     extra: {'invoice_id': invoiceId, 'unmapped_items': unmappedItems},
+          //   );
+          // }
         }
       }
 
@@ -451,7 +451,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                     await InvoiceService.deleteInvoiceItem(
                                       it['id'],
                                     );
-                                    await _fetchInvoices();
+                                    setState(() {}); // More efficient refresh
                                   }
                                 }
                               },

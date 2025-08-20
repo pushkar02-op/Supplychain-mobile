@@ -29,7 +29,8 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
 
   List<Map<String, dynamic>> _items = <Map<String, dynamic>>[];
   List<String> _unitOptions = [];
-  List<String> _marts = [];
+  List<Map<String, dynamic>> _marts = [];
+  int? _selectedMartId;
 
   Map<String, dynamic>? _editingOrder;
 
@@ -55,7 +56,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     _orderDate = DateTime.parse(_editingOrder!['order_date']);
     _quantity = _editingOrder!['quantity_ordered'].toString();
     _unit = _editingOrder!['unit'] as String;
-    _selectedMart = _editingOrder!['mart_name'] as String;
+    _selectedMartId = _editingOrder!['mart_id'];
     _selectedItem = {
       'id': _editingOrder!['item_id'],
       'item_name': _editingOrder!['item']['name'],
@@ -88,10 +89,12 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
 
   Future<void> _loadMarts() async {
     try {
-      final marts = await OrderService.fetchMartNames();
-      setState(() => _marts = marts);
-    } catch (_) {
-      // ignore
+      final marts = await OrderService.fetchMartList();
+      setState(() {
+        _marts = marts;
+      });
+    } catch (e) {
+      debugPrint('Failed to load marts: $e');
     }
   }
 
@@ -107,10 +110,9 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
   }
 
   Future<void> _submit() async {
-    print('Submit called');
     if (!_formKey.currentState!.validate() ||
         _selectedItem == null ||
-        _selectedMart == null) {
+        _selectedMartId == null) {
       return;
     }
     _formKey.currentState!.save();
@@ -118,11 +120,12 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
 
     final payload = {
       'item_id': _selectedItem!['item_id'],
-      'mart_name': _selectedMart!,
+      'mart_id': _selectedMartId!,
       'order_date': DateFormat('yyyy-MM-dd').format(_orderDate),
       'quantity_ordered': double.parse(_quantity),
       'unit': _unit,
     };
+
     try {
       dynamic result;
       if (_editingOrder != null) {
@@ -130,7 +133,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       } else {
         result = await OrderService.createOrder(
           itemId: payload['item_id'],
-          martName: payload['mart_name'],
+          martId: payload['mart_id'],
           orderDate: payload['order_date'],
           quantityOrdered: payload['quantity_ordered'],
           unit: payload['unit'],
@@ -218,26 +221,37 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                       const SizedBox(height: 12),
 
                       // Mart
-                      DropdownButtonFormField<String>(
-                        value: _selectedMart,
+                      DropdownButtonFormField<int>(
+                        value: _selectedMartId,
                         decoration: InputDecoration(
                           label: _requiredLabel('Mart'),
                         ),
                         items:
                             _marts
-                                .map(
-                                  (m) => DropdownMenuItem(
-                                    value: m,
-                                    child: Text(m),
+                                .map<DropdownMenuItem<int>>(
+                                  (m) => DropdownMenuItem<int>(
+                                    // Explicit type here
+                                    value: m['id'], // mart ID as integer
+                                    child: Text(m['name']),
                                   ),
                                 )
                                 .toList(),
-                        onChanged: (m) {
-                          setState(() => _selectedMart = m);
-                          if (m != null) _loadItemsForMart(m);
+                        onChanged: (val) {
+                          setState(() => _selectedMartId = val);
+                          print('Selected mart ID: $val');
+                          if (val != null) {
+                            final martName =
+                                _marts.firstWhere(
+                                  (m) => m['id'] == val,
+                                )['name'];
+                            _loadItemsForMart(
+                              martName,
+                            ); // This API still uses mart_name
+                          }
                         },
                         validator:
-                            (m) => m == null ? 'Please select a mart' : null,
+                            (val) =>
+                                val == null ? 'Please select a mart' : null,
                       ),
                       const SizedBox(height: 12),
 

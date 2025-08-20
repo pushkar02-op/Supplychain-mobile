@@ -37,7 +37,7 @@ class ItemService {
   }
 
   static Future<void> deleteItem(int id) async {
-    await DioClient.instance.delete('/item/\$id');
+    await DioClient.instance.delete('/item/$id');
   }
 
   static Future<List<Map<String, dynamic>>> fetchUOMs() async {

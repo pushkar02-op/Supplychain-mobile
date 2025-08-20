@@ -17,7 +17,7 @@ from app.db.schemas.order import OrderCreate, OrderUpdate
 logger = logging.getLogger(__name__)
 
 
-def get_distinct_mart_names(db: Session) -> List[str]:
+def get_distinct_mart_names(db: Session) -> List[dict]:
     """
     Retrieve unique mart names from invoices.
 
@@ -29,11 +29,14 @@ def get_distinct_mart_names(db: Session) -> List[str]:
     """
     logger.debug("Fetching distinct mart names from invoices")
     results = (
-        db.query(Mart.name).join(Invoice, Invoice.mart_id == Mart.id).distinct().all()
+        db.query(Mart.id, Mart.name)
+        .join(Invoice, Invoice.mart_id == Mart.id)
+        .distinct()
+        .all()
     )
-    names = [row[0] for row in results if row[0]]
-    logger.info(f"Found {len(names)} mart names")
-    return names
+    marts = [{"id": r.id, "name": r.name} for r in results if r.name]
+    logger.info(f"Found {len(marts)} distinct marts")
+    return marts
 
 
 def create_order(
@@ -54,14 +57,14 @@ def create_order(
         AppException: On duplicate order.
     """
     logger.info(
-        f"Creating order for item_id={entry.item_id}, mart={entry.mart_name}, date={entry.order_date}"
+        f"Creating order for item_id={entry.item_id}, mart={entry.mart_id}, date={entry.order_date}"
     )
     existing = (
         db.query(Order)
         .filter_by(
             item_id=entry.item_id,
             order_date=entry.order_date,
-            mart_name=entry.mart_name,
+            mart_id=entry.mart_id,
         )
         .first()
     )
@@ -72,7 +75,9 @@ def create_order(
             status_code=400,
         )
 
-    ord_ = Order(**entry.dict(), created_by=created_by, updated_by=created_by)
+    order_data = entry.dict()
+    order_data["mart_id"] = entry.mart_id
+    ord_ = Order(**order_data, created_by=created_by, updated_by=created_by)
     db.add(ord_)
     db.commit()
     db.refresh(ord_)
@@ -144,8 +149,16 @@ def update_order(
         logger.error(f"Order not found id={order_id}")
         return None
 
+    update_data = entry_update.dict(exclude_unset=True)
+    if "mart_name" in update_data:
+        mart_name = update_data.pop("mart_name")
+        mart = db.query(Mart).filter(Mart.name == mart_name).first()
+        if not mart:
+            raise AppException(f"Mart '{mart_name}' not found", status_code=404)
+        update_data["mart_id"] = mart.id
+
     original_dispatched = ord_.quantity_dispatched or 0
-    for field, val in entry_update.dict(exclude_unset=True).items():
+    for field, val in update_data.items():
         setattr(ord_, field, val)
     # Adjust status
     if ord_.quantity_ordered <= original_dispatched:
