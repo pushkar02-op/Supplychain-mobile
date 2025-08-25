@@ -7,13 +7,11 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
-
 from app.core.exceptions import AppException
-from app.db.models.invoice_item import InvoiceItem
 from app.db.models.invoice import Invoice
-from app.db.models.audit_log import AuditLog
+from app.db.models.invoice_item import InvoiceItem
 from app.db.schemas.invoice_item import InvoiceItemUpdate
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

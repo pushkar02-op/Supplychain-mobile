@@ -1,6 +1,6 @@
-from sqlalchemy.orm import Session
 from app.db.models.uom import UOM
-from app.db.schemas.uom import UOMCreate, UOMRead
+from app.db.schemas.uom import UOMCreate
+from sqlalchemy.orm import Session
 
 
 def create_uom(db: Session, data: UOMCreate) -> UOM:

@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from typing import List
-from app.db.session import get_db
+
 from app.db.models.item_alias import ItemAlias
 from app.db.schemas.item_alias import ItemAliasCreate, ItemAliasRead
+from app.db.session import get_db
 from app.services.item_alias import create_alias, get_all_aliases
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/item-alias", tags=["Item Alias"])
 

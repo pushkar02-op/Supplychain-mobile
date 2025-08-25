@@ -4,13 +4,13 @@ Provides retrieval of audit log entries.
 """
 
 import logging
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from typing import List
 
 from app.db.schemas.audit_log import AuditLogRead
-from app.services.audit_log import get_all_audit_logs
 from app.db.session import get_db
+from app.services.audit_log import get_all_audit_logs
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])

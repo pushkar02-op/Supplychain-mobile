@@ -5,7 +5,6 @@ from typing import Tuple
 
 import pandas as pd
 import pdfplumber
-
 from app.core.exceptions import AppException
 
 logger = logging.getLogger(__name__)

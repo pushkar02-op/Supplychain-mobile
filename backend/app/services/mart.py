@@ -1,6 +1,6 @@
-from sqlalchemy.orm import Session
 from app.db.models.mart import Mart
 from app.db.schemas.mart import MartCreate
+from sqlalchemy.orm import Session
 
 
 def create_mart(db: Session, mart: MartCreate) -> Mart:

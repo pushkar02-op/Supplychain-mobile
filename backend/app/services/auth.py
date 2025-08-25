@@ -4,14 +4,13 @@ Handles user registration and login, issuing JWT tokens.
 """
 
 import logging
-from typing import Any
-from sqlalchemy.orm import Session
-from fastapi import status
 
 from app.core.exceptions import AppException
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import create_access_token, hash_password, verify_password
 from app.db.models.user import User
-from app.db.schemas.auth import UserCreate, UserLogin, Token
+from app.db.schemas.auth import Token, UserCreate, UserLogin
+from fastapi import status
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ def register_user(db: Session, user: UserCreate) -> Token:
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to create user")
         raise AppException("User registration failed", status_code=500)
 

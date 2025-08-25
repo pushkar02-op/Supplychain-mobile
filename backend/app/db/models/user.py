@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Boolean, Column, Integer, String
+
 from .base_class import Base
 from .mixins import AuditMixin
 

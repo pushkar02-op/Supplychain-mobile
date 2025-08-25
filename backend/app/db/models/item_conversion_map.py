@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, Float, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
+
 from .base_class import Base
 from .mixins import AuditMixin
 

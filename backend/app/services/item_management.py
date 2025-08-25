@@ -5,17 +5,16 @@ Handles CRUD for master items, aliases, conversions, and mapping of unmapped ite
 
 import logging
 from collections import defaultdict
-from typing import List, Optional
-
-from sqlalchemy import or_
-from sqlalchemy.orm import Session, selectinload
+from typing import List
 
 from app.core.exceptions import AppException
-from app.db.models import Item, ItemAlias, ItemConversionMap, InvoiceItem, UOM, User
+from app.db.models import UOM, InvoiceItem, Item, ItemAlias, ItemConversionMap, User
 from app.db.schemas.item_management import (
     ItemManagementCreateUpdate,
     ItemManagementRead,
 )
+from sqlalchemy import or_
+from sqlalchemy.orm import Session, selectinload
 
 logger = logging.getLogger(__name__)
 

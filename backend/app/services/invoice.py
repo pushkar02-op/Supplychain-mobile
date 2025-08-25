@@ -3,25 +3,25 @@ Service functions for invoice management.
 Handles saving, parsing, and CRUD operations for invoices.
 """
 
+import hashlib
 import logging
 import os
-import hashlib
-from typing import List, Optional, Dict, Union
-from fastapi import UploadFile
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
-import aiofiles
+from typing import Dict, List, Optional, Union
 
+import aiofiles
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.db.models.invoice import Invoice
 from app.db.models.invoice_item import InvoiceItem
 from app.db.models.item import Item
-from app.utils.invoice_parser import process_pdf
+from app.db.models.mart import Mart
+from app.db.models.uom import UOM
 from app.db.schemas.invoice import InvoiceUpdate
 from app.services.item_alias import get_alias_by_code_or_name
-from app.db.models.uom import UOM
-from app.db.models.mart import Mart
+from app.utils.invoice_parser import process_pdf
+from fastapi import UploadFile
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -85,13 +85,13 @@ async def save_and_process_invoice(
         items = []
         unmapped_items = []
         for _, row in df.iterrows():
-            name = row["Item"]
-            existing_item = (
-                db.query(Item).filter(func.lower(Item.name) == name.lower()).first()
-            )
-            uom_id = (
-                db.query(UOM).filter(func.lower(UOM.code) == row["UOM"].lower()).first()
-            )
+            # name = row["Item"]
+            # existing_item = (
+            #     db.query(Item).filter(func.lower(Item.name) == name.lower()).first()
+            # )
+            # uom_id = (
+            #     db.query(UOM).filter(func.lower(UOM.code) == row["UOM"].lower()).first()
+            # )
             # if not existing_item:
             #     new_item = Item(
             #         name=name,
@@ -176,7 +176,7 @@ async def save_and_process_invoice(
             "unmapped_items": unmapped_items,
         }
 
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to process invoice")
         raise AppException("Invoice processing failed", status_code=500)
 

@@ -4,17 +4,14 @@ Provides inventory and P&L summary reports.
 """
 
 import logging
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.db.schemas.inventory_summary import InventorySummaryRead
 from app.db.schemas.pnl_summary import PnlSummaryRead
-from app.services.reports import (
-    get_inventory_report,
-    get_pnl_report,
-)
 from app.db.session import get_db
+from app.services.reports import get_inventory_report, get_pnl_report
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reports", tags=["Reports"])

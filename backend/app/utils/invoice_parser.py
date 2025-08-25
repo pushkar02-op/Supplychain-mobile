@@ -4,24 +4,14 @@ Handles extraction, normalization, and cleaning of invoice tables.
 """
 
 import logging
-import re
 from datetime import datetime
 from typing import Tuple
 
 import pandas as pd
 import pdfplumber
-
 from app.core.exceptions import AppException
-from app.utils.invoice_parser_reliance import (
-    clean_and_rename,
-    extract_raw_table,
-    find_store_and_date,
-    normalize_rows,
-    process_pdf_reliance,
-)
-from app.utils.invoice_parser_blinkit import (
-    process_pdf_blinkit,
-)
+from app.utils.invoice_parser_blinkit import process_pdf_blinkit
+from app.utils.invoice_parser_reliance import process_pdf_reliance
 
 logger = logging.getLogger(__name__)
 

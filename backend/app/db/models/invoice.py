@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Date, Boolean, Float, ForeignKey
+from sqlalchemy import Boolean, Column, Date, Float, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
+
 from .base_class import Base
 from .mixins import AuditMixin
-from sqlalchemy.orm import relationship
 
 
 class Invoice(Base, AuditMixin):

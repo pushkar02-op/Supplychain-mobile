@@ -4,19 +4,14 @@ Provides retrieval, update, and deletion of users.
 """
 
 import logging
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.exceptions import AppException
 from app.db.schemas.user import UserRead, UserUpdate
-from app.services.user import (
-    get_user,
-    get_all_users,
-    update_user,
-    delete_user,
-)
 from app.db.session import get_db
+from app.services.user import delete_user, get_all_users, get_user, update_user
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["Users"])

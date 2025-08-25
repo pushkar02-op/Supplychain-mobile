@@ -7,17 +7,15 @@ import logging
 from datetime import date, datetime
 from typing import List, Optional
 
-from sqlalchemy import and_
-from sqlalchemy.orm import Session
-from app.db.models.uom import UOM
 from app.core.exceptions import AppException
-from app.db.models.stock_entry import StockEntry
 from app.db.models.batch import Batch
-from app.db.models.item import Item
+from app.db.models.stock_entry import StockEntry
+from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.db.schemas.stock_entry import StockEntryCreate, StockEntryUpdate
 from app.services.inventory_txn import create_inventory_txn
-from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.item_conversion_map import get_conversion_factor
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +272,7 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
             base_unit=entry.unit,
             ref_type="stock_entry",
             ref_id=entry.id,
-            remarks=f"Stock added due to delete",
+            remarks="Stock added due to delete",
         ),
     )
     return True

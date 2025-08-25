@@ -1,13 +1,14 @@
 from sqlalchemy import (
     Column,
-    Integer,
-    String,
-    ForeignKey,
     Date,
     Float,
+    ForeignKey,
+    Integer,
+    String,
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
+
 from .base_class import Base
 from .mixins import AuditMixin
 

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "instructions": [
+    "Repository: Fruit Vendor Tool (FastAPI backend in backend/app/).",
+    "Follow COPILOT_INSTRUCTIONS.md at repo root as the canonical guide.",
+    "Do not change business logic when refactoring legacy code. Only change structure, formatting, naming.",
+    "If a suggested change affects DB schema, performance, or security, ask the repo owner and create a separate MR titled 'Suggested improvement — requires manual approval'.",
+    "Routes: backend/app/api/, Services: backend/app/services/, Models: backend/app/db/models/",
+    "All major tables must include auditing fields: created_at, created_by, updated_at, updated_by.",
+    "Always prefer small PRs, module-by-module refactor, and include tests."
+  ],
+  "ignore": [
+    "**/alembic/versions/**",
+    "**/node_modules/**",
+    "**/mobile/build/**"
+  ]
+}

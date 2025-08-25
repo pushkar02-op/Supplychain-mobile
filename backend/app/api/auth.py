@@ -4,13 +4,12 @@ Handles user registration and login.
 """
 
 import logging
+
+from app.db.schemas.auth import Token, UserCreate, UserLogin
+from app.db.session import get_db
+from app.services.auth import login_user, register_user
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from typing import Any
-
-from app.services.auth import register_user, login_user
-from app.db.schemas.auth import UserCreate, UserLogin, Token
-from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

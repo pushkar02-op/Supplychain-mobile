@@ -7,15 +7,14 @@ import logging
 from datetime import date
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
-
 from app.core.exceptions import AppException
-from app.db.models.rejection_entry import RejectionEntry
 from app.db.models.batch import Batch
-from app.db.schemas.rejection_entry import RejectionEntryCreate
-from app.services.item_conversion_map import get_conversion_factor
-from app.services.inventory_txn import create_inventory_txn
+from app.db.models.rejection_entry import RejectionEntry
 from app.db.schemas.inventory_txn import InventoryTxnCreate
+from app.db.schemas.rejection_entry import RejectionEntryCreate
+from app.services.inventory_txn import create_inventory_txn
+from app.services.item_conversion_map import get_conversion_factor
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +82,11 @@ def create_rejection_entry(
                 base_unit=batch.unit,
                 ref_type="rejection_entry",
                 ref_id=rej.id,
-                remarks=f"Stock removed due to rejected",
+                remarks="Stock removed due to rejected",
             ),
         )
         return rej
-    except Exception as e:
+    except Exception:
         db.rollback()
         logger.exception("Failed to create rejection entry")
         raise AppException("Rejection entry creation failed", status_code=500)

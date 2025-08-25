@@ -1,10 +1,10 @@
+from datetime import datetime
+
 from app.db.models.mart import Mart
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 
 def seed_marts(db: Session, created_by: str = "system"):
-
     marts = [
         Mart(
             name="KEOTA_CC_RRL",

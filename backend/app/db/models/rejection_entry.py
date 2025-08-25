@@ -1,7 +1,9 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, Text
+from sqlalchemy import Column, Date, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from .base_class import Base
 from .mixins import AuditMixin
+
 
 class RejectionEntry(Base, AuditMixin):
     __tablename__ = "rejection_entries"
@@ -11,7 +13,7 @@ class RejectionEntry(Base, AuditMixin):
     quantity = Column(Integer, nullable=False)
     reason = Column(Text, nullable=True)
     rejection_date = Column(Date, nullable=False)
-    rejected_by = Column(String, nullable=True)  
+    rejected_by = Column(String, nullable=True)
     item = relationship("Item")
     batch = relationship("Batch")
     unit = Column(String, nullable=False)

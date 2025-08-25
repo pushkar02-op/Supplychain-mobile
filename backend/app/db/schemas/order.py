@@ -1,7 +1,8 @@
 from datetime import date, datetime
-from pydantic import BaseModel
 from typing import Optional
+
 from app.db.schemas.item import ItemRead
+from pydantic import BaseModel
 
 
 class OrderBase(BaseModel):

@@ -6,12 +6,11 @@ Handles inventory and P&L summary retrieval from materialized views.
 import logging
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
-
 from app.db.models.views.inventory_summary import InventorySummary
 from app.db.models.views.pnl_summary import PnlSummary
 from app.db.schemas.inventory_summary import InventorySummaryRead
 from app.db.schemas.pnl_summary import PnlSummaryRead
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

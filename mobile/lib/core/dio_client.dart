@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'api_config.dart';
-import 'package:flutter/foundation.dart'; // <-- Add this for debugPrint
+import 'package:flutter/foundation.dart'; // For debugPrint
 
 class DioClient {
   static final _storage = FlutterSecureStorage();
@@ -9,7 +9,7 @@ class DioClient {
 
   // Setup Dio client with JWT interceptor
   static void setup() {
-    print('Setting up DioClient...');
+    debugPrint('Setting up DioClient...');
     instance = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl))
       ..interceptors.add(
         InterceptorsWrapper(
@@ -32,7 +32,6 @@ class DioClient {
         ),
       );
     // Print the baseUrl after setting up Dio
-    print('Dio baseUrl: ${ApiConfig.baseUrl}');
     debugPrint('Dio baseUrl: ${ApiConfig.baseUrl}');
     debugPrint('Dio instance baseUrl: ${instance.options.baseUrl}');
   }
@@ -46,9 +45,7 @@ class DioClient {
   static Future<void> _logout() async {
     // Clear the stored JWT token and any other sensitive data
     await _storage.deleteAll();
-
-    // TODO: Navigate to login screen or show a logout confirmation
-    // Example: Navigator.pushReplacementNamed(context, '/login');
+    debugPrint('User logged out, navigate to login screen.');
   }
 
   // Public method for logout, accessible from other parts of the app

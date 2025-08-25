@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from typing import List, Optional
 import logging
+from typing import List, Optional
 
 from app.db.schemas.inventory_txn import InventoryTxnRead
 from app.db.session import get_db
 from app.services.inventory_txn import get_inventory_txns
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

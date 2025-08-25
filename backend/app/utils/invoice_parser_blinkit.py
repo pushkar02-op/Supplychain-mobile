@@ -1,10 +1,10 @@
 import logging
+import re
 from datetime import datetime
 from typing import Tuple
-import re
+
 import pandas as pd
 import pdfplumber
-
 from app.core.exceptions import AppException
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ def group_raw_items(lines: list[str]) -> list[list[str]]:
             hsn = match.group(3)
             grouped.append(
                 [
-                    f"{item_code} {item_name} {hsn} {current[len(match.group(0)):].strip()}"
+                    f"{item_code} {item_name} {hsn} {current[len(match.group(0)) :].strip()}"
                 ]
             )
             i += 1

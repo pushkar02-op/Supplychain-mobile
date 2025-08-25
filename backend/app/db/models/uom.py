@@ -1,6 +1,6 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from .base_class import Base
 from .mixins import AuditMixin
 

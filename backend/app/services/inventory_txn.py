@@ -1,9 +1,9 @@
 import logging
-from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.db.models.inventory_txn import InventoryTxn
 from app.db.schemas.inventory_txn import InventoryTxnCreate
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,7 @@
 from datetime import datetime
+
 from sqlalchemy import Column, DateTime, String
+
 
 class AuditMixin:
     created_by = Column(String, nullable=True)

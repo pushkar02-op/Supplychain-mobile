@@ -5,14 +5,14 @@ Configures logging, exception handlers, CORS, and database migrations on startup
 
 import logging
 import subprocess
-from app.db.session import SessionLocal
+
+from app.api import router as api_router
+from app.core.exceptions import register_exception_handlers
+from app.core.logging_config import setup_logging
 from app.db.seed.seed_all import seed_all
+from app.db.session import SessionLocal
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from app.core.logging_config import setup_logging
-from app.core.exceptions import register_exception_handlers
-from app.api import router as api_router
 
 # Initialize logging early
 setup_logging()
@@ -74,5 +74,5 @@ def startup() -> None:
             seed_all(db, created_by="admin@startup")
             db.close()
             logger.info("✅ Initial data seeded")
-        except Exception as e:
+        except Exception:
             logger.exception("❌ Seeding initial data failed")

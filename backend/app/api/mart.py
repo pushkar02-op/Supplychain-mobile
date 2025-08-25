@@ -1,9 +1,10 @@
+from typing import List
+
+from app.db.schemas.mart import MartCreate, MartRead
+from app.db.session import get_db
+from app.services.mart import create_mart, get_marts_by_company
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from app.db.session import get_db
-from app.db.schemas.mart import MartCreate, MartRead
-from app.services.mart import create_mart, get_marts_by_company
-from typing import List
 
 router = APIRouter(prefix="/marts", tags=["Marts"])
 

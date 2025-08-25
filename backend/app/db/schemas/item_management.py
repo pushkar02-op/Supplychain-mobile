@@ -1,7 +1,8 @@
 # backend/app/db/schemas/item_management.py
 
-from pydantic import BaseModel
 from typing import List, Optional
+
+from pydantic import BaseModel
 
 
 class UOMRead(BaseModel):

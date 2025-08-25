@@ -6,14 +6,12 @@ Handles CRUD operations for catalog items and queries on stock availability.
 import logging
 from typing import List, Optional
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from app.core.exceptions import AppException
 from app.db.models import Item
 from app.db.models.batch import Batch
-from app.db.schemas.item import ItemCreate, ItemRead, ItemUpdate
 from app.db.models.uom import UOM
+from app.db.schemas.item import ItemCreate, ItemRead, ItemUpdate
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

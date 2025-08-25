@@ -1,7 +1,8 @@
-from sqlalchemy.orm import Session
 from typing import List, Optional
+
 from app.db.models.item_alias import ItemAlias
-from app.db.schemas.item_alias import ItemAliasCreate, ItemAliasUpdate
+from app.db.schemas.item_alias import ItemAliasCreate
+from sqlalchemy.orm import Session
 
 
 def create_alias(db: Session, data: ItemAliasCreate, created_by: str) -> ItemAlias:

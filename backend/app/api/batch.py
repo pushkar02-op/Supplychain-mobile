@@ -4,23 +4,23 @@ Provides CRUD operations for batches, including creation, retrieval, update, and
 """
 
 import logging
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
 from typing import List
 
+from app.core.auth import get_current_user
 from app.core.exceptions import AppException
+from app.db.models.user import User
 from app.db.schemas.batch import BatchCreate, BatchRead, BatchUpdate
+from app.db.session import get_db
 from app.services.batch import (
     create_batch,
-    get_batch,
+    delete_batch,
     get_all_batches,
+    get_batch,
     get_batches_by_item_with_quantity,
     update_batch,
-    delete_batch,
 )
-from app.db.session import get_db
-from app.core.auth import get_current_user
-from app.db.models.user import User
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/batch", tags=["Batches"])
@@ -109,7 +109,10 @@ def update(
     """
     logger.info(f"Updating batch_id={batch_id} by {current_user.username}")
     updated = update_batch(
-        db=db, batch_id=batch_id, entry_update=entry_update, updated_by=current_user.username
+        db=db,
+        batch_id=batch_id,
+        entry_update=entry_update,
+        updated_by=current_user.username,
     )
     if not updated:
         logger.error(f"Batch not found: batch_id={batch_id}")

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Date, Float
+
 from ..base_class import Base
 
 

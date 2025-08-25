@@ -1,7 +1,8 @@
 from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
+
 from .base_class import Base
 from .mixins import AuditMixin
-from sqlalchemy.orm import relationship
 
 
 class Item(Base, AuditMixin):

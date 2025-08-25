@@ -1,22 +1,23 @@
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel
+
 from app.db.schemas.item import ItemRead
+from pydantic import BaseModel
 
 
 class StockEntryBase(BaseModel):
-    item_id: int 
+    item_id: int
     received_date: date
     price_per_unit: float
     total_cost: float
     source: Optional[str] = None
-    quantity: float  
-    unit: str        
-
+    quantity: float
+    unit: str
 
 
 class StockEntryCreate(StockEntryBase):
     pass
+
 
 class StockEntryRead(StockEntryBase):
     id: int
@@ -28,7 +29,8 @@ class StockEntryRead(StockEntryBase):
 
     class Config:
         orm_mode = True
-        
+
+
 class StockEntryUpdate(BaseModel):
     received_date: Optional[date] = None
     price_per_unit: Optional[float] = None

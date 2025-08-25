@@ -6,12 +6,12 @@ Handles creation, retrieval, update, and deletion of inventory batches.
 import logging
 from datetime import date, datetime
 from typing import List, Optional
-from sqlalchemy import and_, select
-from sqlalchemy.orm import Session
 
 from app.core.exceptions import AppException
 from app.db.models import Batch
 from app.db.schemas.batch import BatchCreate, BatchUpdate
+from sqlalchemy import and_, select
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ def create_batch(
         db.refresh(new_batch)
         logger.debug(f"Created new batch id={new_batch.id}")
         return new_batch
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to create/update batch")
         raise AppException("Batch creation failed", status_code=500)
 

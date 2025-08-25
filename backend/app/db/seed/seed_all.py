@@ -1,11 +1,11 @@
 # app/db/seed/seed_all.py
 
-from sqlalchemy.orm import Session
-from app.db.seed.uom_seed import seed_uoms
-from app.db.seed.item_seed import seed_items
 from app.db.seed.alias_seed import seed_aliases
 from app.db.seed.conversion_seed import seed_conversions
+from app.db.seed.item_seed import seed_items
 from app.db.seed.mart_seed import seed_marts
+from app.db.seed.uom_seed import seed_uoms
+from sqlalchemy.orm import Session
 
 
 def seed_all(db: Session, created_by: str = "system") -> None:

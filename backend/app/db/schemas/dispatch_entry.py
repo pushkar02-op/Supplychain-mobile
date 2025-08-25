@@ -1,7 +1,9 @@
 from datetime import date, datetime
-from pydantic import BaseModel, Field
 from typing import Optional
+
 from app.db.schemas.batch import BatchRead
+from pydantic import BaseModel, Field
+
 
 class DispatchEntryBase(BaseModel):
     item_id: int
@@ -14,6 +16,7 @@ class DispatchEntryBase(BaseModel):
 
 class DispatchEntryCreate(DispatchEntryBase):
     pass
+
 
 class DispatchEntryUpdate(BaseModel):
     mart_name: Optional[str] = None
@@ -28,7 +31,7 @@ class DispatchEntryRead(DispatchEntryBase):
     updated_at: datetime = Field(..., description="ISO 8601 format")
     created_by: Optional[str]
     updated_by: Optional[str]
-    
+
     batch: BatchRead
 
     class Config:
@@ -36,9 +39,12 @@ class DispatchEntryRead(DispatchEntryBase):
         json_encoders = {
             datetime: lambda v: v.isoformat(),
         }
+
+
 class BatchDispatchInput(BaseModel):
     batch_id: int
     quantity: int
+
 
 # Update the create schema
 class DispatchEntryMultiCreate(BaseModel):
@@ -48,6 +54,7 @@ class DispatchEntryMultiCreate(BaseModel):
     unit: str
     remarks: Optional[str] = None
     batches: list[BatchDispatchInput]
+
 
 class DispatchEntryCreated(BaseModel):
     dispatch_id: int

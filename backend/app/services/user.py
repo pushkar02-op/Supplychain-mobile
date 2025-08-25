@@ -7,11 +7,10 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
-
 from app.core.exceptions import AppException
 from app.db.models.user import User
 from app.db.schemas.user import UserUpdate
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
