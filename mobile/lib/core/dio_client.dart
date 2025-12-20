@@ -6,9 +6,17 @@ import 'package:flutter/foundation.dart'; // For debugPrint
 class DioClient {
   static final _storage = FlutterSecureStorage();
   static late final Dio instance;
+  
+  /// Callback for when a 401 occurs.
+  static VoidCallback? onUnauthorized;
 
   // Setup Dio client with JWT interceptor
   static void setup() {
+    if (ApiConfig.baseUrl.isEmpty) {
+      throw Exception(
+        'CRITICAL: API_BASE_URL is not set. Run with --dart-define=API_BASE_URL=...',
+      );
+    }
     debugPrint('Setting up DioClient...');
     instance = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl))
       ..interceptors.add(
@@ -38,7 +46,12 @@ class DioClient {
 
   // Helper function to handle 401 errors (Unauthorized)
   static void _handleUnauthorizedError() {
-    _logout();
+    if (onUnauthorized != null) {
+      onUnauthorized!();
+    } else {
+      // Fallback if no callback registered
+      _logout();
+    }
   }
 
   // Logout function that clears the JWT token and other sensitive data

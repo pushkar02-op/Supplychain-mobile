@@ -1,187 +1,128 @@
-# Fruit Vendor Tool (AGRO) Backend
+# Fruit Vendor Tool (AGRO) - Monorepo
 
-**Maintainer Guide & Operations Manual**
+**Maintainer Runbook & Operations Manual**
 
 > **⚠️ WARNING TO AI ASSISTANTS & NEW ENGINEERS:**
-> This repository follows a strict **Container-First** operational model.
-> Do NOT assume standard Python/local-venv workflows apply here.
-> Read the **Golden Rules** section before running any commands.
+> This repository follows strict architectural rules.
+> **Backend:** Container-First, Explicit Migrations.
+> **Frontend:** Riverpod-First, Layered Architecture, Explicit Config.
+> **Do NOT deviate from these patterns.**
 
 ---
 
 ## 1. Project Overview
 
-This is the backend for the AGRO Supply Chain tool, a mobile-first business automation platform for auditing, tracking, and selling produce.
+The AGRO Supply Chain tool is a mobile-first platform for auditing, tracking, and selling produce.
+This repository contains the complete stack:
 
-**Key Technical Characteristics:**
-- **Hybrid Audit System:** Utilizes a custom "Dual-Write/Hybrid" pattern for the `created_by` field to support both historical username snapshots (immutable) and relational user IDs (mutable).
-- **Container-First:** The Docker image is the primary unit of deployment and operation.
-- **Explicit Migrations:** Database migrations are decoupled from application startup in production to ensure safety.
-
----
-
-## 2. Architecture at a Glance
-
-| Environment | Orchestrator | DB Networking | Migrations |
-| :--- | :--- | :--- | :--- |
-| **Local** | `docker compose` | `db:5432` | Auto-run on startup |
-| **CI** | GitHub Actions (Docker) | `localhost:5432` (Service) | Explicit Step |
-| **Production** | UDP / Docker Run | RDS Endpoint | **Explicit Release Phase** |
-
-**Why Docker is Mandatory:**
-We run scripts (backfills, data fixes) and tests inside the container to ensure dependencies and environment variables exactly match the running application. This eliminates class "It works on my machine" issues caused by drift between local venv and production container.
+*   **`backend/`**: FastAPI (Python) service. Primary source of truth.
+*   **`mobile/`**: Flutter (Dart) application. Primary user interface.
 
 ---
 
-## 3. Golden Rules (READ THIS FIRST)
+## 2. Quick Start (The Canonical Way)
 
-1.  **NEVER run Python from your host machine.**
-    *   ❌ `python scripts/fix_data.py`
-    *   ✅ `docker compose exec backend python scripts/fix_data.py`
+To run the complete system from zero:
 
-2.  **NEVER edit the database schema manually.**
-    *   Always use Alembic. Explicitly generate migrations.
+### Step 1: Start the Backend (Docker)
+We use a **Container-First** approach. Do NOT run Python locally.
 
-3.  **NEVER assume Production auto-migrates.**
-    *   Production requires an explicit `alembic upgrade head` command (handled by deployment pipeline).
-
-4.  **NEVER commit code without running `docker compose up --build`.**
-    *   If it doesn't build locally, it will break the release.
-
----
-
-## 4. Local Development (Canonical Way)
-
-*   **Reference:** [LOCAL_DEVELOPMENT_RFC.md](./LOCAL_DEVELOPMENT_RFC.md)
-
-### Prerequisites
-- Docker & Docker Compose
-- No local Python installation required.
-
-### Start the System
 ```powershell
-docker compose up --build
-```
-*   **--build**: Ensures changes to `Dockerfile` or `requirements.txt` are picked up.
-*   The backend will be available at `http://localhost:8000`.
-*   API Docs: `http://localhost:8000/docs`.
-
-### Resetting State (Destructive)
-To wipe the database and start fresh:
-```powershell
+# From the root directory:
 docker compose down -v
 docker compose up --build
 ```
+*   **Result:** Backend running at `http://localhost:8000` (API at `/v1`).
+*   **Docs:** `http://localhost:8000/docs`.
 
----
+### Step 2: Start the Frontend (Flutter)
+The app **WILL NOT START** without an explicit `API_BASE_URL`.
 
-## 5. Migrations & Schema Management
-
-### Creating Migrations
+**Option A: Android Emulator**
 ```powershell
-docker compose exec backend alembic revision --autogenerate -m "describe_change"
+cd mobile
+flutter run --dart-define="API_BASE_URL=http://10.0.2.2:8000/v1"
 ```
+*   *Note: `10.0.2.2` maps to the host's localhost.*
 
-### Applying Migrations (Local)
-Occurs automatically on container startup. To trigger manually:
+**Option B: Physical Device**
 ```powershell
-docker compose exec backend alembic upgrade head
+cd mobile
+flutter run --dart-define="API_BASE_URL=http://YOUR_LAN_IP:8000/v1"
 ```
 
-### Applying Migrations (Production)
-The deployment pipeline (`ec2-deploy.yml`) runs a dedicated "Release Phase" container.
-```bash
-docker run --rm -e DATABASE_URL=... app:latest alembic upgrade head
-```
-*   If this fails, the deployment **aborts**. The old app keeps running.
+**Option C: VS Code**
+Open `.vscode/launch.json` and run **"SupplyChain Mobile (Android Emulator)"**.
 
 ---
 
-## 6. One-Off Ops & Backfills
+## 3. Backend Operations (Summary)
 
-*   **Reference:** [BACKFILL_RUNBOOK.md](./BACKFILL_RUNBOOK.md)
+> **Full Documentation:** [backend/README.md](./backend/README.md)
 
-All operational scripts live in `backend/scripts/` and are **baked into the Docker image**.
+**Golden Rules:**
+1.  **NEVER** run Python from your host machine. Use `docker compose exec backend ...`
+2.  **NEVER** edit the database schema manually. Use Alembic.
+3.  **NEVER** commit code without running `docker compose up --build`.
 
-### The "Exec Pattern"
-To run a script, execute it *inside* the running container:
-
-**Local:**
-```powershell
-docker compose exec backend python scripts/backfill_created_by.py --dry-run
-```
-
-**Production:**
-```bash
-docker run --rm -it \
-  -e DATABASE_URL=$PROD_DB_URL \
-  my-registry/supplychain-app:latest \
-  python scripts/backfill_created_by.py
-```
+**Common Commands:**
+*   **Reset Data:** `docker compose down -v && docker compose up --build`
+*   **Create Migration:** `docker compose exec backend alembic revision --autogenerate -m "msg"`
+*   **Apply Migration:** `docker compose exec backend alembic upgrade head`
 
 ---
 
-## 7. Deployment Overview
+## 4. Frontend Operations (Mobile)
 
-*   **Reference:** [DEPLOYMENT_PIPELINE_DESIGN.md](./DEPLOYMENT_PIPELINE_DESIGN.md)
+> **Full Documentation:** [mobile/README.md](./mobile/README.md)
 
-**Pipeline Flow:**
-1.  **Build:** Create Docker Image.
-2.  **Release Phase:** Run `alembic upgrade head` in a temporary container.
-3.  **Runtime Phase:** If (2) succeeds, stop old container, start new container.
+**Architecture:**
+*   **State:** `flutter_riverpod` (AsyncNotifier).
+*   **Routing:** `go_router` (Reactive Auth).
+*   **Network:** `dio` (Singleton layered Client).
 
-**Rollback:**
-If the Release Phase fails, the new version is NOT deployed. The existing container continues serving traffic. (Zero Downtime for failed migrations).
+**Golden Rules (CRITICAL):**
+1.  **NEVER hardcode API URLs.** Always use `--dart-define`.
+2.  **NEVER call APIs from Widgets.** Use Controllers (`AsyncNotifier`).
+3.  **NEVER use `setState` for business logic.** Use Riverpod.
+4.  **NEVER navigate manually on auth.** Update `AuthProvider`; the router will react.
 
----
+**Reference Patterns:**
+*   **Auth:** `lib/providers/auth_provider.dart` (Source of Truth).
+*   **Feature:** `lib/screens/stock_list_screen.dart` (Reference Implementation).
+    *   No `setState`.
+    *   No API calls.
+    *   Pure `ConsumerWidget`.
 
-## 8. Common Maintenance Tasks
-
-### Debugging a Container
-Get into the shell:
-```powershell
-docker compose exec backend /bin/bash
-```
-
-### Checking Database State
-```powershell
-docker compose exec db psql -U admin -d supply_chain_db
-```
-
-### Adding a Dependency
-1.  Add to `backend/requirements.txt`.
-2.  Run `docker compose up --build`.
+**Error Handling:**
+*   Repositories throw `AppException` hierarchy (Network, Unauthorized, Validation).
+*   UI renders `error.toString()` from the Controller state.
+*   **Do NOT** inspect `DioException` in the UI.
 
 ---
 
-## 9. Known Design Decisions
+## 5. Deployment & Release
 
-1.  **Created_By Hybrid Model:**
-    *   We store both `created_by` (String Snapshot) and `created_by_id` (FK).
-    *   *Reasoning:* Audits must survive user deletion. The String is the immutable history; the ID is for active relational queries.
+*   **Backend:**
+    *   **Deployment Pipeline:** [DEPLOYMENT_PIPELINE_DESIGN.md](./DEPLOYMENT_PIPELINE_DESIGN.md)
+    *   **Strategy:** Build Image → Safety Check (Migration) → Rollout.
+    *   **Zero Downtime:** Failed migrations abort deploy before affecting runtime.
 
-2.  **Explicit Prod Migrations:**
-    *   We do NOT run migrations in the default `CMD`.
-    *   *Reasoning:* Prevents "Startup Races" (multiple replicas trying to migrate) and allows the deployment to fail fast if the schema is invalid, before the app crashes.
-
-3.  **Scripts in Image:**
-    *   `scripts/` are copied to `/app/scripts`.
-    *   *Reasoning:* Ensures Ops run against the exact code version deployed.
+*   **Frontend:**
+    *   Build standard APK/IPA artifact using `flutter build`.
+    *   Inject `API_BASE_URL` at runtime or build-time (flavor strategy).
 
 ---
 
-## 10. If You Are Returning After a Long Break
+## 6. Documentation Index
 
-1.  **Read `LOCAL_DEVELOPMENT_RFC.md`** to recall the Docker commands.
-2.  **Check `backend/alembic/versions`** to see what schema changes happened.
-3.  **Run `docker compose down -v`** to clear any stale local state that might conflict with new constraints.
-4.  **Do NOT** try to run `pip install -r requirements.txt` on your laptop. Rely on the container.
+**System:**
+*    [FRONTEND_STABILIZATION_RFC.md](./brain/04fdc17d-e878-4d4a-8cf4-21aba3200923/FRONTEND_STABILIZATION_RFC.md) (Architecture Decision Record)
 
----
+**Backend:**
+*   [backend/README.md](./backend/README.md)
+*   [LOCAL_DEVELOPMENT_RFC.md](./LOCAL_DEVELOPMENT_RFC.md)
+*   [BACKFILL_RUNBOOK.md](./BACKFILL_RUNBOOK.md)
 
-## 11. Documentation Index
-
-- **[LOCAL_DEVELOPMENT_RFC.md](./LOCAL_DEVELOPMENT_RFC.md)**: Rules for local dev.
-- **[DEPLOYMENT_PIPELINE_DESIGN.md](./DEPLOYMENT_PIPELINE_DESIGN.md)**: CI/CD architecture.
-- **[BACKFILL_RUNBOOK.md](./BACKFILL_RUNBOOK.md)**: How to run backfills safely.
-- **[DEPLOYMENT_AUDIT_AND_RFC.md](./DEPLOYMENT_AUDIT_AND_RFC.md)**: History of why we changed the deploy flow.
+**Frontend:**
+*   [mobile/README.md](./mobile/README.md) (Deep Dive)

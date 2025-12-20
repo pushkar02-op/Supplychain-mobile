@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile/providers/auth_provider.dart';
 import '/core/dio_client.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -19,13 +21,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              // Log the user out using DioClient's logout method
-              await DioClient.logout();
-
-              // Navigate to the login screen using GoRouter
-              context.go(
-                '/login',
-              ); // Ensures we navigate properly with GoRouter
+              // Log the user out using AuthProvider
+              // The router will automatically redirect to /login
+              await ref.read(authProvider.notifier).logout();
             },
           ),
         ],

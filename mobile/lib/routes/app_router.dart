@@ -1,5 +1,7 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/auth_provider.dart';
 import 'package:mobile/screens/dispatch_entry_screen.dart';
 import 'package:mobile/screens/dispatch_list_screen.dart';
 import 'package:mobile/screens/map_items_screen.dart';
@@ -19,93 +21,109 @@ import '../screens/item_list_screen.dart';
 import '../screens/item_management_screen.dart';
 import '../screens/alias_mapping_screen.dart';
 
-final storage = FlutterSecureStorage();
 
-final GoRouter appRouter = GoRouter(
-  initialLocation: '/login',
-  redirect: (context, state) async {
-    final token = await storage.read(key: 'access_token');
-    final isLoggingIn = state.uri.path == '/login';
 
-    if (token == null && !isLoggingIn) return '/login';
-    if (token != null && isLoggingIn) return '/dashboard';
-    return null;
-  },
-  routes: [
-    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-    GoRoute(
-      path: '/dashboard',
-      builder: (context, state) => const DashboardScreen(),
-    ),
-    GoRoute(
-      path: '/stock-list',
-      builder: (context, state) => const StockListScreen(),
-    ),
-    GoRoute(path: '/orders', builder: (context, state) => const OrdersScreen()),
-    GoRoute(
-      path: '/order-entry',
-      builder: (context, state) => const OrderEntryScreen(),
-    ),
-    GoRoute(
-      path: '/stock-entry',
-      builder: (context, state) => const StockEntryScreen(),
-    ),
-    GoRoute(
-      path: '/dispatch-entries',
-      builder: (c, s) => const DispatchListScreen(),
-    ),
-    GoRoute(
-      path: '/dispatch-entry',
-      builder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>?;
-        return CreateOrEditDispatchScreen(data: extra);
-      },
-    ),
-    GoRoute(path: '/invoices', builder: (c, s) => const InvoiceListScreen()),
-    GoRoute(
-      path: '/pdf-viewer',
-      builder: (context, state) {
-        final invoiceId = state.extra as int;
-        return PdfViewerScreen(invoiceId: invoiceId);
-      },
-    ),
-    GoRoute(
-      path: '/rejection-list',
-      builder: (context, state) => const RejectionListScreen(),
-    ),
-    GoRoute(
-      path: '/rejection-entry',
-      builder: (context, state) => const RejectionEntryScreen(),
-    ),
-    GoRoute(
-      path: '/map-items',
-      builder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>;
-        return MapItemsScreen(
-          invoiceId: extra['invoice_id'],
-          unmappedItems: List<Map<String, dynamic>>.from(
-            extra['unmapped_items'],
-          ),
-        );
-      },
-    ),
-    GoRoute(
-      path: '/inventory',
-      builder: (context, state) => const InventoryScreen(),
-    ),
-    GoRoute(
-      path: '/items',
-      builder: (context, state) => const ItemListScreen(),
-    ),
-    GoRoute(
-      path: '/item-edit',
-      builder:
-          (context, state) =>
-              ItemManagementScreen(data: state.extra as Map<String, dynamic>?),
-    ),
-    GoRoute(
-      path: '/alias-mapping',
-      builder: (context, state) => const AliasMappingScreen(),
-    ),
-  ],
-);
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authProvider);
+
+  return GoRouter(
+    initialLocation: '/login',
+    refreshListenable: _AuthStateListenable(authState),
+    redirect: (context, state) {
+      // If auth state is loading, maybe show a splash?
+      // For now, if loading, we wait.
+      if (authState.isLoading || authState.hasError) return null;
+
+      final isLoggedIn = authState.value ?? false;
+      final isLoggingIn = state.uri.path == '/login';
+
+      if (!isLoggedIn && !isLoggingIn) return '/login';
+      if (isLoggedIn && isLoggingIn) return '/dashboard';
+      return null;
+    },
+    routes: [
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/dashboard',
+        builder: (context, state) => const DashboardScreen(),
+      ),
+      GoRoute(
+        path: '/stock-list',
+        builder: (context, state) => const StockListScreen(),
+      ),
+      GoRoute(path: '/orders', builder: (context, state) => const OrdersScreen()),
+      GoRoute(
+        path: '/order-entry',
+        builder: (context, state) => const OrderEntryScreen(),
+      ),
+      GoRoute(
+        path: '/stock-entry',
+        builder: (context, state) => const StockEntryScreen(),
+      ),
+      GoRoute(
+        path: '/dispatch-entries',
+        builder: (c, s) => const DispatchListScreen(),
+      ),
+      GoRoute(
+        path: '/dispatch-entry',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return CreateOrEditDispatchScreen(data: extra);
+        },
+      ),
+      GoRoute(path: '/invoices', builder: (c, s) => const InvoiceListScreen()),
+      GoRoute(
+        path: '/pdf-viewer',
+        builder: (context, state) {
+          final invoiceId = state.extra as int;
+          return PdfViewerScreen(invoiceId: invoiceId);
+        },
+      ),
+      GoRoute(
+        path: '/rejection-list',
+        builder: (context, state) => const RejectionListScreen(),
+      ),
+      GoRoute(
+        path: '/rejection-entry',
+        builder: (context, state) => const RejectionEntryScreen(),
+      ),
+      GoRoute(
+        path: '/map-items',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return MapItemsScreen(
+            invoiceId: extra['invoice_id'],
+            unmappedItems: List<Map<String, dynamic>>.from(
+              extra['unmapped_items'],
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/inventory',
+        builder: (context, state) => const InventoryScreen(),
+      ),
+      GoRoute(
+        path: '/items',
+        builder: (context, state) => const ItemListScreen(),
+      ),
+      GoRoute(
+        path: '/item-edit',
+        builder:
+            (context, state) =>
+                ItemManagementScreen(data: state.extra as Map<String, dynamic>?),
+      ),
+      GoRoute(
+        path: '/alias-mapping',
+        builder: (context, state) => const AliasMappingScreen(),
+      ),
+    ],
+  );
+});
+
+// Helper to convert AsyncValue to Listenable for GoRouter
+class _AuthStateListenable extends ChangeNotifier {
+  _AuthStateListenable(this._state);
+  final AsyncValue<bool> _state;
+}
+

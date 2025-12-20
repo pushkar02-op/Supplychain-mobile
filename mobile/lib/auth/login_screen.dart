@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile/providers/auth_provider.dart';
 import '../services/auth_service.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   String email = '', password = '';
   bool isLoading = false;
@@ -30,8 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Login successful')));
+      
       if (!mounted) return;
-      context.go('/dashboard'); // 👈 navigate after login
+      
+      // Update riverpod state; router will redirect to /dashboard automatically
+      await ref.read(authProvider.notifier).login('token_handled_by_service');
       return;
     } else {
       setState(() => errorMessage = result ?? 'Login failed');
