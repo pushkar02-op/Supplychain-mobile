@@ -97,7 +97,12 @@ class _OrderListScreenState extends State<OrdersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: AppBar(title: const Text('DAILY ORDER')),
+      appBar: AppBar(
+        title: const Text('Orders'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -176,8 +181,27 @@ class _OrderListScreenState extends State<OrdersScreen> {
                         ),
                       )
                       : _orders.isEmpty
-                      ? const Center(
-                        child: Text('No orders found for this date and mart'),
+                      ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.assignment_outlined, size: 64, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No orders for this date',
+                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: () async {
+                                final ok = await context.push('/order-entry');
+                                if (ok == true) _fetchOrders();
+                              },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create your first order'),
+                            ),
+                          ],
+                        ),
                       )
                       : ListView.builder(
                         itemCount: _orders.length,

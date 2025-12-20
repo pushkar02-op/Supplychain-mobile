@@ -59,7 +59,7 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
       children: [
         ElevatedButton.icon(
           icon: const Icon(Icons.calendar_today),
-          label: Text(DateFormat('yyyy-MM-dd').format(_selectedDate)),
+          label: Text(DateFormat('MMM d, yyyy').format(_selectedDate)),
           onPressed: _pickDate,
         ),
         const SizedBox(width: 12),
@@ -110,7 +110,25 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
 
   Widget _buildList() {
     if (_rejections.isEmpty) {
-      return const Center(child: Text('No rejections found.'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cancel_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No rejections recorded',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => context.push('/rejection-entry'),
+              icon: const Icon(Icons.add),
+              label: const Text('Record a rejection'),
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView.builder(
@@ -142,7 +160,13 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Rejection Records')),
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        title: const Text('Rejections'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+      ),
       body: Column(
         children: [
           _buildFilters(),

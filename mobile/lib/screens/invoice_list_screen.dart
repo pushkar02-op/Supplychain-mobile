@@ -491,9 +491,13 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Invoices'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
         actions: [
           IconButton(
             icon: const Icon(Icons.upload_file),
+            tooltip: 'Upload Invoice',
             onPressed: _pickFiles,
           ),
         ],
@@ -753,7 +757,25 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                           }
                           return false;
                         },
-                        child: ListView.builder(
+                        child: _invoices.isEmpty
+                            ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey[400]),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No invoices found',
+                                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                                ),
+                                const SizedBox(height: 8),
+                                TextButton.icon(
+                                  onPressed: _pickFiles,
+                                  icon: const Icon(Icons.upload_file),
+                                  label: const Text('Upload your first invoice'),
+                                ),
+                              ],
+                            )
+                            : ListView.builder(
                           padding: const EdgeInsets.only(top: 12, bottom: 24),
                           itemCount: _invoices.length + (_hasMore ? 1 : 0),
                           itemBuilder: (ctx, i) {

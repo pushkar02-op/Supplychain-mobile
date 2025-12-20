@@ -187,8 +187,11 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Text(
-          _editingStock != null ? 'EDIT STOCK ENTRY' : 'ADD STOCK ENTRY',
+          _editingStock != null ? 'Edit Stock Entry' : 'Add Stock Entry',
         ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),

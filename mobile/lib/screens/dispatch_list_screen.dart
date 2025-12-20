@@ -94,7 +94,12 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: AppBar(title: const Text('DISPATCH LIST')),
+      appBar: AppBar(
+        title: const Text('Dispatch'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -103,7 +108,7 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
               children: [
                 ElevatedButton.icon(
                   icon: const Icon(Icons.calendar_today),
-                  label: Text(DateFormat('yyyy-MM-dd').format(_selectedDate)),
+                  label: Text(DateFormat('MMM d, yyyy').format(_selectedDate)),
                   onPressed: _pickDate,
                 ),
                 const SizedBox(width: 12),
@@ -167,7 +172,24 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
                         ),
                       )
                       : _dispatches.isEmpty
-                      ? const Center(child: Text('No dispatches found'))
+                      ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.local_shipping_outlined, size: 64, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No dispatches for this date',
+                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Create orders first, then dispatch',
+                              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
+                      )
                       : ListView.builder(
                         itemCount: _dispatches.length,
                         itemBuilder: (ctx, i) {

@@ -122,16 +122,21 @@ class _ItemListScreenState extends State<ItemListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Items'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
         actions: [
           IconButton(
             icon: const Icon(Icons.link),
-            tooltip: "Map Invoice Item",
+            tooltip: 'Map Invoice Items',
             onPressed: _showInvoiceMappingDialog,
           ),
           IconButton(
             icon: const Icon(Icons.add),
+            tooltip: 'Add Item',
             onPressed: () async {
               final ok = await context.push('/item-edit');
               if (ok == true) _fetchItems();
@@ -144,6 +149,29 @@ class _ItemListScreenState extends State<ItemListScreen> {
               ? const Center(child: CircularProgressIndicator())
               : error.isNotEmpty
               ? Center(child: Text(error))
+              : items.isEmpty
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.category_outlined, size: 64, color: Colors.grey[400]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No items in catalog',
+                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final ok = await context.push('/item-edit');
+                        if (ok == true) _fetchItems();
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add your first item'),
+                    ),
+                  ],
+                ),
+              )
               : ListView.builder(
                 itemCount: items.length,
                 itemBuilder: (context, index) {

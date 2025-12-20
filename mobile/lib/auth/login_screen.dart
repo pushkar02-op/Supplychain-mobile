@@ -48,37 +48,103 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Vendor Login')),
-      body: Padding(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        title: const Text('Login'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: 32),
+              // App Branding
+              Icon(
+                Icons.agriculture,
+                size: 64,
+                color: Colors.green[600],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'AGRO Supply Chain',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Vendor Management Portal',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 48),
+              // Form Fields
               TextFormField(
-                decoration: const InputDecoration(labelText: 'Email'),
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                keyboardType: TextInputType.emailAddress,
                 onChanged: (val) => email = val.trim(),
                 validator:
                     (val) => val!.isEmpty ? 'Please enter your email' : null,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 16),
               TextFormField(
-                decoration: const InputDecoration(labelText: 'Password'),
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
                 obscureText: true,
                 onChanged: (val) => password = val.trim(),
                 validator:
                     (val) => val!.isEmpty ? 'Please enter your password' : null,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               if (errorMessage.isNotEmpty)
-                Text(errorMessage, style: const TextStyle(color: Colors.red)),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: isLoading ? null : _login,
-                child:
-                    isLoading
-                        ? const CircularProgressIndicator()
-                        : const Text('Login'),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    errorMessage,
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: isLoading ? null : _login,
+                  child:
+                      isLoading
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Text('Login', style: TextStyle(fontSize: 16)),
+                ),
               ),
             ],
           ),

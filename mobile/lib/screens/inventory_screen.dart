@@ -161,7 +161,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Your Screen Title'),
+        title: const Text('Inventory'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
@@ -184,7 +184,24 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         ),
                       )
                       : _inventory.isEmpty
-                      ? const Center(child: Text('No inventory records found'))
+                      ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.warehouse_outlined, size: 64, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No inventory records found',
+                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Add stock to track inventory',
+                              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
+                      )
                       : ListView.builder(
                         itemCount: _inventory.length,
                         itemBuilder: (context, i) {
