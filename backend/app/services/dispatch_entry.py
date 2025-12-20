@@ -67,6 +67,10 @@ def create_dispatch_entry(
         logger.error("Dispatch entry already exists for this item/date/mart")
         raise AppException("Dispatch entry already exists", status_code=400)
 
+    from app.utils.audit import resolve_user_audit
+
+    user_name, user_id = resolve_user_audit(db, created_by)
+
     dispatch = DispatchEntry(
         batch_id=entry.batch_id,
         mart_name=entry.mart_name,
@@ -74,8 +78,9 @@ def create_dispatch_entry(
         quantity=entry.quantity,
         unit=entry.unit,
         remarks=entry.remarks,
-        created_by=created_by,
-        updated_by=created_by,
+        created_by=user_name,
+        created_by_id=user_id,
+        updated_by=user_name,
     )
     db.add(dispatch)
     batch.quantity -= entry.quantity
@@ -168,11 +173,20 @@ def create_dispatch_from_order(
         if existing:
             existing.quantity += b.quantity
             existing.remarks = entry.remarks or existing.remarks
-            existing.updated_by = created_by
+            from app.utils.audit import resolve_user_audit
+
+            user_name, _ = resolve_user_audit(
+                db, created_by
+            )  # Treated as updated_by here
+            existing.updated_by = user_name
             existing.updated_at = datetime.utcnow()
             db.add(existing)
             results.append(existing)
         else:
+            from app.utils.audit import resolve_user_audit
+
+            user_name, user_id = resolve_user_audit(db, created_by)
+
             disp = DispatchEntry(
                 item_id=entry.item_id,
                 batch_id=batch.id,
@@ -181,8 +195,9 @@ def create_dispatch_from_order(
                 quantity=b.quantity,
                 unit=entry.unit,
                 remarks=entry.remarks,
-                created_by=created_by,
-                updated_by=created_by,
+                created_by=user_name,
+                created_by_id=user_id,
+                updated_by=user_name,
             )
             db.add(disp)
             results.append(disp)
@@ -297,8 +312,18 @@ def get_all_dispatch_entries(
         query = query.filter(DispatchEntry.dispatch_date == dispatch_date)
     if mart_name:
         query = query.filter(DispatchEntry.mart_name == mart_name)
+    if mart_name:
+        query = query.filter(DispatchEntry.mart_name == mart_name)
+
+    from app.utils.pagination import get_pagination_params
+
+    offset, limit = get_pagination_params(skip=skip, limit=limit)
+
     return (
-        query.order_by(DispatchEntry.created_at.desc()).offset(skip).limit(limit).all()
+        query.order_by(DispatchEntry.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
     )
 
 
@@ -348,7 +373,10 @@ def update_dispatch_entry(
 
     for field, val in entry_update.dict(exclude_unset=True).items():
         setattr(dispatch, field, val)
-    dispatch.updated_by = updated_by
+    from app.utils.audit import resolve_user_audit
+
+    user_name, _ = resolve_user_audit(db, updated_by)  # No updated_by_id yet
+    dispatch.updated_by = user_name
     dispatch.updated_at = datetime.utcnow()
 
     db.add(dispatch)

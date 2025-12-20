@@ -8,9 +8,9 @@ from datetime import date, datetime
 from typing import List, Optional
 
 from app.core.exceptions import AppException
-from app.db.models import Batch
+from app.db.models.batch import Batch
 from app.db.schemas.batch import BatchCreate, BatchUpdate
-from sqlalchemy import and_, select
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -57,10 +57,15 @@ def create_batch(
             )
             return existing
 
+        from app.utils.audit import resolve_user_audit
+
+        user_name, user_id = resolve_user_audit(db, created_by)
+
         new_batch = Batch(
             **batch.dict(),
-            created_by=created_by,
-            updated_by=created_by,
+            created_by=user_name,
+            created_by_id=user_id,
+            updated_by=user_name,
         )
         db.add(new_batch)
         db.commit()
@@ -72,24 +77,31 @@ def create_batch(
         raise AppException("Batch creation failed", status_code=500)
 
 
-def get_batch(db: Session, batch_id: int) -> Optional[Batch]:
+def get_batch(db: Session, batch_id: int) -> Batch:
     """
-    Retrieve a batch by its ID.
+    Retrieve a batch by ID.
 
     Args:
         db (Session): Database session.
         batch_id (int): Batch ID.
 
     Returns:
-        Optional[Batch]: The batch or None.
+        Batch: The batch record.
+
+    Raises:
+        AppException: If batch not found.
     """
-    logger.debug(f"Retrieving batch id={batch_id}")
-    return db.query(Batch).filter(Batch.id == batch_id).first()
+    logger.info(f"Retrieving batch id={batch_id}")
+    batch = db.query(Batch).filter(Batch.id == batch_id).first()
+    if not batch:
+        logger.error(f"Batch not found id={batch_id}")
+        raise AppException("Batch not found", status_code=404)
+    return batch
 
 
 def get_all_batches(db: Session, skip: int = 0, limit: int = 100) -> List[Batch]:
     """
-    Retrieve all batches with pagination.
+    List all batches with pagination.
 
     Args:
         db (Session): Database session.
@@ -97,15 +109,42 @@ def get_all_batches(db: Session, skip: int = 0, limit: int = 100) -> List[Batch]
         limit (int): Max records to return.
 
     Returns:
-        List[Batch]: List of batches.
+        List[Batch]: List of batch records.
     """
-    logger.debug(f"Fetching all batches skip={skip}, limit={limit}")
-    return db.query(Batch).offset(skip).limit(limit).all()
+    logger.info(f"Listing batches skip={skip}, limit={limit}")
+    from app.utils.pagination import get_pagination_params
+
+    offset, limit = get_pagination_params(skip=skip, limit=limit)
+    return db.query(Batch).offset(offset).limit(limit).all()
+
+
+def get_batches_by_item_with_quantity(db: Session, item_id: int) -> List[Batch]:
+    """
+    List batches for a specific item with available quantity.
+
+    Args:
+        db (Session): Database session.
+        item_id (int): Item ID.
+
+    Returns:
+        List[Batch]: List of batch records.
+    """
+    logger.info(f"Listing batches for item_id={item_id} with quantity > 0")
+    batches = (
+        db.query(Batch)
+        .filter(Batch.item_id == item_id, Batch.quantity > 0)
+        .order_by(Batch.received_at.desc())
+        .all()
+    )
+    return batches
 
 
 def update_batch(
-    db: Session, batch_id: int, entry_update: BatchUpdate, updated_by: Optional[str]
-) -> Optional[Batch]:
+    db: Session,
+    batch_id: int,
+    entry_update: BatchUpdate,
+    updated_by: Optional[str] = None,
+) -> Batch:
     """
     Update fields of an existing batch.
 
@@ -116,13 +155,16 @@ def update_batch(
         updated_by (Optional[str]): Updater identifier.
 
     Returns:
-        Optional[Batch]: Updated batch or None.
+        Batch: Updated batch.
+
+    Raises:
+        AppException: If batch not found.
     """
     logger.info(f"Updating batch id={batch_id}")
     batch = db.query(Batch).filter(Batch.id == batch_id).first()
     if not batch:
         logger.error(f"Batch not found id={batch_id}")
-        return None
+        raise AppException("Batch not found", status_code=404)
 
     for field, value in entry_update.dict(exclude_unset=True).items():
         setattr(batch, field, value)
@@ -135,7 +177,7 @@ def update_batch(
     return batch
 
 
-def delete_batch(db: Session, batch_id: int) -> bool:
+def delete_batch(db: Session, batch_id: int) -> None:
     """
     Delete a batch by ID.
 
@@ -143,35 +185,14 @@ def delete_batch(db: Session, batch_id: int) -> bool:
         db (Session): Database session.
         batch_id (int): Batch ID.
 
-    Returns:
-        bool: True if deleted, False if not found.
+    Raises:
+        AppException: If batch not found.
     """
     logger.info(f"Deleting batch id={batch_id}")
     batch = db.query(Batch).filter(Batch.id == batch_id).first()
     if not batch:
         logger.error(f"Batch not found id={batch_id}")
-        return False
+        raise AppException("Batch not found", status_code=404)
     db.delete(batch)
     db.commit()
     logger.debug(f"Batch id={batch_id} deleted")
-    return True
-
-
-def get_batches_by_item_with_quantity(db: Session, item_id: int) -> List[Batch]:
-    """
-    Retrieve batches for a given item that have positive quantity.
-
-    Args:
-        db (Session): Database session.
-        item_id (int): Item ID.
-
-    Returns:
-        List[Batch]: List of batches in stock.
-    """
-    logger.debug(f"Fetching positive-quantity batches for item_id={item_id}")
-    stmt = (
-        select(Batch)
-        .where(Batch.item_id == item_id, Batch.quantity > 0)
-        .order_by(Batch.created_at)
-    )
-    return db.scalars(stmt).all()

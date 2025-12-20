@@ -6,11 +6,9 @@ Provides upload, retrieval, update, deletion, and download of invoices.
 import logging
 import os
 from datetime import date
-from operator import or_
 from typing import List, Optional
 
 from app.core.exceptions import AppException
-from app.db.models.invoice import Invoice
 from app.db.schemas.invoice import InvoiceRead, InvoiceUpdate
 from app.db.session import get_db
 from app.services.invoice import (
@@ -21,7 +19,7 @@ from app.services.invoice import (
 )
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
@@ -91,35 +89,16 @@ def read_invoices(
         JSONResponse: A response containing total, page, page_size, and results.
     """
     logger.info("Fetching invoices")
-    query = db.query(Invoice).options(joinedload(Invoice.mart))
-    if invoice_date:
-        query = query.filter(Invoice.invoice_date == invoice_date)
-    if mart_id:
-        query = query.filter(Invoice.mart_id == mart_id)
-    if search:
-        query = query.join(Invoice.mart).filter(
-            or_(
-                Invoice.mart.has(name=search),
-                Invoice.remarks.ilike(f"%{search}%"),
-            )
-        )
-    query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
-    total = query.count()
-    invoices = query.offset((page - 1) * page_size).limit(page_size).all()
-    results = []
-    for inv in invoices:
-        results.append(
-            {
-                **InvoiceRead.from_orm(inv).dict(),
-                "mart_name": inv.mart.name if inv.mart else None,
-            }
-        )
-    return {
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "results": results,
-    }
+    from app.services.invoice import get_invoices_paginated
+
+    return get_invoices_paginated(
+        db=db,
+        invoice_date=invoice_date,
+        mart_id=mart_id,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/{invoice_id}", response_model=InvoiceRead, summary="Get invoice by ID")

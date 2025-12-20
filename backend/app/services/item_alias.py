@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 
 
 def create_alias(db: Session, data: ItemAliasCreate, created_by: str) -> ItemAlias:
-    alias = ItemAlias(**data.dict(), created_by=created_by, updated_by=created_by)
+    from app.utils.audit import resolve_user_audit
+
+    user_name, user_id = resolve_user_audit(db, created_by)
+
+    alias = ItemAlias(
+        **data.dict(), created_by=user_name, created_by_id=user_id, updated_by=user_name
+    )
     db.add(alias)
     db.commit()
     db.refresh(alias)

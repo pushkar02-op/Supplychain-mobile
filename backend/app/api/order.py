@@ -38,7 +38,6 @@ def create(entry: OrderCreate, db: Session = Depends(get_db)) -> OrderRead:
         OrderRead: The created order.
     """
     logger.info("Creating new order")
-    print(f"Order data: {entry}")
     return create_order(db=db, entry=entry, created_by="system")
 
 
@@ -61,11 +60,6 @@ def read_all(
     """
     logger.info(f"Fetching orders date={order_date}, mart={mart_name}")
     orders = get_orders(db=db, order_date=order_date, mart_name=mart_name)
-
-    for order in orders:
-        if order.mart:
-            order.mart_name = order.mart.name
-
     return orders
 
 

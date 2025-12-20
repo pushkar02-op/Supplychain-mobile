@@ -48,12 +48,17 @@ def create_rejection_entry(
         logger.error(msg)
         raise AppException(msg, status_code=400)
 
+    from app.utils.audit import resolve_user_audit
+
+    user_name, user_id = resolve_user_audit(db, created_by)
+
     rej = RejectionEntry(
         **entry.dict(),
         unit=batch.unit,
         item_id=batch.item_id,
-        created_by=created_by,
-        updated_by=created_by,
+        created_by=user_name,
+        created_by_id=user_id,
+        updated_by=user_name,
     )
     try:
         db.add(rej)

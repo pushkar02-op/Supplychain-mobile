@@ -34,14 +34,24 @@ def create(
 ) -> BatchRead:
     """
     Create a new batch entry.
+
+    Args:
+        entry (BatchCreate): Batch creation data.
+        db (Session): Database session dependency.
+        current_user (User): Current authenticated user.
+
+    Returns:
+        BatchRead: The created batch object.
     """
     logger.info(f"Creating new batch by {current_user.username}")
-    return create_batch(db=db, entry=entry, created_by=current_user.username)
+    return create_batch(db=db, batch=entry, created_by=current_user.username)
 
 
-@router.get("/", response_model=List[BatchRead])
+@router.get("/", response_model=List[BatchRead], summary="List batches")
 def read_all(
-    skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
 ) -> List[BatchRead]:
     """
     Get all batch entries.
@@ -58,8 +68,13 @@ def read_all(
     return get_all_batches(db=db, skip=skip, limit=limit)
 
 
-@router.get("/by-item/{item_id}", response_model=List[BatchRead])
-def get_batches_by_item(item_id: int, db: Session = Depends(get_db)) -> List[BatchRead]:
+@router.get(
+    "/by-item/{item_id}", response_model=List[BatchRead], summary="List batches by item"
+)
+def get_batches_by_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+) -> List[BatchRead]:
     """
     Get batches for a specific item with available quantity.
 
@@ -74,8 +89,11 @@ def get_batches_by_item(item_id: int, db: Session = Depends(get_db)) -> List[Bat
     return get_batches_by_item_with_quantity(db, item_id)
 
 
-@router.get("/{batch_id}", response_model=BatchRead)
-def read_one(batch_id: int, db: Session = Depends(get_db)) -> BatchRead:
+@router.get("/{batch_id}", response_model=BatchRead, summary="Get batch by ID")
+def read_one(
+    batch_id: int,
+    db: Session = Depends(get_db),
+) -> BatchRead:
     """
     Get a batch by ID.
 
@@ -97,7 +115,7 @@ def read_one(batch_id: int, db: Session = Depends(get_db)) -> BatchRead:
     return batch
 
 
-@router.put("/{batch_id}", response_model=BatchRead)
+@router.put("/{batch_id}", response_model=BatchRead, summary="Update batch")
 def update(
     batch_id: int,
     entry_update: BatchUpdate,
@@ -106,6 +124,18 @@ def update(
 ) -> BatchRead:
     """
     Update a batch by ID.
+
+    Args:
+        batch_id (int): The ID of the batch to update.
+        entry_update (BatchUpdate): Fields to update.
+        db (Session): Database session dependency.
+        current_user (User): Current authenticated user.
+
+    Returns:
+        BatchRead: The updated batch object.
+
+    Raises:
+        AppException: If the batch is not found (404).
     """
     logger.info(f"Updating batch_id={batch_id} by {current_user.username}")
     updated = update_batch(
@@ -120,8 +150,13 @@ def update(
     return updated
 
 
-@router.delete("/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete(batch_id: int, db: Session = Depends(get_db)) -> None:
+@router.delete(
+    "/{batch_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete batch"
+)
+def delete(
+    batch_id: int,
+    db: Session = Depends(get_db),
+) -> None:
     """
     Delete a batch.
 

@@ -6,6 +6,7 @@ Handles saving, parsing, and CRUD operations for invoices.
 import hashlib
 import logging
 import os
+from datetime import date
 from typing import Dict, List, Optional, Union
 
 import aiofiles
@@ -16,12 +17,12 @@ from app.db.models.invoice_item import InvoiceItem
 from app.db.models.item import Item
 from app.db.models.mart import Mart
 from app.db.models.uom import UOM
-from app.db.schemas.invoice import InvoiceUpdate
+from app.db.schemas.invoice import InvoiceRead, InvoiceUpdate
 from app.services.item_alias import get_alias_by_code_or_name
 from app.utils.invoice_parser import process_pdf
 from fastapi import UploadFile
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +67,19 @@ async def save_and_process_invoice(
         mart = db.query(Mart).filter(Mart.name == mart_name).first()
         if not mart:
             raise AppException("Mart not found", status_code=404)
+        from app.utils.audit import resolve_user_audit
+
+        user_name, user_id = resolve_user_audit(db, created_by)
+
         inv = Invoice(
             invoice_date=invoice_date,
             mart_id=mart.id,
             total_amount=total_amount,
             file_path=upload_path,
             file_hash=file_hash,
-            created_by=created_by,
-            updated_by=created_by,
+            created_by=user_name,
+            created_by_id=user_id,
+            updated_by=user_name,
             is_verified=False,
             remarks="Uploaded from mobile",
         )
@@ -85,27 +91,6 @@ async def save_and_process_invoice(
         items = []
         unmapped_items = []
         for _, row in df.iterrows():
-            # name = row["Item"]
-            # existing_item = (
-            #     db.query(Item).filter(func.lower(Item.name) == name.lower()).first()
-            # )
-            # uom_id = (
-            #     db.query(UOM).filter(func.lower(UOM.code) == row["UOM"].lower()).first()
-            # )
-            # if not existing_item:
-            #     new_item = Item(
-            #         name=name,
-            #         item_code=row["ITEM_CODE"],
-            #         default_uom_id=uom_id.id if uom_id else None,
-            #         created_by=created_by,
-            #         updated_by=created_by,
-            #     )
-            #     db.add(new_item)
-            #     db.flush()
-            #     item_id = new_item.id
-            #     logger.debug(f"Created item id={item_id} for invoice")
-            # else:
-            #     item_id = existing_item.id
             item_code = row["ITEM_CODE"]
             item_name = row["Item"]
             item_uom = row["UOM"]
@@ -162,8 +147,9 @@ async def save_and_process_invoice(
                     total=row["Total"],
                     invoice_date=invoice_date,
                     store_name=mart_name,
-                    created_by=created_by,
-                    updated_by=created_by,
+                    created_by=user_name,
+                    created_by_id=user_id,
+                    updated_by=user_name,
                 )
             )
         db.bulk_save_objects(items)
@@ -224,6 +210,71 @@ def get_all_invoices(
         term = f"%{search}%"
         query = query.filter(or_(Invoice.mart_name.ilike(term)))
     return query.order_by(Invoice.invoice_date.desc()).all()
+
+
+def get_invoices_paginated(
+    db: Session,
+    invoice_date: Optional[date] = None,
+    mart_id: Optional[int] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> Dict[str, Union[int, List[Dict]]]:
+    """
+    Retrieve invoices with optional filters and pagination.
+    Encapsulates logic previously in the API controller.
+
+    Args:
+        db (Session): Database session.
+        invoice_date (Optional[date]): Filter by invoice date.
+        mart_id (Optional[int]): Filter by mart id.
+        search (Optional[str]): Search term.
+        page (int): Page number.
+        page_size (int): Page size.
+
+    Returns:
+        Dict: Response containing total, page, page_size, and list of invoice results.
+    """
+    logger.debug(
+        f"Fetching invoices paginated date={invoice_date}, mart_id={mart_id}, search={search}"
+    )
+    query = db.query(Invoice).options(joinedload(Invoice.mart))
+
+    if invoice_date:
+        query = query.filter(Invoice.invoice_date == invoice_date)
+
+    if mart_id:
+        query = query.filter(Invoice.mart_id == mart_id)
+
+    if search:
+        query = query.join(Invoice.mart).filter(
+            or_(
+                Invoice.mart.has(name=search),
+                Invoice.remarks.ilike(f"%{search}%"),
+            )
+        )
+
+    query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+
+    total = query.count()
+    from app.utils.pagination import calculate_offset
+
+    offset = calculate_offset(page, page_size)
+    invoices = query.offset(offset).limit(page_size).all()
+
+    results = []
+    for inv in invoices:
+        # Use Pydantic conversion but manually inject mart_name to preserve frontend contract
+        inv_dict = InvoiceRead.from_orm(inv).dict()
+        inv_dict["mart_name"] = inv.mart.name if inv.mart else None
+        results.append(inv_dict)
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "results": results,
+    }
 
 
 def update_invoice(

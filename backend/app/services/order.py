@@ -77,7 +77,13 @@ def create_order(
 
     order_data = entry.dict()
     order_data["mart_id"] = entry.mart_id
-    ord_ = Order(**order_data, created_by=created_by, updated_by=created_by)
+    from app.utils.audit import resolve_user_audit
+
+    user_name, user_id = resolve_user_audit(db, created_by)
+
+    ord_ = Order(
+        **order_data, created_by=user_name, created_by_id=user_id, updated_by=user_name
+    )
     db.add(ord_)
     db.commit()
     db.refresh(ord_)

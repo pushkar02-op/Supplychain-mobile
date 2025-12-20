@@ -1,8 +1,8 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Any, Optional
 
 from app.db.schemas.item import ItemRead
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class OrderBase(BaseModel):
@@ -35,4 +35,15 @@ class OrderRead(OrderBase):
     updated_by: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_mart_name(cls, data: Any) -> Any:
+        # Auto-populate mart_name from ORM relationship if available
+        if hasattr(data, "mart") and data.mart:
+            try:
+                data.mart_name = data.mart.name
+            except AttributeError:
+                pass
+        return data

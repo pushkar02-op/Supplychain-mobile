@@ -36,3 +36,7 @@ pytest -q
 
 Repeat per module.
 
+git add -A
+git commit -m "chore: align isort with black profile to prevent conflicts"
+
+

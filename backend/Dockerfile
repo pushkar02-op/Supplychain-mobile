@@ -20,6 +20,7 @@ RUN pip install --upgrade pip \
 
 # 5. Copy source
 COPY app /app/app
+COPY scripts /app/scripts
 
 # 6. Default command
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

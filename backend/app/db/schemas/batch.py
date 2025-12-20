@@ -4,30 +4,44 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+# Base schema for shared fields
 class BatchBase(BaseModel):
-    received_at: date
-    unit: str
-    quantity: int
     item_id: int
+    quantity: int
+    unit: str
+    received_at: Optional[date] = None
+    expiry_date: Optional[date] = None
+    remarks: Optional[str] = None
+
+    class Config:
+        orm_mode = True  # Pydantic v1/v2 compatibility
 
 
+# Schema for creation
 class BatchCreate(BatchBase):
     pass
 
 
+# Schema for update
 class BatchUpdate(BaseModel):
-    received_at: Optional[date] = None
-    unit: Optional[str] = None
     quantity: Optional[int] = None
-    item_id: Optional[int] = None
+    unit: Optional[str] = None
+    received_at: Optional[date] = None
+    expiry_date: Optional[date] = None
+    remarks: Optional[str] = None
+
+    class Config:
+        orm_mode = True
 
 
+# Response schema
 class BatchRead(BatchBase):
     id: int
-    item_name: Optional[str]
-    expiry_date: Optional[date]
-    created_at: datetime
-    updated_at: datetime
+    item_name: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
 
     class Config:
         orm_mode = True

@@ -78,13 +78,21 @@ def create_stock_entry(
         logger.debug(f"Created new batch id={batch.id}")
 
     # 2) Persist StockEntry
-    stock = StockEntry(
-        **entry.dict(), batch_id=batch.id, created_by=created_by, updated_by=created_by
+    from app.utils.audit import resolve_user_audit
+
+    user_name, user_id = resolve_user_audit(db, created_by)
+
+    stock_entry = StockEntry(
+        **entry.dict(),
+        batch_id=batch.id,
+        created_by=user_name,
+        created_by_id=user_id,
+        updated_by=user_name,
     )
-    db.add(stock)
+    db.add(stock_entry)
     db.commit()
-    db.refresh(stock)
-    logger.info(f"Created stock entry id={stock.id}")
+    db.refresh(stock_entry)
+    logger.info(f"Created stock entry id={stock_entry.id}")
 
     # 3) Add InventoryTxn
     #    — use `batch.unit` and `batch.id` no matter which branch we hit
@@ -107,12 +115,12 @@ def create_stock_entry(
             base_qty=base_qty,
             base_unit=batch.unit,
             ref_type="stock_entry",
-            ref_id=stock.id,
+            ref_id=stock_entry.id,
             remarks="Stock received",
         ),
     )
 
-    return stock
+    return stock_entry
 
 
 def get_stock_entry(db: Session, stock_entry_id: int) -> Optional[StockEntry]:
