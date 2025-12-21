@@ -33,7 +33,7 @@ def recalculate_invoice_total(db: Session, invoice_id: int) -> None:
     invoice.total_amount = sum(item.total for item in invoice.items)
     invoice.updated_at = datetime.utcnow()
     db.add(invoice)
-    db.commit()
+    db.flush()
     logger.debug(f"Updated invoice total to {invoice.total_amount}")
 
 
@@ -77,10 +77,11 @@ def update_invoice_item(
 
     for field, value in update_data.dict(exclude_unset=True).items():
         setattr(item, field, value)
-    db.commit()
+    db.flush()
     db.refresh(item)
     logger.debug(f"Item id={item_id} updated, recalculating invoice total")
     recalculate_invoice_total(db, item.invoice_id)
+    db.commit()
     return item
 
 
@@ -106,9 +107,10 @@ def delete_invoice_item(db: Session, item_id: int) -> bool:
 
     invoice_id = item.invoice_id
     db.delete(item)
-    db.commit()
+    db.flush()
     logger.debug(f"Item id={item_id} deleted, recalculating invoice total")
     recalculate_invoice_total(db, invoice_id)
+    db.commit()
     return True
 
 

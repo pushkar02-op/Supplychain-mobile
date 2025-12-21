@@ -84,7 +84,7 @@ async def save_and_process_invoice(
             remarks="Uploaded from mobile",
         )
         db.add(inv)
-        db.commit()
+        db.flush()
         db.refresh(inv)
         logger.debug(f"Created invoice id={inv.id}")
 

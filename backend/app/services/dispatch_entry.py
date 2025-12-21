@@ -10,6 +10,7 @@ from typing import List, Optional
 from app.core.exceptions import AppException
 from app.db.models.batch import Batch
 from app.db.models.dispatch_entry import DispatchEntry
+from app.db.models.mart import Mart
 from app.db.models.order import Order
 from app.db.schemas.dispatch_entry import (
     DispatchEntryCreate,
@@ -54,11 +55,16 @@ def create_dispatch_entry(
         logger.error(msg)
         raise AppException(msg, status_code=400)
 
+    mart = db.scalar(select(Mart).where(Mart.name == entry.mart_name))
+    if not mart:
+        logger.error(f"Mart {entry.mart_name} not found")
+        raise AppException(f"Mart {entry.mart_name} not found", status_code=404)
+
     exists = (
         db.query(DispatchEntry)
         .filter(
             DispatchEntry.item_id == entry.item_id,
-            DispatchEntry.mart_name == entry.mart_name,
+            DispatchEntry.mart_id == mart.id,
             DispatchEntry.dispatch_date == entry.dispatch_date,
         )
         .first()
@@ -73,7 +79,8 @@ def create_dispatch_entry(
 
     dispatch = DispatchEntry(
         batch_id=entry.batch_id,
-        mart_name=entry.mart_name,
+        item_id=entry.item_id,
+        mart_id=mart.id,
         dispatch_date=entry.dispatch_date,
         quantity=entry.quantity,
         unit=entry.unit,
@@ -88,32 +95,33 @@ def create_dispatch_entry(
     _update_order_after_dispatch(db, entry.item_id, entry.mart_name, entry.quantity)
     db.flush()
     db.refresh(dispatch)
-    db.commit()
-    logger.debug(f"Created dispatch id={dispatch.id}")
+    logger.debug(f"Created/Updating dispatch record for item_id={entry.item_id}")
 
+    # 3) Ledger OUT movement
     try:
         factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
+        base_qty = entry.quantity * factor
+        create_inventory_txn(
+            db,
+            InventoryTxnCreate(
+                item_id=entry.item_id,
+                batch_id=entry.batch_id,
+                txn_type="OUT",
+                raw_qty=entry.quantity,
+                raw_unit=entry.unit,
+                base_qty=base_qty,
+                base_unit=batch.unit,  # Standardize on batch unit for base
+                ref_type="dispatch_entry",
+                ref_id=dispatch.id,
+                remarks="Stock dispatched",
+            ),
+        )
     except AppException as e:
-        logger.error(f"Conversion lookup failed: {e}")
+        logger.error(f"Ledgering failed: {e}")
         raise
 
-    base_qty = entry.quantity * factor
-
-    create_inventory_txn(
-        db,
-        InventoryTxnCreate(
-            item_id=entry.item_id,
-            batch_id=entry.batch_id,
-            txn_type="OUT",
-            raw_qty=entry.quantity,
-            raw_unit=entry.unit,
-            base_qty=base_qty,
-            base_unit=entry.unit,
-            ref_type="dispatch_entry",
-            ref_id=dispatch.id,
-            remarks="Stock dispatched",
-        ),
-    )
+    db.commit()
+    logger.debug(f"Created dispatch id={dispatch.id}")
     return dispatch
 
 
@@ -136,9 +144,11 @@ def create_dispatch_from_order(
     """
     logger.info(f"Creating dispatches from order for item_id={entry.item_id}")
     order = db.scalar(
-        select(Order).where(
+        select(Order)
+        .join(Mart)
+        .where(
             Order.item_id == entry.item_id,
-            Order.mart_name == entry.mart_name,
+            Mart.name == entry.mart_name,
             Order.status != "Completed",
         )
     )
@@ -166,7 +176,7 @@ def create_dispatch_from_order(
         existing = db.scalar(
             select(DispatchEntry).where(
                 DispatchEntry.batch_id == batch.id,
-                DispatchEntry.mart_name == entry.mart_name,
+                DispatchEntry.mart_id == order.mart_id,
                 DispatchEntry.dispatch_date == entry.dispatch_date,
             )
         )
@@ -190,7 +200,7 @@ def create_dispatch_from_order(
             disp = DispatchEntry(
                 item_id=entry.item_id,
                 batch_id=batch.id,
-                mart_name=entry.mart_name,
+                mart_id=order.mart_id,
                 dispatch_date=entry.dispatch_date,
                 quantity=b.quantity,
                 unit=entry.unit,
@@ -205,6 +215,31 @@ def create_dispatch_from_order(
         batch.quantity -= b.quantity
         batch.updated_at = datetime.utcnow()
 
+        # 4) Ledger OUT movement for this batch
+        try:
+            factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
+            base_qty = b.quantity * factor
+
+            create_inventory_txn(
+                db,
+                InventoryTxnCreate(
+                    item_id=entry.item_id,
+                    batch_id=batch.id,
+                    txn_type="OUT",
+                    raw_qty=b.quantity,
+                    raw_unit=entry.unit,
+                    base_qty=base_qty,
+                    base_unit=batch.unit,
+                    ref_type="dispatch_entry",
+                    ref_id=disp.id if "disp" in locals() else existing.id,
+                    remarks="Stock dispatched",
+                ),
+            )
+        except AppException as e:
+            logger.error(f"Ledgering failed for batch {batch.id}: {e}")
+            raise
+
+    # 5) Finalize Order and Transactions
     _update_order_after_dispatch(db, entry.item_id, entry.mart_name, total_req)
     db.flush()
     for d in results:
@@ -212,28 +247,6 @@ def create_dispatch_from_order(
     db.commit()
     logger.debug(f"Created/updated {len(results)} dispatch entries")
 
-    try:
-        factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
-    except AppException as e:
-        logger.error(f"Conversion lookup failed: {e}")
-        raise
-    base_qty = b.quantity * factor
-
-    create_inventory_txn(
-        db,
-        InventoryTxnCreate(
-            item_id=entry.item_id,
-            batch_id=batch.id,
-            txn_type="OUT",
-            raw_qty=b.quantity,
-            raw_unit=entry.unit,
-            base_qty=base_qty,
-            base_unit=entry.unit,
-            ref_type="dispatch_entry",
-            ref_id=disp.id if "disp" in locals() else existing.id,
-            remarks="Stock dispatched",
-        ),
-    )
     return results
 
 
@@ -250,9 +263,11 @@ def _update_order_after_dispatch(
         dispatched_quantity (float): Quantity dispatched in this operation.
     """
     order = db.scalar(
-        select(Order).where(
+        select(Order)
+        .join(Mart)
+        .where(
             Order.item_id == item_id,
-            Order.mart_name == mart_name,
+            Mart.name == mart_name,
             Order.status != "Completed",
         )
     )
@@ -266,7 +281,7 @@ def _update_order_after_dispatch(
     )
     order.updated_at = datetime.utcnow()
     db.add(order)
-    db.commit()
+    db.flush()
 
 
 def get_dispatch_entry(db: Session, dispatch_id: int) -> Optional[DispatchEntry]:
@@ -369,7 +384,7 @@ def update_dispatch_entry(
             raise AppException(msg, status_code=400)
         batch.quantity -= diff
         batch.updated_at = datetime.utcnow()
-        _update_order_after_dispatch(db, dispatch.item_id, dispatch.mart_name, diff)
+        _update_order_after_dispatch(db, dispatch.item_id, dispatch.mart.name, diff)
 
     for field, val in entry_update.dict(exclude_unset=True).items():
         setattr(dispatch, field, val)
@@ -382,8 +397,7 @@ def update_dispatch_entry(
     db.add(dispatch)
     db.flush()
     db.refresh(dispatch)
-    db.commit()
-    logger.debug(f"Dispatch id={dispatch_id} updated")
+    logger.debug(f"Dispatch id={dispatch_id} meta-fields updated")
 
     if diff != 0:
         txn_type = "IN" if diff > 0 else "OUT"
@@ -412,6 +426,9 @@ def update_dispatch_entry(
                 remarks="Dispatch {txn_type} from update adjustment",
             ),
         )
+
+    db.commit()
+    logger.debug(f"Dispatch id={dispatch_id} fully updated and ledgered")
     return dispatch
 
 
@@ -440,38 +457,39 @@ def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
         logger.error("Batch not found during delete")
         raise AppException("Batch not found", status_code=404)
 
-    # batch.quantity += dispatch.quantity
-    # batch.updated_at = datetime.utcnow()
+    batch.quantity += dispatch.quantity
+    batch.updated_at = datetime.utcnow()
+
     _update_order_after_dispatch(
-        db, batch.item_id, dispatch.mart_name, -dispatch.quantity
+        db, batch.item_id, dispatch.mart.name, -dispatch.quantity
     )
 
     db.delete(dispatch)
     db.flush()
-    db.commit()
-    logger.debug(f"Dispatch id={dispatch_id} deleted")
 
     try:
         factor = get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit)
+        base_qty = dispatch.quantity * factor
+
+        create_inventory_txn(
+            db,
+            InventoryTxnCreate(
+                item_id=dispatch.item_id,
+                batch_id=batch.id,
+                txn_type="IN",
+                raw_qty=dispatch.quantity,
+                raw_unit=dispatch.unit,
+                base_qty=base_qty,
+                base_unit=batch.unit,
+                ref_type="dispatch_entry",
+                ref_id=dispatch.id,
+                remarks="Stock dispatch deleted (Reversal)",
+            ),
+        )
     except AppException as e:
-        logger.error(f"Conversion lookup failed: {e}")
+        logger.error(f"Reversal ledgering failed: {e}")
         raise
 
-    base_qty = dispatch.quantity * factor
-
-    create_inventory_txn(
-        db,
-        InventoryTxnCreate(
-            item_id=dispatch.item_id,
-            batch_id=batch.id,
-            txn_type="IN",
-            raw_qty=dispatch.quantity,
-            raw_unit=dispatch.unit,
-            base_qty=base_qty,
-            base_unit=batch.unit,
-            ref_type="dispatch_entry",
-            ref_id=dispatch.id,
-            remarks="Stock dispatch deleted",
-        ),
-    )
+    db.commit()
+    logger.debug(f"Dispatch id={dispatch_id} deleted and stock restored")
     return True

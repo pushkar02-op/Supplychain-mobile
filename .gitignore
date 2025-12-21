@@ -77,4 +77,10 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
-Key point
+
+
+# Backend logs/verification
+/backend/log_*.txt
+/backend/v_log_*.txt
+/backend/log.txt
+/backend/v_log.txt

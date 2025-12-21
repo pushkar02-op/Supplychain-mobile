@@ -15,6 +15,9 @@ class AuthService {
       // Status 2xx success
       final data = response.data;
       await storage.write(key: 'access_token', value: data['access_token']);
+      // Store admin flag for UI logic
+      final isAdmin = data['is_admin'] == true;
+      await storage.write(key: 'is_admin', value: isAdmin.toString());
       return true;
     } on DioException catch (e) {
       if (e.response != null) {

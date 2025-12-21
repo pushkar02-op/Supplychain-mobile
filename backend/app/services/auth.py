@@ -55,7 +55,7 @@ def register_user(db: Session, user: UserCreate) -> Token:
 
     token = create_access_token(data={"sub": new_user.username})
     logger.info(f"User '{user.username}' registered successfully")
-    return Token(access_token=token, token_type="bearer")
+    return Token(access_token=token, token_type="bearer", is_admin=new_user.is_admin)
 
 
 def login_user(db: Session, user: UserLogin) -> Token:
@@ -82,4 +82,4 @@ def login_user(db: Session, user: UserLogin) -> Token:
 
     token = create_access_token(data={"sub": db_user.username})
     logger.info(f"User '{user.username}' authenticated successfully")
-    return Token(access_token=token, token_type="bearer")
+    return Token(access_token=token, token_type="bearer", is_admin=db_user.is_admin)

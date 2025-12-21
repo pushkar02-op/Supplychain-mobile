@@ -36,7 +36,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       
       // Update riverpod state; router will redirect to /dashboard automatically
-      await ref.read(authProvider.notifier).login('token_handled_by_service');
+      await ref.read(authProvider.notifier).login();
       return;
     } else {
       setState(() => errorMessage = result ?? 'Login failed');

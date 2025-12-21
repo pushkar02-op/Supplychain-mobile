@@ -11,8 +11,7 @@ logger = logging.getLogger(__name__)
 def create_inventory_txn(db: Session, data: InventoryTxnCreate) -> InventoryTxn:
     txn = InventoryTxn(**data.dict())
     db.add(txn)
-    db.commit()
-    db.refresh(txn)
+    db.flush()
     logger.info(f"InventoryTxn created: {txn}")
     return txn
 

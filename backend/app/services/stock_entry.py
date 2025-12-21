@@ -54,7 +54,6 @@ def create_stock_entry(
         batch.quantity += entry.quantity
         batch.updated_by = created_by
         batch.updated_at = datetime.utcnow()
-        db.commit()
         db.flush()
         logger.debug(f"Added to existing batch id={batch.id}")
     else:
@@ -90,14 +89,22 @@ def create_stock_entry(
         updated_by=user_name,
     )
     db.add(stock_entry)
-    db.commit()
+    db.flush()
     db.refresh(stock_entry)
     logger.info(f"Created stock entry id={stock_entry.id}")
 
     # 3) Add InventoryTxn
-    #    — use `batch.unit` and `batch.id` no matter which branch we hit
+    from app.db.models.item import Item
+
+    item = db.get(Item, entry.item_id)
+    if not item:
+        logger.error(f"Item not found id={entry.item_id}")
+        raise AppException("Item not found", status_code=404)
+
+    target_unit = item.default_uom_code or batch.unit
+
     try:
-        factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
+        factor = get_conversion_factor(db, entry.item_id, entry.unit, target_unit)
     except AppException as e:
         logger.error(f"Conversion lookup failed: {e}")
         raise
@@ -113,13 +120,13 @@ def create_stock_entry(
             raw_qty=entry.quantity,
             raw_unit=entry.unit,
             base_qty=base_qty,
-            base_unit=batch.unit,
+            base_unit=target_unit,
             ref_type="stock_entry",
             ref_id=stock_entry.id,
             remarks="Stock received",
         ),
     )
-
+    db.commit()
     return stock_entry
 
 
@@ -199,17 +206,19 @@ def update_stock_entry(
         setattr(entry, k, v)
     entry.updated_by = updated_by
     entry.updated_at = datetime.utcnow()
-    db.commit()
+    db.flush()
     db.refresh(entry)
     logger.debug(f"Stock entry id={stock_entry_id} updated")
 
     if quantity_diff != 0:
         txn_type = "IN" if quantity_diff > 0 else "OUT"
-        # compute factor & base_qty
+        from app.db.models.item import Item
+
+        item = db.get(Item, entry.item_id)
+        target_unit = item.default_uom_code if item else orig_batch.unit
+
         try:
-            factor = get_conversion_factor(
-                db, entry.item_id, entry.unit, orig_batch.unit
-            )
+            factor = get_conversion_factor(db, entry.item_id, entry.unit, target_unit)
         except AppException as e:
             logger.error(f"Conversion lookup failed: {e}")
             raise
@@ -225,12 +234,13 @@ def update_stock_entry(
                 raw_qty=abs(quantity_diff),
                 raw_unit=entry.unit,
                 base_qty=base_qty,
-                base_unit=orig_batch.unit,
+                base_unit=target_unit,
                 ref_type="stock_entry",
                 ref_id=entry.id,
                 remarks=f"Stock {txn_type} from update adjustment",
             ),
         )
+    db.commit()
     return entry
 
 
@@ -252,16 +262,54 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         return False
 
     batch = db.query(Batch).filter(Batch.id == entry.batch_id).first()
+
+    # 0) Guardrail: Block if downstream dispatches or rejections exist for this batch
+    from app.db.models.dispatch_entry import DispatchEntry
+    from app.db.models.rejection_entry import RejectionEntry
+
+    dispatch_exists = (
+        db.query(DispatchEntry).filter(DispatchEntry.batch_id == entry.batch_id).first()
+    )
+    if dispatch_exists:
+        logger.warning(
+            f"Deletion blocked: Batch {entry.batch_id} has downstream dispatches"
+        )
+        raise AppException(
+            f"Cannot delete stock entry. Batch {entry.batch_id} already has dispatches recorded. "
+            "Deletion would orphan downstream transactions.",
+            status_code=400,
+        )
+
+    rejection_exists = (
+        db.query(RejectionEntry)
+        .filter(RejectionEntry.batch_id == entry.batch_id)
+        .first()
+    )
+    if rejection_exists:
+        logger.warning(
+            f"Deletion blocked: Batch {entry.batch_id} has downstream rejections"
+        )
+        raise AppException(
+            f"Cannot delete stock entry. Batch {entry.batch_id} already has rejections recorded. "
+            "Deletion would orphan downstream transactions.",
+            status_code=400,
+        )
+
     if batch:
         batch.quantity -= entry.quantity
         batch.updated_at = datetime.utcnow()
         batch.updated_by = entry.updated_by
     db.delete(entry)
-    db.commit()
+    db.flush()
     logger.debug(f"Stock entry id={stock_entry_id} deleted")
 
+    from app.db.models.item import Item
+
+    item = db.get(Item, entry.item_id)
+    target_unit = item.default_uom_code if item else entry.unit
+
     try:
-        factor = get_conversion_factor(db, entry.item_id, entry.unit, entry.unit)
+        factor = get_conversion_factor(db, entry.item_id, entry.unit, target_unit)
     except AppException as e:
         logger.error(f"Conversion lookup failed: {e}")
         raise
@@ -277,10 +325,11 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
             raw_qty=entry.quantity,
             raw_unit=entry.unit,
             base_qty=base_qty,
-            base_unit=entry.unit,
+            base_unit=target_unit,
             ref_type="stock_entry",
             ref_id=entry.id,
-            remarks="Stock added due to delete",
+            remarks="Stock removed via delete",
         ),
     )
+    db.commit()
     return True

@@ -115,6 +115,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               route: '/rejection-list',
               color: Colors.red,
             ),
+            
+            // Administration Section (Admin only)
+            Consumer(
+              builder: (context, ref, child) {
+                final authState = ref.watch(authProvider);
+                final isAdmin = authState.value?.isAdmin ?? false;
+
+                if (!isAdmin) return const SizedBox.shrink();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 24),
+                    Text(
+                      'Administration',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildNavCard(
+                      context,
+                      icon: Icons.health_and_safety,
+                      label: 'Inventory Health',
+                      subtitle: 'Monitor ledger status and drift',
+                      route: '/admin/ledger/health',
+                      color: Colors.redAccent,
+                    ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),

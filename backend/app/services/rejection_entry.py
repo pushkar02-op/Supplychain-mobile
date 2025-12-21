@@ -63,12 +63,17 @@ def create_rejection_entry(
     try:
         db.add(rej)
         batch.quantity -= entry.quantity
-        db.commit()
+        db.flush()
         db.refresh(rej)
         logger.debug(f"Created rejection id={rej.id}")
 
         try:
-            factor = get_conversion_factor(db, batch.item_id, batch.unit, batch.unit)
+            from app.db.models.item import Item
+
+            item = db.get(Item, batch.item_id)
+            target_unit = item.default_uom_code if item else batch.unit
+
+            factor = get_conversion_factor(db, batch.item_id, batch.unit, target_unit)
         except AppException as e:
             logger.error(f"Conversion lookup failed: {e}")
             raise
@@ -84,12 +89,13 @@ def create_rejection_entry(
                 raw_qty=entry.quantity,
                 raw_unit=batch.unit,
                 base_qty=base_qty,
-                base_unit=batch.unit,
+                base_unit=target_unit,
                 ref_type="rejection_entry",
                 ref_id=rej.id,
-                remarks="Stock removed due to rejected",
+                remarks="Stock removed via rejection",
             ),
         )
+        db.commit()
         return rej
     except Exception:
         db.rollback()

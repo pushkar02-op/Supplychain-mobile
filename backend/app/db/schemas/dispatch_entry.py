@@ -12,6 +12,7 @@ class DispatchEntryBase(BaseModel):
     dispatch_date: date
     quantity: int
     unit: str
+    remarks: Optional[str] = None
 
 
 class DispatchEntryCreate(DispatchEntryBase):
@@ -36,6 +37,7 @@ class DispatchEntryRead(DispatchEntryBase):
 
     class Config:
         orm_mode = True
+        from_attributes = True
         json_encoders = {
             datetime: lambda v: v.isoformat(),
         }
