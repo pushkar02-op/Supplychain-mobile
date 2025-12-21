@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../services/dispatch_service.dart';
+import '../widgets/skeleton_loader.dart';
 
 class DispatchListScreen extends StatefulWidget {
   const DispatchListScreen({super.key});
@@ -163,12 +164,25 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
             Expanded(
               child:
                   _isLoading
-                      ? const Center(child: CircularProgressIndicator())
+                      ? const StaticSkeletonList(itemCount: 5)
                       : _error.isNotEmpty
                       ? Center(
-                        child: Text(
-                          _error,
-                          style: const TextStyle(color: Colors.red),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Could not load dispatches',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: _fetch,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Retry'),
+                            ),
+                          ],
                         ),
                       )
                       : _dispatches.isEmpty

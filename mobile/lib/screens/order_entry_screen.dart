@@ -200,9 +200,22 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
         child:
             _error.isNotEmpty
                 ? Center(
-                  child: Text(
-                    _error,
-                    style: const TextStyle(color: Colors.red),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Could not load data',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _loadMarts,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
                   ),
                 )
                 : (_marts.isEmpty)
@@ -336,6 +349,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                         initialValue: _quantity,
                         decoration: InputDecoration(
                           label: _requiredLabel('Quantity'),
+                          helperText: 'Enter quantity to order',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),

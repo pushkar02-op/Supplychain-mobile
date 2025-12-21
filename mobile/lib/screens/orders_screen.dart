@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../services/order_service.dart';
+import '../widgets/skeleton_loader.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 
 class OrdersScreen extends StatefulWidget {
@@ -172,7 +173,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
             Expanded(
               child:
                   _isLoading
-                      ? const Center(child: CircularProgressIndicator())
+                      ? const StaticSkeletonList(itemCount: 5)
                       : _error.isNotEmpty
                       ? Center(
                         child: Text(
@@ -225,105 +226,126 @@ class _OrderListScreenState extends State<OrdersScreen> {
                               statusColor = Colors.red.shade400;
                           }
 
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border(
-                                left: BorderSide(color: statusColor, width: 6),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.grey.withOpacity(0.08),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
+                          return InkWell(
+                            onTap: () async {
+                              // Primary action: dispatch
+                              final ok = await context.push(
+                                '/dispatch-entry',
+                                extra: {
+                                  'order_id': o['id'],
+                                  'item_id': o['item_id'],
+                                  'batch_id': o['batch_id'],
+                                  'mart_name': o['mart_name'],
+                                  'quantity_ordered': o['quantity_ordered'],
+                                  'quantity_dispatched': o['quantity_dispatched'],
+                                  'unit': o['unit'],
+                                  'dispatch_date': o['order_date'],
+                                  'item_name': o['item']?['name'],
+                                },
+                              );
+                              if (ok == true) _fetchOrders();
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border(
+                                  left: BorderSide(color: statusColor, width: 6),
                                 ),
-                              ],
-                            ),
-                            child: ListTile(
-                              title: Text(
-                                '$itemName',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Mart:  ${o['mart_name']}',
-                                    style: const TextStyle(
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Order: ${o['quantity_ordered']}${o['unit']}',
-                                    style: const TextStyle(
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Dispatched: ${o['quantity_dispatched']}${o['unit']}',
-                                    style: const TextStyle(
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Status: ${o['status']}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      color: statusColor,
-                                    ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.08),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
                                   ),
                                 ],
                               ),
-                              trailing: PopupMenuButton<String>(
-                                onSelected: (v) async {
-                                  if (v == 'edit') {
-                                    final ok = await context.push(
-                                      '/order-entry',
-                                      extra: o,
-                                    );
-                                    if (ok == true) _fetchOrders();
-                                  } else if (v == 'dispatch') {
-                                    final ok = await context.push(
-                                      '/dispatch-entry',
-                                      extra: {
-                                        'order_id': o['id'],
-                                        'item_id': o['item_id'],
-                                        'batch_id': o['batch_id'],
-                                        'mart_name': o['mart_name'],
-                                        'quantity_ordered':
-                                            o['quantity_ordered'],
-                                        'quantity_dispatched':
-                                            o['quantity_dispatched'],
-                                        'unit': o['unit'],
-                                        'dispatch_date': o['order_date'],
-                                        'item_name': o['item']?['name'],
-                                      },
-                                    );
-                                    if (ok == true) _fetchOrders();
-                                  } else {
-                                    _confirmDelete(o['id']);
-                                  }
-                                },
-                                itemBuilder:
-                                    (_) => [
-                                      const PopupMenuItem(
-                                        value: 'dispatch',
-                                        child: Text('Dispatch'),
+                              child: ListTile(
+                                title: Text(
+                                  '$itemName',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Mart:  ${o['mart_name']}',
+                                      style: const TextStyle(
+                                        color: Colors.black87,
                                       ),
-                                      const PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('Edit'),
+                                    ),
+                                    Text(
+                                      'Order: ${o['quantity_ordered']}${o['unit']}',
+                                      style: const TextStyle(
+                                        color: Colors.black87,
                                       ),
-                                      const PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Delete'),
+                                    ),
+                                    Text(
+                                      'Dispatched: ${o['quantity_dispatched']}${o['unit']}',
+                                      style: const TextStyle(
+                                        color: Colors.black87,
                                       ),
-                                    ],
+                                    ),
+                                    Text(
+                                      'Status: ${o['status']}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        color: statusColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (v) async {
+                                    if (v == 'edit') {
+                                      final ok = await context.push(
+                                        '/order-entry',
+                                        extra: o,
+                                      );
+                                      if (ok == true) _fetchOrders();
+                                    } else if (v == 'dispatch') {
+                                      final ok = await context.push(
+                                        '/dispatch-entry',
+                                        extra: {
+                                          'order_id': o['id'],
+                                          'item_id': o['item_id'],
+                                          'batch_id': o['batch_id'],
+                                          'mart_name': o['mart_name'],
+                                          'quantity_ordered':
+                                              o['quantity_ordered'],
+                                          'quantity_dispatched':
+                                              o['quantity_dispatched'],
+                                          'unit': o['unit'],
+                                          'dispatch_date': o['order_date'],
+                                          'item_name': o['item']?['name'],
+                                        },
+                                      );
+                                      if (ok == true) _fetchOrders();
+                                    } else {
+                                      _confirmDelete(o['id']);
+                                    }
+                                  },
+                                  itemBuilder:
+                                      (_) => [
+                                        const PopupMenuItem(
+                                          value: 'dispatch',
+                                          child: Text('Dispatch'),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'edit',
+                                          child: Text('Edit'),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('Delete'),
+                                        ),
+                                      ],
+                                ),
                               ),
                             ),
                           );

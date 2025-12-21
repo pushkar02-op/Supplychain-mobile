@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../providers/stock_list_provider.dart';
-import '../services/stock_service.dart'; // Still needed for update logic if we didn't migrate edit page yet, OR we can use repository for deleting.
+import '../services/stock_service.dart';
+import '../widgets/skeleton_loader.dart';
 
 class StockListScreen extends ConsumerWidget {
   const StockListScreen({super.key});
@@ -43,23 +44,6 @@ class StockListScreen extends ConsumerWidget {
                   icon: const Icon(Icons.calendar_today),
                   label: Text(DateFormat('MMM d, yyyy').format(selectedDate)),
                 ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                  ),
-                  onPressed: () async {
-                    final result = await context.push(
-                      '/stock-entry',
-                      extra: null,
-                    );
-                    if (result == true) {
-                      ref.invalidate(stockListProvider);
-                    }
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Stock'),
-                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -73,57 +57,74 @@ class StockListScreen extends ConsumerWidget {
                     itemCount: stocks.length,
                     itemBuilder: (context, index) {
                       final stock = stocks[index];
-                      return Card(
+                  return Card(
                         margin: const EdgeInsets.only(bottom: 12),
-                        child: ListTile(
-                          title: Text(
-                            '${stock['item']['name']}',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 4),
-                              Text(
-                                'Qty: ${stock['quantity']} ${stock['unit']}',
-                              ),
-                              Text(
-                                'Price: ₹${stock['price_per_unit']}/${stock['unit']}',
-                              ),
-                            ],
-                          ),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (value) async {
-                              if (value == 'edit') {
-                                final result = await context.push(
-                                  '/stock-entry',
-                                  extra: stock,
-                                );
-                                if (result == true) {
-                                  ref.invalidate(stockListProvider);
+                        elevation: 2,
+                        shadowColor: Colors.black12,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: InkWell(
+                          onTap: () async {
+                            final result = await context.push(
+                              '/stock-entry',
+                              extra: stock,
+                            );
+                            if (result == true) {
+                              ref.invalidate(stockListProvider);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: ListTile(
+                            title: Text(
+                              '${stock['item']['name']}',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Qty: ${stock['quantity']} ${stock['unit']}',
+                                ),
+                                Text(
+                                  'Price: ₹${stock['price_per_unit']}/${stock['unit']}',
+                                ),
+                              ],
+                            ),
+                            trailing: PopupMenuButton<String>(
+                              onSelected: (value) async {
+                                if (value == 'edit') {
+                                  final result = await context.push(
+                                    '/stock-entry',
+                                    extra: stock,
+                                  );
+                                  if (result == true) {
+                                    ref.invalidate(stockListProvider);
+                                  }
+                                } else if (value == 'delete') {
+                                  _confirmDelete(context, ref, stock['id']);
                                 }
-                              } else if (value == 'delete') {
-                                _confirmDelete(context, ref, stock['id']);
-                              }
-                            },
-                            itemBuilder:
-                                (context) => [
-                                  const PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Edit'),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Delete'),
-                                  ),
-                                ],
+                              },
+                              itemBuilder:
+                                  (context) => [
+                                    const PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('Edit'),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('Delete'),
+                                    ),
+                                  ],
+                            ),
                           ),
                         ),
                       );
                     },
                   );
                 },
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const StaticSkeletonList(itemCount: 5),
                 error:
                     (err, stack) => Center(
                       child: Column(
@@ -148,6 +149,18 @@ class StockListScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final result = await context.push('/stock-entry', extra: null);
+          if (result == true) {
+            ref.invalidate(stockListProvider);
+          }
+        },
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Stock'),
       ),
     );
   }
