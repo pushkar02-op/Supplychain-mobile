@@ -33,3 +33,7 @@ class DispatchEntry(Base, AuditMixin):
     batch = relationship("Batch")
     item = relationship("Item")
     mart = relationship("Mart")
+
+    @property
+    def mart_name(self):
+        return self.mart.name if self.mart else None

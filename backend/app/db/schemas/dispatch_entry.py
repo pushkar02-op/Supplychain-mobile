@@ -10,7 +10,7 @@ class DispatchEntryBase(BaseModel):
     batch_id: int
     mart_name: str
     dispatch_date: date
-    quantity: int
+    quantity: float
     unit: str
     remarks: Optional[str] = None
 
@@ -22,7 +22,7 @@ class DispatchEntryCreate(DispatchEntryBase):
 class DispatchEntryUpdate(BaseModel):
     mart_name: Optional[str] = None
     dispatch_date: Optional[date] = None
-    quantity: Optional[int] = None
+    quantity: Optional[float] = None
     unit: Optional[str] = None
 
 
@@ -45,7 +45,7 @@ class DispatchEntryRead(DispatchEntryBase):
 
 class BatchDispatchInput(BaseModel):
     batch_id: int
-    quantity: int
+    quantity: float
 
 
 # Update the create schema
@@ -61,4 +61,4 @@ class DispatchEntryMultiCreate(BaseModel):
 class DispatchEntryCreated(BaseModel):
     dispatch_id: int
     batch_id: int
-    quantity: int
+    quantity: float

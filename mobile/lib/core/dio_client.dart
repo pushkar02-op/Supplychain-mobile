@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart'; // For debugPrint
 
 class DioClient {
   static final _storage = FlutterSecureStorage();
-  static late final Dio instance;
+  static late Dio instance;
   
   /// Callback for when a 401 occurs.
   static VoidCallback? onUnauthorized;

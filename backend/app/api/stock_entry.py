@@ -5,9 +5,11 @@ Provides CRUD operations and listing of stock entries.
 
 import logging
 from datetime import date
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
+from app.core.auth import get_current_user
 from app.core.exceptions import AppException
+from app.db.models.user import User
 from app.db.schemas.stock_entry import (
     StockEntryCreate,
     StockEntryRead,
@@ -21,7 +23,7 @@ from app.services.stock_entry import (
     get_stock_entry,
     update_stock_entry,
 )
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -29,7 +31,14 @@ router = APIRouter(prefix="/stock-entry", tags=["Stock Entry"])
 
 
 @router.post("/", response_model=StockEntryRead, status_code=status.HTTP_201_CREATED)
-def create(entry: StockEntryCreate, db: Session = Depends(get_db)) -> StockEntryRead:
+def create(
+    entry: StockEntryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    idempotency_key: Annotated[str, Header()] = None,
+) -> StockEntryRead:
+    if not idempotency_key:
+        raise AppException("Idempotency-Key header is required", status_code=400)
     """
     Create a new stock entry.
 
@@ -41,7 +50,9 @@ def create(entry: StockEntryCreate, db: Session = Depends(get_db)) -> StockEntry
         StockEntryRead: The created stock entry.
     """
     logger.info("Creating new stock entry")
-    return create_stock_entry(db=db, entry=entry, created_by=1)
+    return create_stock_entry(
+        db=db, entry=entry, created_by=1, idempotency_key=idempotency_key
+    )
 
 
 @router.get("/", response_model=List[StockEntryRead], summary="List stock entries")
@@ -96,7 +107,10 @@ def read_one(stock_entry_id: int, db: Session = Depends(get_db)) -> StockEntryRe
     "/{stock_entry_id}", response_model=StockEntryRead, summary="Update stock entry"
 )
 def update(
-    stock_entry_id: int, entry_update: StockEntryUpdate, db: Session = Depends(get_db)
+    stock_entry_id: int,
+    entry_update: StockEntryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> StockEntryRead:
     """
     Update an existing stock entry.
@@ -127,7 +141,11 @@ def update(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete stock entry",
 )
-def delete(stock_entry_id: int, db: Session = Depends(get_db)) -> None:
+def delete(
+    stock_entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
     """
     Delete a stock entry by ID.
 

@@ -1,4 +1,6 @@
+import 'package:dio/dio.dart';
 import '../core/dio_client.dart';
+import 'package:uuid/uuid.dart';
 
 class RejectionService {
   static Future<List<Map<String, dynamic>>> fetchItemsWithBatches() async {
@@ -34,14 +36,26 @@ class RejectionService {
       'rejection_date': rejectionDate,
       if (rejectedBy != null) 'rejected_by': rejectedBy,
     };
-    final resp = await DioClient.instance.post(
-      '/rejection-entries/',
-      data: data,
-    );
-    if (resp.statusCode != 200 && resp.statusCode != 201) {
-      throw Exception(
-        resp.data['detail'] ?? 'Failed to create rejection entry',
+    try {
+      final resp = await DioClient.instance.post(
+        '/rejection-entries/',
+        data: data,
+        options: Options(
+          headers: {'Idempotency-Key': const Uuid().v4()},
+        ),
       );
+      if (resp.statusCode != 200 && resp.statusCode != 201) {
+        throw Exception(
+          resp.data['detail'] ?? 'Failed to create rejection entry',
+        );
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        throw Exception(
+          'This item is not fully configured. Please contact an admin to set its default unit of measure.'
+        );
+      }
+      throw Exception(e.response?.data['detail'] ?? e.message ?? 'Failed to create rejection entry');
     }
   }
 

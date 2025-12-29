@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 
 from .base_class import Base
@@ -10,7 +10,8 @@ class RejectionEntry(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
     batch_id = Column(Integer, ForeignKey("batch.id"), nullable=True)
-    quantity = Column(Integer, nullable=False)
+    quantity = Column(Numeric(18, 6, asdecimal=True), nullable=False)
+
     reason = Column(Text, nullable=True)
     rejection_date = Column(Date, nullable=False)
     rejected_by = Column(String, nullable=True)

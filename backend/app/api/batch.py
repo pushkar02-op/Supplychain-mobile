@@ -19,7 +19,7 @@ from app.services.batch import (
     get_batches_by_item_with_quantity,
     update_batch,
 )
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,14 @@ def create(
     Returns:
         BatchRead: The created batch object.
     """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        )
+    # SAFETY WARNING:
+    # - This endpoint bypasses ledger logic
+    # - It is admin-only by design
+    # - It must be used only for controlled recovery or maintenance
     logger.info(f"Creating new batch by {current_user.username}")
     return create_batch(db=db, batch=entry, created_by=current_user.username)
 
@@ -137,6 +145,14 @@ def update(
     Raises:
         AppException: If the batch is not found (404).
     """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        )
+    # SAFETY WARNING:
+    # - This endpoint bypasses ledger logic
+    # - It is admin-only by design
+    # - It must be used only for controlled recovery or maintenance
     logger.info(f"Updating batch_id={batch_id} by {current_user.username}")
     updated = update_batch(
         db=db,
@@ -156,6 +172,7 @@ def update(
 def delete(
     batch_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """
     Delete a batch.
@@ -171,6 +188,14 @@ def delete(
         AppException: If the batch is not found (404).
     """
     logger.info(f"Deleting batch_id={batch_id}")
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        )
+    # SAFETY WARNING:
+    # - This endpoint bypasses ledger logic
+    # - It is admin-only by design
+    # - It must be used only for controlled recovery or maintenance
     success = delete_batch(db=db, batch_id=batch_id)
     if not success:
         logger.error(f"Batch not found: batch_id={batch_id}")

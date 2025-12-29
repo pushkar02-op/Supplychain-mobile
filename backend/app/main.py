@@ -7,6 +7,15 @@ import logging
 import subprocess
 
 from app.api import router as api_router
+from app.api.admin_diagnostics import router as admin_diagnostics_router
+from app.api.auth import router as auth_router
+from app.api.batch import router as batch_router
+from app.api.dispatch_entry import router as dispatch_router
+from app.api.inventory_txn import router as inventory_txn_router
+from app.api.item import router as item_router
+from app.api.rejection_entry import router as rejection_router
+from app.api.stock_entry import router as stock_router
+from app.api.uom import router as uom_router
 from app.core.exceptions import register_exception_handlers
 from app.core.logging_config import setup_logging
 from app.db.seed.seed_all import seed_all
@@ -35,6 +44,21 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(api_router)
+app.include_router(auth_router, tags=["Auth"])
+app.include_router(item_router, prefix="/v1/item", tags=["Item"])
+app.include_router(uom_router, prefix="/v1/uom", tags=["UOM"])
+app.include_router(batch_router, prefix="/v1/batch", tags=["Batch"])
+app.include_router(stock_router, prefix="/v1/stock-entry", tags=["Stock Entry"])
+app.include_router(dispatch_router, prefix="/v1/dispatch", tags=["Dispatch Entry"])
+app.include_router(
+    rejection_router, prefix="/v1/rejection-entries", tags=["Rejection Entry"]
+)
+app.include_router(
+    inventory_txn_router, prefix="/v1/inventory-txn", tags=["Inventory Txn"]
+)
+app.include_router(
+    admin_diagnostics_router, prefix="/v1/admin", tags=["Admin Diagnostics"]
+)
 
 
 @app.on_event("startup")

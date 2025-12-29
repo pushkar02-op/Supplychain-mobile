@@ -24,25 +24,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       errorMessage = '';
     });
 
-    final result = await AuthService.login(email, password);
+    try {
+        debugPrint('[LOGIN_SCREEN] Calling AuthService.login...');
+        final result = await AuthService.login(email, password);
+        debugPrint('[LOGIN_SCREEN] AuthService.login result: $result');
 
-    if (!mounted) return;
+        if (!mounted) {
+            debugPrint('[LOGIN_SCREEN] Widget unmounted after login call.');
+            return;
+        }
 
-    if (result == true) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Login successful')));
-      
-      if (!mounted) return;
-      
-      // Update riverpod state; router will redirect to /dashboard automatically
-      await ref.read(authProvider.notifier).login();
-      return;
-    } else {
-      setState(() => errorMessage = result ?? 'Login failed');
+        if (result == true) {
+          debugPrint('[LOGIN_SCREEN] Login SUCCESS. Triggering AuthNotifier...');
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Login successful')));
+          
+          await ref.read(authProvider.notifier).login();
+          debugPrint('[LOGIN_SCREEN] AuthNotifier.login() returned.');
+          return;
+        } else {
+          debugPrint('[LOGIN_SCREEN] Login FAILED. Result: $result');
+          setState(() => errorMessage = result.toString());
+        }
+    } catch (e, st) {
+        debugPrint('[LOGIN_SCREEN] Exception during login: $e');
+        debugPrint(st.toString());
+        setState(() => errorMessage = 'An error occurred: $e');
     }
 
-    setState(() => isLoading = false);
+    if (mounted) {
+       setState(() => isLoading = false);
+    }
   }
 
   @override
@@ -90,30 +103,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: 48),
               // Form Fields
-              TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
+              Semantics(
+                label: 'login-email',
+                textField: true,
+                enabled: true,
+                child: TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (val) => email = val.trim(),
+                  validator:
+                      (val) => val!.isEmpty ? 'Please enter your email' : null,
                 ),
-                keyboardType: TextInputType.emailAddress,
-                onChanged: (val) => email = val.trim(),
-                validator:
-                    (val) => val!.isEmpty ? 'Please enter your email' : null,
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
+              Semantics(
+                label: 'login-password',
+                textField: true,
+                enabled: true,
+                child: TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  obscureText: true,
+                  onChanged: (val) => password = val.trim(),
+                  validator:
+                      (val) => val!.isEmpty ? 'Please enter your password' : null,
                 ),
-                obscureText: true,
-                onChanged: (val) => password = val.trim(),
-                validator:
-                    (val) => val!.isEmpty ? 'Please enter your password' : null,
               ),
               const SizedBox(height: 24),
               if (errorMessage.isNotEmpty)
@@ -125,25 +148,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     textAlign: TextAlign.center,
                   ),
                 ),
-              SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
+              Semantics(
+                label: 'login-submit',
+                button: true,
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: isLoading ? null : _login,
+                    child:
+                        isLoading
+                            ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Text('Login', style: TextStyle(fontSize: 16)),
                   ),
-                  onPressed: isLoading ? null : _login,
-                  child:
-                      isLoading
-                          ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                          : const Text('Login', style: TextStyle(fontSize: 16)),
                 ),
               ),
             ],

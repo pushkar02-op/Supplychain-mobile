@@ -16,17 +16,22 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   @override
   Future<AuthState> build() async {
     final token = await _storage.read(key: _tokenKey);
+    debugPrint('[AUTH] build() called. Token found: ${token != null}');
     final isAdminStr = await _storage.read(key: _adminKey);
     final isAdmin = isAdminStr == 'true';
     
-    return AuthState(isLoggedIn: token != null, isAdmin: isAdmin);
+    final state = AuthState(isLoggedIn: token != null, isAdmin: isAdmin);
+    debugPrint('[AUTH] Emitting state: $state');
+    return state;
   }
 
   /// Call this when the user successfully logs in via API
   Future<void> login() async {
+    debugPrint('[AUTH] login() called');
     // Reload state from storage (assumed AuthService wrote it)
     ref.invalidateSelf();
     await future;
+    debugPrint('[AUTH] login() complete. New state: ${state.value}');
   }
 
   /// Call this to log out

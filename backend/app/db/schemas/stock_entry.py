@@ -21,6 +21,7 @@ class StockEntryCreate(StockEntryBase):
 
 class StockEntryRead(StockEntryBase):
     id: int
+    batch_id: int
     item: ItemRead
     created_at: Optional[datetime]
     updated_at: Optional[datetime]

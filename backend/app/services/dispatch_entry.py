@@ -25,6 +25,8 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
+from decimal import Decimal
+
 
 def create_dispatch_entry(
     db: Session, entry: DispatchEntryCreate, created_by: Optional[str] = None
@@ -46,7 +48,7 @@ def create_dispatch_entry(
     logger.info(
         f"Creating dispatch for batch_id={entry.batch_id}, qty={entry.quantity}"
     )
-    batch = db.get(Batch, entry.batch_id)
+    batch = db.query(Batch).filter(Batch.id == entry.batch_id).with_for_update().first()
     if not batch:
         logger.error("Invalid batch_id provided")
         raise AppException("Invalid batch_id provided", status_code=400)
@@ -90,7 +92,7 @@ def create_dispatch_entry(
         updated_by=user_name,
     )
     db.add(dispatch)
-    batch.quantity -= entry.quantity
+    batch.quantity -= Decimal(str(entry.quantity))
     batch.updated_at = datetime.utcnow()
     _update_order_after_dispatch(db, entry.item_id, entry.mart_name, entry.quantity)
     db.flush()
@@ -100,7 +102,7 @@ def create_dispatch_entry(
     # 3) Ledger OUT movement
     try:
         factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
-        base_qty = entry.quantity * factor
+        base_qty = Decimal(str(entry.quantity)) * factor
         create_inventory_txn(
             db,
             InventoryTxnCreate(
@@ -158,14 +160,35 @@ def create_dispatch_from_order(
         raise AppException(msg, status_code=400)
 
     total_req = sum(b.quantity for b in entry.batches)
+    # 1) Deterministically lock all involved batches to prevent deadlocks
+    params_batch_ids = sorted(list({b.batch_id for b in entry.batches}))
+
+    locked_batches = (
+        db.query(Batch)
+        .filter(Batch.id.in_(params_batch_ids))
+        .filter(Batch.item_id == entry.item_id)
+        .order_by(Batch.id)
+        .with_for_update()
+        .all()
+    )
+
+    batch_map = {b.id: b for b in locked_batches}
+
+    # Verify all batches were found
+    if len(batch_map) != len(params_batch_ids):
+        found_ids = set(batch_map.keys())
+        missing = set(params_batch_ids) - found_ids
+        msg = f"Batches not found for item {entry.item_id}: {missing}"
+        logger.error(msg)
+        raise AppException(msg, status_code=404)
+
     results: List[DispatchEntry] = []
+
+    # 2) Process each requested allocation using the locked batch objects
     for b in entry.batches:
-        batch = db.scalar(
-            select(Batch).where(Batch.id == b.batch_id, Batch.item_id == entry.item_id)
-        )
-        if not batch:
-            logger.error(f"Batch {b.batch_id} not found")
-            raise AppException(f"Batch {b.batch_id} not found", status_code=404)
+        batch = batch_map[b.batch_id]
+        # Redundant check removed as we filtered by item_id above, but safe to keep logic clean
+
         if batch.quantity < b.quantity:
             msg = (
                 f"Batch {b.batch_id} has only {batch.quantity}, requested {b.quantity}"
@@ -212,13 +235,13 @@ def create_dispatch_from_order(
             db.add(disp)
             results.append(disp)
 
-        batch.quantity -= b.quantity
+        batch.quantity -= Decimal(str(b.quantity))
         batch.updated_at = datetime.utcnow()
 
         # 4) Ledger OUT movement for this batch
         try:
             factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
-            base_qty = b.quantity * factor
+            base_qty = Decimal(str(b.quantity)) * factor
 
             create_inventory_txn(
                 db,
@@ -382,7 +405,7 @@ def update_dispatch_entry(
             msg = f"Not enough stock to increase dispatch. Available: {batch.quantity}, needed: {-diff}"
             logger.error(msg)
             raise AppException(msg, status_code=400)
-        batch.quantity -= diff
+        batch.quantity -= Decimal(str(diff))
         batch.updated_at = datetime.utcnow()
         _update_order_after_dispatch(db, dispatch.item_id, dispatch.mart.name, diff)
 
@@ -409,7 +432,7 @@ def update_dispatch_entry(
             logger.error(f"Conversion lookup failed: {e}")
             raise
 
-        base_qty = diff * factor
+        base_qty = Decimal(str(diff)) * factor
 
         create_inventory_txn(
             db,
@@ -452,12 +475,15 @@ def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
         logger.error(f"Dispatch not found id={dispatch_id}")
         return False
 
-    batch = db.get(Batch, dispatch.batch_id)
+    # Lock batch to restore stock safely
+    batch = (
+        db.query(Batch).filter(Batch.id == dispatch.batch_id).with_for_update().first()
+    )
     if not batch:
         logger.error("Batch not found during delete")
         raise AppException("Batch not found", status_code=404)
 
-    batch.quantity += dispatch.quantity
+    batch.quantity += Decimal(str(dispatch.quantity))
     batch.updated_at = datetime.utcnow()
 
     _update_order_after_dispatch(
@@ -469,7 +495,7 @@ def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
 
     try:
         factor = get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit)
-        base_qty = dispatch.quantity * factor
+        base_qty = Decimal(str(dispatch.quantity)) * factor
 
         create_inventory_txn(
             db,

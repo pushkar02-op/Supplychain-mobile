@@ -76,6 +76,7 @@ def create_order(
         )
 
     order_data = entry.dict()
+    order_data.pop("mart_name", None)
     order_data["mart_id"] = entry.mart_id
     from app.utils.audit import resolve_user_audit
 

@@ -144,6 +144,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       route: '/admin/ledger/health',
                       color: Colors.redAccent,
                     ),
+                    const SizedBox(height: 12),
+                    _buildNavCard(
+                      context,
+                      icon: Icons.rule_rounded,
+                      label: 'UOM Diagnostics',
+                      subtitle: 'View configuration risks',
+                      route: '/admin/uom-diagnostics',
+                      color: Colors.orange,
+                    ),
                   ],
                 );
               },

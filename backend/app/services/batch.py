@@ -44,6 +44,7 @@ def create_batch(
                     Batch.created_at <= datetime.combine(today, datetime.max.time()),
                 )
             )
+            .with_for_update()
             .first()
         )
         if existing:

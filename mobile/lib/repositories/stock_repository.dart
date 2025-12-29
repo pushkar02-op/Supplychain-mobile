@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../core/dio_client.dart';
 import '../core/app_exceptions.dart';
+import 'package:uuid/uuid.dart';
 
 class StockRepository {
   /// Fetch all items for the dropdown
@@ -36,6 +37,9 @@ class StockRepository {
           'total_cost': totalCost,
           'source': source,
         },
+        options: Options(
+          headers: {'Idempotency-Key': const Uuid().v4()},
+        ),
       );
       if (resp.statusCode != 201) {
         throw ServerException('Failed to create stock entry: ${resp.statusMessage}');
@@ -110,10 +114,19 @@ class StockRepository {
         return UnauthorizedException(message);
       }
       if (statusCode == 400 || statusCode == 422) {
+         final detail = (data is Map && data['detail'] != null) 
+              ? data['detail'] 
+              : data.toString();
+         
          return ValidationException(
-           message, 
+           detail.toString(), 
            errors: (data is Map) ? Map<String, dynamic>.from(data) : null,
          );
+      }
+      if (statusCode == 409) {
+        return ConfigurationException(
+          'This item is not fully configured. Please contact an admin to set its default unit of measure.'
+        );
       }
       if (statusCode! >= 500) {
         return ServerException('Server Error: $message');

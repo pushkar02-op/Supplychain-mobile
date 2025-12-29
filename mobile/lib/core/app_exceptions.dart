@@ -30,6 +30,11 @@ class ServerException extends AppException {
   const ServerException(super.message, {super.code});
 }
 
+/// Configuration errors (409) - e.g. Missing UOM.
+class ConfigurationException extends AppException {
+  const ConfigurationException(super.message, {super.code});
+}
+
 /// Catch-all for other errors.
 class UnknownException extends AppException {
   final dynamic originalError;

@@ -6,7 +6,7 @@ Handles CRUD operations on unit/item conversion mappings.
 import logging
 from typing import List, Optional
 
-from app.core.exceptions import AppException
+from app.core.exceptions import UOMConfigurationError
 from app.db.models.item_conversion_map import ItemConversionMap
 from app.db.schemas.item_conversion_map import (
     ItemConversionCreate,
@@ -17,16 +17,23 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 
+from decimal import Decimal
+
+
 def get_conversion_factor(
     db: Session, item_id: int, from_unit: str, to_unit: str
-) -> float:
+) -> Decimal:
     """
     Returns the conversion factor to convert from 'from_unit' to 'to_unit' for a given item.
-    If from_unit == to_unit, returns 1.0.
+    If from_unit == to_unit, returns Decimal("1.0").
     Raises AppException if no conversion is found.
     """
-    if from_unit == to_unit:
-        return 1.0
+    # Normalize units for comparison (strip whitespace, ignore case)
+    u1 = from_unit.strip().lower() if from_unit else ""
+    u2 = to_unit.strip().lower() if to_unit else ""
+
+    if u1 == u2:
+        return Decimal("1.0")
 
     conv = (
         db.query(ItemConversionMap)
@@ -34,7 +41,8 @@ def get_conversion_factor(
         .first()
     )
     if conv:
-        return conv.conversion_factor
+        # Cast Float (db) to Decimal via string to preserve precision
+        return Decimal(str(conv.conversion_factor))
 
     conv_rev = (
         db.query(ItemConversionMap)
@@ -45,9 +53,10 @@ def get_conversion_factor(
         logger.warning(
             f"Using reverse conversion for item_id={item_id} from {to_unit} to {from_unit}"
         )
-        return 1.0 / conv_rev.conversion_factor
+        # Use Decimal for division
+        return Decimal("1.0") / Decimal(str(conv_rev.conversion_factor))
 
-    raise AppException(
+    raise UOMConfigurationError(
         f"No conversion factor found for item_id={item_id} from '{from_unit}' to '{to_unit}'"
     )
 

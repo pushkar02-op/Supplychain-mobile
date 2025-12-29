@@ -29,13 +29,45 @@ def create_item(db: Session, entry: ItemCreate, created_by: int) -> Item:
         Item: Created item.
     """
     logger.info(f"Creating item '{entry.name}'")
+
+    # Check duplicate
+    existing = db.query(Item).filter(Item.name == entry.name).first()
+    if existing:
+        from app.core.exceptions import AppException
+
+        # raise 409 so client knows it exists (E2E script handles this by fetching)
+        logger.warning(f"Item '{entry.name}' already exists")
+        raise AppException(
+            f"Item with name '{entry.name}' already exists", status_code=409
+        )
+
+    # Resolve UOM
+    uom_id = None
+    if entry.default_unit:
+        from sqlalchemy import func
+
+        # Case-insensitive lookup
+        uom = (
+            db.query(UOM)
+            .filter(func.lower(UOM.code) == entry.default_unit.strip().lower())
+            .first()
+        )
+        if not uom:
+            from app.core.exceptions import AppException
+
+            raise AppException(
+                f"Invalid UOM code: {entry.default_unit}", status_code=400
+            )
+        uom_id = uom.id
+
     from app.utils.audit import resolve_user_audit
 
     user_name, user_id = resolve_user_audit(db, created_by)
 
     new_item = Item(
         name=entry.name,
-        default_unit=entry.default_unit,
+        item_code=entry.item_code,
+        default_uom_id=uom_id,
         created_by=user_name,
         created_by_id=user_id,
         updated_by=user_name,
@@ -43,8 +75,12 @@ def create_item(db: Session, entry: ItemCreate, created_by: int) -> Item:
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
+
+    # Return valid read model
+    item_data = ItemRead.from_orm(new_item)
+    item_data.default_unit = entry.default_unit
     logger.debug(f"Created item id={new_item.id}")
-    return new_item
+    return item_data
 
 
 def get_item(db: Session, item_id: int) -> Optional[Item]:

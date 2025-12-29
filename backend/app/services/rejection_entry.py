@@ -5,9 +5,10 @@ Handles creation and queries of rejection logs.
 
 import logging
 from datetime import date
+from decimal import Decimal
 from typing import List, Optional
 
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, UOMConfigurationError
 from app.db.models.batch import Batch
 from app.db.models.rejection_entry import RejectionEntry
 from app.db.schemas.inventory_txn import InventoryTxnCreate
@@ -20,7 +21,10 @@ logger = logging.getLogger(__name__)
 
 
 def create_rejection_entry(
-    db: Session, entry: RejectionEntryCreate, created_by: Optional[str] = None
+    db: Session,
+    entry: RejectionEntryCreate,
+    created_by: Optional[str] = None,
+    idempotency_key: Optional[str] = None,
 ) -> RejectionEntry:
     """
     Create a rejection entry and decrement batch quantity.
@@ -37,9 +41,20 @@ def create_rejection_entry(
         AppException: If batch invalid or insufficient quantity.
     """
     logger.info(
-        f"Creating rejection entry for batch_id={entry.batch_id}, qty={entry.quantity}"
+        f"Creating rejection entry for batch_id={entry.batch_id}, qty={entry.quantity}, idempotency_key={idempotency_key}"
     )
-    batch = db.query(Batch).filter(Batch.id == entry.batch_id).first()
+
+    if idempotency_key:
+        from app.utils.idempotency import check_idempotency, save_idempotency_record
+
+        existing_record = check_idempotency(
+            db, idempotency_key, "create_rejection_entry", entry.dict()
+        )
+        if existing_record:
+            return db.get(RejectionEntry, existing_record.result_entity_id)
+
+    # Lock batch to prevent overselling during rejection
+    batch = db.query(Batch).filter(Batch.id == entry.batch_id).with_for_update().first()
     if not batch:
         logger.error(f"Batch not found id={entry.batch_id}")
         raise AppException("Batch not found", status_code=404)
@@ -62,7 +77,8 @@ def create_rejection_entry(
     )
     try:
         db.add(rej)
-        batch.quantity -= entry.quantity
+        # Direct NUMERIC update (Stage 3: Cleanup)
+        batch.quantity -= Decimal(str(entry.quantity))
         db.flush()
         db.refresh(rej)
         logger.debug(f"Created rejection id={rej.id}")
@@ -71,14 +87,18 @@ def create_rejection_entry(
             from app.db.models.item import Item
 
             item = db.get(Item, batch.item_id)
-            target_unit = item.default_uom_code if item else batch.unit
+            if not item or not item.default_uom_code:
+                raise UOMConfigurationError(
+                    f"Item id={batch.item_id} has no default UOM configured. Cannot record rejection ledger."
+                )
+            target_unit = item.default_uom_code
 
             factor = get_conversion_factor(db, batch.item_id, batch.unit, target_unit)
         except AppException as e:
             logger.error(f"Conversion lookup failed: {e}")
             raise
 
-        base_qty = entry.quantity * factor
+        base_qty = Decimal(str(entry.quantity)) * factor
 
         create_inventory_txn(
             db,
@@ -95,6 +115,18 @@ def create_rejection_entry(
                 remarks="Stock removed via rejection",
             ),
         )
+        db.flush()  # Ensure ID is generated before commit
+
+        if idempotency_key:
+            save_idempotency_record(
+                db,
+                idempotency_key,
+                "create_rejection_entry",
+                entry.dict(),
+                "rejection_entry",
+                rej.id,
+            )
+
         db.commit()
         return rej
     except Exception:

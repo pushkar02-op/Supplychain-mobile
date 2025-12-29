@@ -8,6 +8,7 @@ Do not place runtime logic in this module.
 from .audit_log import AuditLog as AuditLog
 from .batch import Batch as Batch
 from .dispatch_entry import DispatchEntry as DispatchEntry
+from .idempotency_record import IdempotencyRecord
 from .inventory_txn import InventoryTxn as InventoryTxn
 from .invoice import Invoice as Invoice
 from .invoice_item import InvoiceItem as InvoiceItem

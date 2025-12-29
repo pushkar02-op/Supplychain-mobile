@@ -10,6 +10,7 @@ import 'package:mobile/screens/rejection_entry_screen.dart';
 import 'package:mobile/screens/rejection_list_screen.dart';
 import 'package:mobile/screens/admin_inventory_health_screen.dart';
 import 'package:mobile/screens/admin_inventory_drift_screen.dart';
+import 'package:mobile/screens/admin_diagnostics_screen.dart';
 import 'package:mobile/providers/auth_state.dart';
 
 import '../auth/login_screen.dart';
@@ -28,28 +29,40 @@ import '../screens/alias_mapping_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
+  debugPrint('[ROUTER_PROVIDER] Rebuilding GoRouter. AuthState: ${authState.value}');
 
   return GoRouter(
     initialLocation: '/login',
     refreshListenable: _AuthStateListenable(authState),
     redirect: (context, state) {
+      debugPrint('[ROUTER] redirect check. Path: ${state.uri.path}, AuthState: ${authState.value}');
       // If auth state is loading, maybe show a splash?
       // For now, if loading, we wait.
-      if (authState.isLoading || authState.hasError) return null;
+      if (authState.isLoading || authState.hasError) {
+          debugPrint('[ROUTER] Auth loading or error. Staying put.');
+          return null;
+      }
 
       final isLoggedIn = authState.value?.isLoggedIn ?? false;
       final isAdmin = authState.value?.isAdmin ?? false;
       final isLoggingIn = state.uri.path == '/login';
       final isRestricted = state.uri.path.startsWith('/admin');
 
-      if (!isLoggedIn && !isLoggingIn) return '/login';
-      if (isLoggedIn && isLoggingIn) return '/dashboard';
+      if (!isLoggedIn && !isLoggingIn) {
+          debugPrint('[ROUTER] Not logged in, redirecting to /login');
+          return '/login';
+      }
+      if (isLoggedIn && isLoggingIn) {
+          debugPrint('[ROUTER] Logged in, redirecting to /dashboard');
+          return '/dashboard';
+      }
       
       // Admin Guard
       if (isRestricted && !isAdmin) {
         return '/dashboard';
       }
       
+      debugPrint('[ROUTER] No redirect needed.');
       return null;
     },
     routes: [
@@ -135,6 +148,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin/ledger/drift',
         builder: (context, state) => const AdminInventoryDriftScreen(),
+      ),
+      GoRoute(
+        path: '/admin/uom-diagnostics',
+        builder: (context, state) => const AdminDiagnosticsScreen(),
       ),
     ],
   );

@@ -5,8 +5,10 @@ Provides creation and retrieval of rejection entries, with optional filtering.
 
 import logging
 from datetime import date
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
+from app.core.auth import get_current_user
+from app.db.models.user import User
 from app.db.schemas.rejection_entry import RejectionEntryCreate, RejectionEntryRead
 from app.db.session import get_db
 from app.services.rejection_entry import (
@@ -14,7 +16,7 @@ from app.services.rejection_entry import (
     get_all_rejections,
     get_rejections_by_date_and_items,
 )
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -25,8 +27,13 @@ router = APIRouter(prefix="/rejection-entries", tags=["Rejection Entries"])
     "/", response_model=RejectionEntryRead, status_code=status.HTTP_201_CREATED
 )
 def create_route(
-    entry: RejectionEntryCreate, db: Session = Depends(get_db)
+    entry: RejectionEntryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    idempotency_key: Annotated[str, Header()] = None,
 ) -> RejectionEntryRead:
+    if not idempotency_key:
+        raise AppException("Idempotency-Key header is required", status_code=400)
     """
     Create a new rejection entry.
 
@@ -38,7 +45,9 @@ def create_route(
         RejectionEntryRead: The created rejection entry.
     """
     logger.info("Creating new rejection entry")
-    return create_rejection_entry(db=db, entry=entry, created_by="system")
+    return create_rejection_entry(
+        db=db, entry=entry, created_by="system", idempotency_key=idempotency_key
+    )
 
 
 @router.get("/", response_model=List[RejectionEntryRead], summary="List rejections")

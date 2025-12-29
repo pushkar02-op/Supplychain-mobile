@@ -9,7 +9,7 @@ class ItemBase(BaseModel):
 
 
 class ItemCreate(ItemBase):
-    pass
+    default_unit: Optional[str] = None
 
 
 class ItemUpdate(ItemBase):

@@ -5,9 +5,10 @@ Handles receiving and adjustment of stock entries and underlying batches.
 
 import logging
 from datetime import date, datetime
+from decimal import Decimal
 from typing import List, Optional
 
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, UOMConfigurationError
 from app.db.models.batch import Batch
 from app.db.models.stock_entry import StockEntry
 from app.db.schemas.inventory_txn import InventoryTxnCreate
@@ -21,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 def create_stock_entry(
-    db: Session, entry: StockEntryCreate, created_by: Optional[int] = None
+    db: Session,
+    entry: StockEntryCreate,
+    created_by: Optional[int] = None,
+    idempotency_key: Optional[str] = None,
 ) -> StockEntry:
     """
     Create a stock entry, grouping into an existing batch or creating a new one.
@@ -35,8 +39,17 @@ def create_stock_entry(
         StockEntry: Created stock entry.
     """
     logger.info(
-        f"Creating stock entry for item_id={entry.item_id}, qty={entry.quantity}"
+        f"Creating stock entry for item_id={entry.item_id}, qty={entry.quantity}, idempotency_key={idempotency_key}"
     )
+
+    if idempotency_key:
+        from app.utils.idempotency import check_idempotency, save_idempotency_record
+
+        existing_record = check_idempotency(
+            db, idempotency_key, "create_stock_entry", entry.dict()
+        )
+        if existing_record:
+            return get_stock_entry(db, existing_record.result_entity_id)
 
     # 1) Find-or-create Batch
     batch = (
@@ -47,11 +60,13 @@ def create_stock_entry(
                 Batch.received_at == entry.received_date,
             )
         )
+        .with_for_update()
         .first()
     )
 
     if batch:
-        batch.quantity += entry.quantity
+        # Direct NUMERIC update (Stage 3: Cleanup)
+        batch.quantity += Decimal(str(entry.quantity))
         batch.updated_by = created_by
         batch.updated_at = datetime.utcnow()
         db.flush()
@@ -66,7 +81,7 @@ def create_stock_entry(
         # unit = uom_code if uom_code else entry.unit
         batch = Batch(
             item_id=entry.item_id,
-            quantity=entry.quantity,
+            quantity=Decimal(str(entry.quantity)),  # Direct NUMERIC (Stage 3)
             unit=entry.unit,
             received_at=entry.received_date,
             created_by=created_by,
@@ -101,7 +116,12 @@ def create_stock_entry(
         logger.error(f"Item not found id={entry.item_id}")
         raise AppException("Item not found", status_code=404)
 
-    target_unit = item.default_uom_code or batch.unit
+    if not item.default_uom_code:
+        raise UOMConfigurationError(
+            f"Item id={item.id} has no default UOM configured. Application cannot determine target unit for inventory ledger."
+        )
+
+    target_unit = item.default_uom_code
 
     try:
         factor = get_conversion_factor(db, entry.item_id, entry.unit, target_unit)
@@ -109,7 +129,7 @@ def create_stock_entry(
         logger.error(f"Conversion lookup failed: {e}")
         raise
 
-    base_qty = entry.quantity * factor
+    base_qty = Decimal(str(entry.quantity)) * factor
 
     create_inventory_txn(
         db,
@@ -126,6 +146,18 @@ def create_stock_entry(
             remarks="Stock received",
         ),
     )
+    db.flush()  # Ensure ID is generated before commit
+
+    if idempotency_key:
+        save_idempotency_record(
+            db,
+            idempotency_key,
+            "create_stock_entry",
+            entry.dict(),
+            "stock_entry",
+            stock_entry.id,
+        )
+
     db.commit()
     return stock_entry
 
@@ -192,13 +224,17 @@ def update_stock_entry(
         return None
 
     orig_qty = entry.quantity
-    orig_batch = db.query(Batch).filter(Batch.id == entry.batch_id).first()
+    # Lock the batch for update to ensure quantity consistency
+    orig_batch = (
+        db.query(Batch).filter(Batch.id == entry.batch_id).with_for_update().first()
+    )
     data = entry_update.dict(exclude_unset=True)
     new_qty = data.get("quantity", entry.quantity)
 
     quantity_diff = new_qty - orig_qty
     if orig_batch:
-        orig_batch.quantity += quantity_diff
+        # Direct NUMERIC update (Stage 3: Cleanup)
+        orig_batch.quantity += Decimal(str(quantity_diff))
         orig_batch.updated_by = updated_by
         orig_batch.updated_at = datetime.utcnow()
 
@@ -212,10 +248,12 @@ def update_stock_entry(
 
     if quantity_diff != 0:
         txn_type = "IN" if quantity_diff > 0 else "OUT"
-        from app.db.models.item import Item
 
-        item = db.get(Item, entry.item_id)
-        target_unit = item.default_uom_code if item else orig_batch.unit
+        if not item or not item.default_uom_code:
+            raise UOMConfigurationError(
+                f"Item id={item.id} has no default UOM configured."
+            )
+        target_unit = item.default_uom_code
 
         try:
             factor = get_conversion_factor(db, entry.item_id, entry.unit, target_unit)
@@ -223,7 +261,7 @@ def update_stock_entry(
             logger.error(f"Conversion lookup failed: {e}")
             raise
 
-        base_qty = abs(quantity_diff) * factor
+        base_qty = Decimal(str(abs(quantity_diff))) * factor
 
         create_inventory_txn(
             db,
@@ -261,7 +299,8 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         logger.error(f"Stock entry not found id={stock_entry_id}")
         return False
 
-    batch = db.query(Batch).filter(Batch.id == entry.batch_id).first()
+    # Lock the batch before deletion to ensure safe quantity restore/check
+    batch = db.query(Batch).filter(Batch.id == entry.batch_id).with_for_update().first()
 
     # 0) Guardrail: Block if downstream dispatches or rejections exist for this batch
     from app.db.models.dispatch_entry import DispatchEntry
@@ -296,8 +335,10 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         )
 
     if batch:
-        batch.quantity -= entry.quantity
+        # Direct NUMERIC update (Stage 3: Cleanup)
+        batch.quantity -= Decimal(str(entry.quantity))
         batch.updated_at = datetime.utcnow()
+        batch.updated_by = entry.updated_by
         batch.updated_by = entry.updated_by
     db.delete(entry)
     db.flush()
@@ -306,7 +347,10 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
     from app.db.models.item import Item
 
     item = db.get(Item, entry.item_id)
-    target_unit = item.default_uom_code if item else entry.unit
+
+    if not item or not item.default_uom_code:
+        raise UOMConfigurationError(f"Item id={item.id} has no default UOM configured.")
+    target_unit = item.default_uom_code
 
     try:
         factor = get_conversion_factor(db, entry.item_id, entry.unit, target_unit)
@@ -314,7 +358,7 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         logger.error(f"Conversion lookup failed: {e}")
         raise
 
-    base_qty = entry.quantity * factor
+    base_qty = Decimal(str(entry.quantity)) * factor
 
     create_inventory_txn(
         db,

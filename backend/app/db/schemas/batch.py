@@ -7,7 +7,7 @@ from pydantic import BaseModel
 # Base schema for shared fields
 class BatchBase(BaseModel):
     item_id: int
-    quantity: int
+    quantity: float
     unit: str
     received_at: Optional[date] = None
     expiry_date: Optional[date] = None
@@ -24,7 +24,7 @@ class BatchCreate(BatchBase):
 
 # Schema for update
 class BatchUpdate(BaseModel):
-    quantity: Optional[int] = None
+    quantity: Optional[float] = None
     unit: Optional[str] = None
     received_at: Optional[date] = None
     expiry_date: Optional[date] = None

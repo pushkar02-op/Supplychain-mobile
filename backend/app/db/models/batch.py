@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, ForeignKey, Index, Integer, String
+from sqlalchemy import Column, Date, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 from .base_class import Base
@@ -10,7 +10,7 @@ class Batch(Base, AuditMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False, index=True)
-    quantity = Column(Integer, nullable=False)
+    quantity = Column(Numeric(18, 6, asdecimal=True), nullable=False)
     unit = Column(String, nullable=False)
     expiry_date = Column(Date, nullable=True)
     received_at = Column(Date, nullable=True)

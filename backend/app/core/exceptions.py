@@ -19,8 +19,27 @@ class AppException(Exception):
         self.status_code = status_code
 
 
+class UOMConfigurationError(AppException):
+    """Raised when UOM configuration (default UOM or conversion factor) is missing or invalid."""
+
+    def __init__(self, message: str):
+        super().__init__(
+            message=message, status_code=409
+        )  # 409 Conflict suitable for config mismatch
+
+
 # Register handlers function
 def register_exception_handlers(app):
+    @app.exception_handler(UOMConfigurationError)
+    async def uom_config_exception_handler(
+        request: Request, exc: UOMConfigurationError
+    ):
+        logger.warning(f"UOM Configuration Error: {exc.message}")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.message, "error_code": "UOM_CONFIG_ERROR"},
+        )
+
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
         logger.warning(f"AppException: {exc.message}")

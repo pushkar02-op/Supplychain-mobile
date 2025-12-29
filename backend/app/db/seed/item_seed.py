@@ -39,7 +39,16 @@ def seed_items(db: Session, created_by: str = "system") -> None:
 
     for _, row in df.iterrows():
         name = str(row["name"]).strip()
-        item_code = str(row["item_code"]).strip()
+
+        item_code = row["item_code"]
+        if pd.isna(item_code):
+            item_code = None
+        else:
+            item_code = str(item_code).strip()
+            # Handle string 'nan' manually just in case
+            if item_code.lower() == "nan":
+                item_code = None
+
         default_uom = str(row["default_uom"]).strip()
 
         uom = (
