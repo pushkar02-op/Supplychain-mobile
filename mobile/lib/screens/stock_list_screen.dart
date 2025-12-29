@@ -150,17 +150,27 @@ class StockListScreen extends ConsumerWidget {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
+      floatingActionButton: Semantics(
+        label: 'add-stock-action',
+        button: true,
+        onTap: () async {
           final result = await context.push('/stock-entry', extra: null);
           if (result == true) {
             ref.invalidate(stockListProvider);
           }
         },
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Stock'),
+        child: FloatingActionButton.extended(
+          onPressed: () async {
+            final result = await context.push('/stock-entry', extra: null);
+            if (result == true) {
+              ref.invalidate(stockListProvider);
+            }
+          },
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          icon: const Icon(Icons.add),
+          label: const Text('Add Stock'),
+        ),
       ),
     );
   }
@@ -180,15 +190,25 @@ class StockListScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () async {
+          Semantics(
+            label: 'add-first-stock-entry-action',
+            button: true,
+            onTap: () async {
               final result = await context.push('/stock-entry', extra: null);
               if (result == true) {
                 ref.invalidate(stockListProvider);
               }
             },
-            icon: const Icon(Icons.add),
-            label: const Text('Add your first stock entry'),
+            child: TextButton.icon(
+              onPressed: () async {
+                final result = await context.push('/stock-entry', extra: null);
+                if (result == true) {
+                  ref.invalidate(stockListProvider);
+                }
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Add your first stock entry'),
+            ),
           ),
         ],
       ),

@@ -67,7 +67,12 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
         setState(() {
           _items = items;
           _unitOptions =
-              items.map((e) => e['default_unit'] as String).toSet().toList()
+              items
+                  .map((e) => e['default_unit'] as String?)
+                  .where((u) => u != null)
+                  .cast<String>()
+                  .toSet()
+                  .toList()
                 ..sort();
         });
       }
@@ -322,7 +327,8 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                           label: _requiredLabel('Unit'),
                         ),
                         items:
-                            _unitOptions
+                            {..._unitOptions, if (_unit.isNotEmpty) _unit}
+                                .where((u) => u.isNotEmpty)
                                 .map(
                                   (u) => DropdownMenuItem(
                                     value: u,
