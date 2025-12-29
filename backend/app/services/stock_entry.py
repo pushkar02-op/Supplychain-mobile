@@ -249,6 +249,12 @@ def update_stock_entry(
     if quantity_diff != 0:
         txn_type = "IN" if quantity_diff > 0 else "OUT"
 
+        from app.db.models.item import Item
+
+        item = db.get(Item, entry.item_id)
+        if not item:
+            raise AppException("Item not found", status_code=404)
+
         if not item or not item.default_uom_code:
             raise UOMConfigurationError(
                 f"Item id={item.id} has no default UOM configured."
