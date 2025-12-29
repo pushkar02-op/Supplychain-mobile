@@ -1,0 +1,14 @@
+{
+  "name": "agro-e2e",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "install:browsers": "playwright install --with-deps",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.0"
+  }
+}
