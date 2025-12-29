@@ -1,12 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:uuid/uuid.dart';
 import 'api_config.dart';
 import 'package:flutter/foundation.dart'; // For debugPrint
 
 class DioClient {
   static final _storage = FlutterSecureStorage();
   static late Dio instance;
-  
+
   /// Callback for when a 401 occurs.
   static VoidCallback? onUnauthorized;
 
@@ -27,6 +28,22 @@ class DioClient {
             if (token != null) {
               options.headers['Authorization'] = 'Bearer $token';
             }
+
+            // Centralized Idempotency-Key Injection for Ledger Mutations
+            if (options.method == 'POST') {
+              final path = options.path;
+              // Target endpoints: stock-entry, dispatch-entries, rejection-entries
+              if (path.contains('/stock-entry') ||
+                  path.contains('/dispatch-entries') ||
+                  path.contains('/rejection-entries')) {
+                // Only inject if not already present (respects existing keys)
+                if (!options.headers.containsKey('Idempotency-Key')) {
+                  options.headers['Idempotency-Key'] = const Uuid().v4();
+                  debugPrint('Injected Idempotency-Key for $path');
+                }
+              }
+            }
+
             return handler.next(options);
           },
           // This is called on error (e.g., 401 Unauthorized)
