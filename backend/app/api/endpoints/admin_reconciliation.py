@@ -4,18 +4,19 @@ Adheres to REC-001 (read-only for inventory) and REC-004 (admin workflow).
 """
 
 from typing import List
+
+from app.db.models.reconciliation_mismatch import MismatchStatus, ReconciliationMismatch
+from app.db.session import get_db
+from app.services.reconciliation import resolve_mismatch, run_invoice_reconciliation
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-
-from app.db.session import get_db
-from app.db.models.reconciliation_mismatch import ReconciliationMismatch, MismatchStatus
-from app.services.reconciliation import run_invoice_reconciliation, resolve_mismatch
 
 router = APIRouter(prefix="/admin/reconciliation", tags=["Admin - Reconciliation"])
 
 
 # --- Schemas ---
+
 
 class ReconciliationRunRequest(BaseModel):
     invoice_id: int
@@ -43,10 +44,10 @@ class MismatchRead(BaseModel):
 
 # --- Endpoints ---
 
+
 @router.post("/run")
 def trigger_reconciliation(
-    payload: ReconciliationRunRequest,
-    db: Session = Depends(get_db)
+    payload: ReconciliationRunRequest, db: Session = Depends(get_db)
 ):
     """
     Triggers reconciliation for a specific Invoice.
@@ -61,10 +62,7 @@ def trigger_reconciliation(
 
 
 @router.get("/mismatches", response_model=List[MismatchRead])
-def list_open_mismatches(
-    status: str = "OPEN",
-    db: Session = Depends(get_db)
-):
+def list_open_mismatches(status: str = "OPEN", db: Session = Depends(get_db)):
     """
     Lists reconciliation mismatches filtered by status.
     """
@@ -83,10 +81,7 @@ def list_open_mismatches(
 
 
 @router.post("/resolve")
-def resolve_dispute(
-    payload: MismatchResolveRequest,
-    db: Session = Depends(get_db)
-):
+def resolve_dispute(payload: MismatchResolveRequest, db: Session = Depends(get_db)):
     """
     Admin workflow to resolve a mismatch (REC-004).
     Options: "SYSTEM" (accept system), "MART" (accept mart claim), "IGNORED".
@@ -96,11 +91,7 @@ def resolve_dispute(
     resolved_by = "admin"  # Placeholder
 
     result = resolve_mismatch(
-        db,
-        payload.mismatch_id,
-        payload.resolution,
-        resolved_by,
-        payload.notes
+        db, payload.mismatch_id, payload.resolution, resolved_by, payload.notes
     )
 
     if "error" in result:

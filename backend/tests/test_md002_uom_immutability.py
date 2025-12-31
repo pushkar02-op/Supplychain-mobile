@@ -2,6 +2,7 @@
 Phase 4A: MD-002 Default UOM Immutability Tests
 Verifies that default_uom_id cannot be changed after inventory transactions exist.
 """
+
 from datetime import datetime
 from decimal import Decimal
 from app.db.models.item import Item
@@ -51,7 +52,7 @@ def test_block_uom_change_after_inventory():
         item_id=item.id,
         unit="kg",
         quantity=Decimal("10.0"),
-        received_at=datetime.utcnow().date()
+        received_at=datetime.utcnow().date(),
     )
     db.add(batch)
     db.flush()
@@ -66,7 +67,7 @@ def test_block_uom_change_after_inventory():
         base_qty=Decimal("10.0"),
         base_unit="kg",
         ref_type="stock_entry",
-        ref_id=1
+        ref_id=1,
     )
     db.add(txn)
     db.commit()
@@ -134,7 +135,7 @@ def test_allow_non_uom_updates_after_inventory():
         item_id=item.id,
         unit="kg",
         quantity=Decimal("5.0"),
-        received_at=datetime.utcnow().date()
+        received_at=datetime.utcnow().date(),
     )
     db.add(batch)
     db.flush()
@@ -148,7 +149,7 @@ def test_allow_non_uom_updates_after_inventory():
         base_qty=Decimal("5.0"),
         base_unit="kg",
         ref_type="stock_entry",
-        ref_id=1
+        ref_id=1,
     )
     db.add(txn)
     db.commit()
@@ -171,4 +172,5 @@ if __name__ == "__main__":
         print("\n=== ALL MD-002 TESTS PASSED ===")
     except Exception as e:
         import traceback
+
         traceback.print_exc()

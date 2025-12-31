@@ -1,7 +1,9 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, DateTime
-from sqlalchemy.orm import relationship
+
 from app.db.models.base_class import Base
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.orm import relationship
+
 
 class MartItemAlias(Base):
     __tablename__ = "mart_item_alias"
@@ -11,7 +13,7 @@ class MartItemAlias(Base):
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
     alias_code = Column(String, nullable=True)
     alias_name = Column(String, nullable=False)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_by = Column(String, nullable=True)
 
@@ -20,6 +22,6 @@ class MartItemAlias(Base):
     item = relationship("Item")
 
     __table_args__ = (
-        UniqueConstraint('mart_id', 'alias_code', name='uq_mart_alias_code'),
-        UniqueConstraint('mart_id', 'alias_name', name='uq_mart_alias_name'),
+        UniqueConstraint("mart_id", "alias_code", name="uq_mart_alias_code"),
+        UniqueConstraint("mart_id", "alias_name", name="uq_mart_alias_name"),
     )

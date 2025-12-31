@@ -1,6 +1,7 @@
 """
 Phase 4C: ORD-007 Over-Dispatch Prevention Tests
 """
+
 from datetime import date
 from decimal import Decimal
 from app.db.models.item import Item
@@ -180,7 +181,10 @@ def test_ord007_block_dispatch_cancelled_order():
     except AppException as e:
         assert e.status_code == 409
         assert e.extra.get("rule_id") == "ORD-007"
-        assert "Cancelled" in str(e.extra.get("order_status", "")) or "Cancelled" in e.message
+        assert (
+            "Cancelled" in str(e.extra.get("order_status", ""))
+            or "Cancelled" in e.message
+        )
         print("PASS: ORD-007 Block Dispatch Against Cancelled Order")
 
 
@@ -249,4 +253,5 @@ if __name__ == "__main__":
         print("\n=== ALL PHASE 4C ORD-007 TESTS PASSED ===")
     except Exception as e:
         import traceback
+
         traceback.print_exc()

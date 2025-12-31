@@ -1,6 +1,8 @@
-from typing import Optional
-from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel
+
 
 class MartItemAliasBase(BaseModel):
     mart_id: int
@@ -8,8 +10,10 @@ class MartItemAliasBase(BaseModel):
     alias_code: Optional[str] = None
     alias_name: str
 
+
 class MartItemAliasCreate(MartItemAliasBase):
     pass
+
 
 class MartItemAliasRead(MartItemAliasBase):
     id: int
@@ -19,9 +23,10 @@ class MartItemAliasRead(MartItemAliasBase):
     class Config:
         orm_mode = True
 
+
 class ResolutionRequest(BaseModel):
     # Used for bulk re-resolution or manual mapping
     mart_id: int
-    # Optional logic: re-resolve all for mart, or specific ones. 
+    # Optional logic: re-resolve all for mart, or specific ones.
     # For now, simplistic: Create alias triggers resolution.
     pass

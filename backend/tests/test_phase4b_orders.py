@@ -2,6 +2,7 @@
 Phase 4B: Order Management Tests
 Verifies ORD-004, ORD-005, ORD-006, ORD-008, ORD-009
 """
+
 from datetime import date, datetime
 from decimal import Decimal
 from app.db.models.item import Item
@@ -49,7 +50,7 @@ def test_ord009_reject_zero_quantity():
         mart_id=mart.id,
         order_date=date.today(),
         quantity_ordered=0,  # Invalid
-        unit="kg"
+        unit="kg",
     )
 
     try:
@@ -72,7 +73,7 @@ def test_ord004_block_update_after_dispatch():
         mart_id=mart.id,
         order_date=date.today(),
         quantity_ordered=100.0,
-        unit="kg"
+        unit="kg",
     )
     order = create_order(db, payload, created_by="test")
 
@@ -101,7 +102,7 @@ def test_ord008_block_delete_with_dispatch():
         mart_id=mart.id,
         order_date=date.today(),
         quantity_ordered=100.0,
-        unit="kg"
+        unit="kg",
     )
     order = create_order(db, payload, created_by="test")
 
@@ -128,7 +129,7 @@ def test_ord005_cancel_order():
         mart_id=mart.id,
         order_date=date.today(),
         quantity_ordered=100.0,
-        unit="kg"
+        unit="kg",
     )
     order = create_order(db, payload, created_by="test")
 
@@ -148,7 +149,7 @@ def test_ord005_block_cancel_with_dispatch():
         mart_id=mart.id,
         order_date=date.today(),
         quantity_ordered=100.0,
-        unit="kg"
+        unit="kg",
     )
     order = create_order(db, payload, created_by="test")
 
@@ -175,7 +176,7 @@ def test_ord006_status_calculation():
         mart_id=mart.id,
         order_date=date.today(),
         quantity_ordered=100.0,
-        unit="kg"
+        unit="kg",
     )
     order = create_order(db, payload, created_by="test")
 
@@ -188,6 +189,7 @@ def test_ord006_status_calculation():
 
     # Update something innocuous to trigger recalculation
     from app.services.order import _recalculate_order_status
+
     status = _recalculate_order_status(order)
     assert status == "Partially Completed"
 
@@ -210,4 +212,5 @@ if __name__ == "__main__":
         print("\n=== ALL PHASE 4B ORDER TESTS PASSED ===")
     except Exception as e:
         import traceback
+
         traceback.print_exc()
