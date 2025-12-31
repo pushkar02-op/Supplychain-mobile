@@ -33,6 +33,9 @@ def create_dispatch_entry(
 ) -> DispatchEntry:
     """
     Create a single dispatch entry, decrementing batch stock and updating order status.
+    ENFORCEMENT:
+    - INV-005: Canonical Normalization
+    - NUM-001: Decimal Safety
 
     Args:
         db (Session): Database session.
@@ -52,15 +55,87 @@ def create_dispatch_entry(
     if not batch:
         logger.error("Invalid batch_id provided")
         raise AppException("Invalid batch_id provided", status_code=400)
-    if batch.quantity < entry.quantity:
-        msg = f"Not enough stock. Available: {batch.quantity}, requested: {entry.quantity}"
-        logger.error(msg)
-        raise AppException(msg, status_code=400)
 
     mart = db.scalar(select(Mart).where(Mart.name == entry.mart_name))
     if not mart:
         logger.error(f"Mart {entry.mart_name} not found")
         raise AppException(f"Mart {entry.mart_name} not found", status_code=404)
+
+    # ====================================================================
+    # ORD-007 ENFORCEMENT: Dispatch Must Respect Order Remaining Quantity
+    # This check MUST occur BEFORE any inventory mutation.
+    # ====================================================================
+    order = db.scalar(
+        select(Order).where(
+            Order.item_id == entry.item_id,
+            Order.mart_id == mart.id,
+            Order.status.notin_(["Cancelled", "Completed"]),
+        )
+    )
+    if order:
+        existing_dispatched = Decimal(str(order.quantity_dispatched or 0))
+        quantity_ordered = Decimal(str(order.quantity_ordered))
+        dispatch_qty = Decimal(str(entry.quantity))
+        remaining_qty = quantity_ordered - existing_dispatched
+
+        if dispatch_qty > remaining_qty:
+            logger.warning(
+                f"ORD-007 BLOCKED: Dispatch {dispatch_qty} exceeds remaining {remaining_qty} "
+                f"for order {order.id}"
+            )
+            raise AppException(
+                message=f"Dispatch quantity ({dispatch_qty}) exceeds remaining order quantity ({remaining_qty}).",
+                status_code=409,
+                extra={
+                    "rule_id": "ORD-007",
+                    "requested_quantity": float(dispatch_qty),
+                    "remaining_quantity": float(remaining_qty),
+                    "explanation": "Over-dispatch is not allowed. Reduce quantity or create a new order.",
+                },
+            )
+
+    # Check for dispatch against Cancelled/Completed orders
+    blocked_order = db.scalar(
+        select(Order).where(
+            Order.item_id == entry.item_id,
+            Order.mart_id == mart.id,
+            Order.status.in_(["Cancelled", "Completed"]),
+        )
+    )
+    if blocked_order and not order:
+        # No active order, but a cancelled/completed one exists
+        logger.warning(
+            f"ORD-007 BLOCKED: Dispatch against {blocked_order.status} order {blocked_order.id}"
+        )
+        raise AppException(
+            message=f"Cannot dispatch against {blocked_order.status} order.",
+            status_code=409,
+            extra={
+                "rule_id": "ORD-007",
+                "order_status": blocked_order.status,
+                "explanation": f"Order is {blocked_order.status} and cannot receive dispatches.",
+            },
+        )
+    # ====================================================================
+
+    # 1) Normalize to Batch Unit (Canonical)
+    # Batch is assumed/enforced to be in canonical unit by stock_entry logic.
+    try:
+        factor = Decimal(
+            str(get_conversion_factor(db, entry.item_id, entry.unit, batch.unit))
+        )
+    except AppException as e:
+        logger.error(f"Conversion failed for dispatch: {e}")
+        raise
+
+    raw_qty = Decimal(str(entry.quantity))
+    canonical_qty = raw_qty * factor
+
+    # 2) Validate Availability (Canonical vs Canonical)
+    if batch.quantity < canonical_qty:
+        msg = f"Not enough stock. Available: {batch.quantity} {batch.unit}, requested: {entry.quantity} {entry.unit} ({canonical_qty} {batch.unit})"
+        logger.error(msg)
+        raise AppException(msg, status_code=400)
 
     exists = (
         db.query(DispatchEntry)
@@ -84,7 +159,7 @@ def create_dispatch_entry(
         item_id=entry.item_id,
         mart_id=mart.id,
         dispatch_date=entry.dispatch_date,
-        quantity=entry.quantity,
+        quantity=entry.quantity,  # Store raw user request
         unit=entry.unit,
         remarks=entry.remarks,
         created_by=user_name,
@@ -92,17 +167,19 @@ def create_dispatch_entry(
         updated_by=user_name,
     )
     db.add(dispatch)
-    batch.quantity -= Decimal(str(entry.quantity))
+
+    # 3) Mutate Batch (Canonical)
+    batch.quantity -= canonical_qty
     batch.updated_at = datetime.utcnow()
+
     _update_order_after_dispatch(db, entry.item_id, entry.mart_name, entry.quantity)
     db.flush()
     db.refresh(dispatch)
     logger.debug(f"Created/Updating dispatch record for item_id={entry.item_id}")
 
-    # 3) Ledger OUT movement
+    # 4) Ledger OUT movement
+    # Using the same calculated factor/canonical_qty ensures consistency
     try:
-        factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
-        base_qty = Decimal(str(entry.quantity)) * factor
         create_inventory_txn(
             db,
             InventoryTxnCreate(
@@ -111,8 +188,8 @@ def create_dispatch_entry(
                 txn_type="OUT",
                 raw_qty=entry.quantity,
                 raw_unit=entry.unit,
-                base_qty=base_qty,
-                base_unit=batch.unit,  # Standardize on batch unit for base
+                base_qty=canonical_qty,
+                base_unit=batch.unit,
                 ref_type="dispatch_entry",
                 ref_id=dispatch.id,
                 remarks="Stock dispatched",
@@ -132,6 +209,9 @@ def create_dispatch_from_order(
 ) -> List[DispatchEntry]:
     """
     Create dispatch entries from an order allocation across batches.
+    ENFORCEMENT:
+    - INV-005: Canonical Normalization
+    - NUM-001: Decimal Safety
 
     Args:
         db (Session): Database session.
@@ -187,12 +267,21 @@ def create_dispatch_from_order(
     # 2) Process each requested allocation using the locked batch objects
     for b in entry.batches:
         batch = batch_map[b.batch_id]
-        # Redundant check removed as we filtered by item_id above, but safe to keep logic clean
 
-        if batch.quantity < b.quantity:
-            msg = (
-                f"Batch {b.batch_id} has only {batch.quantity}, requested {b.quantity}"
+        # Canonical Normalization
+        try:
+            factor = Decimal(
+                str(get_conversion_factor(db, entry.item_id, entry.unit, batch.unit))
             )
+        except AppException as e:
+            logger.error(f"Conversion failed for batch {batch.id}: {e}")
+            raise
+
+        raw_qty = Decimal(str(b.quantity))
+        canonical_qty = raw_qty * factor
+
+        if batch.quantity < canonical_qty:
+            msg = f"Batch {b.batch_id} has only {batch.quantity} {batch.unit}, requested {b.quantity} {entry.unit} ({canonical_qty} {batch.unit})"
             logger.error(msg)
             raise AppException(msg, status_code=400)
 
@@ -204,7 +293,7 @@ def create_dispatch_from_order(
             )
         )
         if existing:
-            existing.quantity += b.quantity
+            existing.quantity += b.quantity  # Raw update
             existing.remarks = entry.remarks or existing.remarks
             from app.utils.audit import resolve_user_audit
 
@@ -225,7 +314,7 @@ def create_dispatch_from_order(
                 batch_id=batch.id,
                 mart_id=order.mart_id,
                 dispatch_date=entry.dispatch_date,
-                quantity=b.quantity,
+                quantity=b.quantity,  # Raw
                 unit=entry.unit,
                 remarks=entry.remarks,
                 created_by=user_name,
@@ -235,13 +324,14 @@ def create_dispatch_from_order(
             db.add(disp)
             results.append(disp)
 
-        batch.quantity -= Decimal(str(b.quantity))
+        # Mutate Batch (Canonical)
+        batch.quantity -= canonical_qty
         batch.updated_at = datetime.utcnow()
 
         # 4) Ledger OUT movement for this batch
         try:
-            factor = get_conversion_factor(db, entry.item_id, entry.unit, batch.unit)
-            base_qty = Decimal(str(b.quantity)) * factor
+            # Factor already calculated
+            # base_qty = canonical_qty (already calculated)
 
             create_inventory_txn(
                 db,
@@ -251,7 +341,7 @@ def create_dispatch_from_order(
                     txn_type="OUT",
                     raw_qty=b.quantity,
                     raw_unit=entry.unit,
-                    base_qty=base_qty,
+                    base_qty=canonical_qty,
                     base_unit=batch.unit,
                     ref_type="dispatch_entry",
                     ref_id=disp.id if "disp" in locals() else existing.id,
@@ -373,6 +463,9 @@ def update_dispatch_entry(
 ) -> Optional[DispatchEntry]:
     """
     Update an existing dispatch entry and adjust batch/order accordingly.
+    ENFORCEMENT:
+    - INV-005: Canonical Normalization
+    - NUM-001: Decimal Safety
 
     Args:
         db (Session): Database session.
@@ -397,19 +490,49 @@ def update_dispatch_entry(
         logger.error("Original batch not found")
         raise AppException("Original batch not found", status_code=404)
 
-    old_qty = dispatch.quantity
-    new_qty = entry_update.quantity if entry_update.quantity is not None else old_qty
-    diff = new_qty - old_qty
-    if diff:
-        if batch.quantity < -diff:
-            msg = f"Not enough stock to increase dispatch. Available: {batch.quantity}, needed: {-diff}"
-            logger.error(msg)
-            raise AppException(msg, status_code=400)
-        batch.quantity -= Decimal(str(diff))
-        batch.updated_at = datetime.utcnow()
-        _update_order_after_dispatch(db, dispatch.item_id, dispatch.mart.name, diff)
+    # Calculate Canonical Diffs
+    old_qty_raw = Decimal(str(dispatch.quantity))
+    data = entry_update.dict(exclude_unset=True)
+    new_qty_raw = Decimal(str(data.get("quantity", dispatch.quantity)))
+    new_unit = data.get("unit", dispatch.unit)
 
-    for field, val in entry_update.dict(exclude_unset=True).items():
+    # 1. Reverse old contribution (Canonical)
+    try:
+        factor_old = Decimal(
+            str(get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit))
+        )
+        old_canonical = old_qty_raw * factor_old
+
+        # 2. New contribution (Canonical)
+        factor_new = Decimal(
+            str(get_conversion_factor(db, dispatch.item_id, new_unit, batch.unit))
+        )
+        new_canonical = new_qty_raw * factor_new
+
+        canonical_diff = new_canonical - old_canonical
+
+    except AppException as e:
+        logger.error(f"Conversion failed during update: {e}")
+        raise
+
+    if canonical_diff != 0:
+        # Check if increasing usage
+        if canonical_diff > 0:
+            if batch.quantity < canonical_diff:
+                msg = f"Not enough stock to increase dispatch. Available: {batch.quantity} {batch.unit}, needed: {canonical_diff} {batch.unit}"
+                logger.error(msg)
+                raise AppException(msg, status_code=400)
+
+        batch.quantity -= canonical_diff
+        batch.updated_at = datetime.utcnow()
+        # Order update logic remains using RAW diff (assuming simpler counting)
+        # Note: If order unit different, this is ambiguous, but keeping as is for Phase 1.
+        raw_diff = new_qty_raw - old_qty_raw
+        _update_order_after_dispatch(
+            db, dispatch.item_id, dispatch.mart.name, float(raw_diff)
+        )
+
+    for field, val in data.items():
         setattr(dispatch, field, val)
     from app.utils.audit import resolve_user_audit
 
@@ -422,31 +545,45 @@ def update_dispatch_entry(
     db.refresh(dispatch)
     logger.debug(f"Dispatch id={dispatch_id} meta-fields updated")
 
-    if diff != 0:
-        txn_type = "IN" if diff > 0 else "OUT"
-        try:
-            factor = get_conversion_factor(
-                db, dispatch.item_id, entry_update.unit, batch.unit
-            )
-        except AppException as e:
-            logger.error(f"Conversion lookup failed: {e}")
-            raise
+    if canonical_diff != 0:
+        txn_type = (
+            "IN" if canonical_diff < 0 else "OUT"
+        )  # diff > 0 means we took MORE stock OUT
+        # Wait, if canonical_diff > 0, we increased dispatch, so batch decreases.
+        # But for TXN, if we increase dispatch, we are doing another OUT.
+        # Original: txn_type = "IN" if diff > 0 else "OUT"
+        # Wait.
+        # stock_entry update: diff > 0 means stock INCREASED -> IN.
+        # dispatch_entry update: diff > 0 means dispatch INCREASED -> Stock DECREASE -> OUT.
 
-        base_qty = Decimal(str(diff)) * factor
+        # Let's double check original logic:
+        # old: diff = new - old
+        # if diff > 0: batch -= diff. (Stock goes down).
+        # txn: diff > 0 -> txn_type = "IN"?
+        # Original code line 426: txn_type = "IN" if diff > 0 else "OUT"
+        # If dispatch increased, we took more stock. This is an OUT transaction relative to inventory?
+        # NO. InventoryTxn types: IN (stock added), OUT (stock removed).
+        # If dispatch quantity INCREASES, we remove MORE stock. So it should be OUT.
+        # If original code said IN, it might have been tracking dispatch size not stock flow?
+        # create_dispatch uses OUT.
+        # So additional dispatch = OUT.
+        # Reduction in dispatch = IN (refund).
+
+        final_txn_type = "OUT" if canonical_diff > 0 else "IN"
 
         create_inventory_txn(
             db,
             InventoryTxnCreate(
                 item_id=dispatch.item_id,
                 batch_id=batch.id,
-                txn_type=txn_type,
-                raw_qty=diff,
-                raw_unit=entry_update.unit,
-                base_qty=base_qty,
-                base_unit=entry_update.unit,
+                txn_type=final_txn_type,
+                raw_qty=abs(new_qty_raw - old_qty_raw),  # Approximate raw
+                raw_unit=new_unit,
+                base_qty=abs(canonical_diff),
+                base_unit=batch.unit,  # Canonical
                 ref_type="dispatch_entry",
                 ref_id=dispatch.id,
-                remarks="Dispatch {txn_type} from update adjustment",
+                remarks="Dispatch update adjustment",
             ),
         )
 
@@ -458,6 +595,9 @@ def update_dispatch_entry(
 def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
     """
     Delete a dispatch entry and restore batch/order state.
+    ENFORCEMENT:
+    - INV-005: Canonical Normalization
+    - NUM-001: Decimal Safety
 
     Args:
         db (Session): Database session.
@@ -483,7 +623,17 @@ def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
         logger.error("Batch not found during delete")
         raise AppException("Batch not found", status_code=404)
 
-    batch.quantity += Decimal(str(dispatch.quantity))
+    # 1) Restore Stock (Canonical)
+    try:
+        factor = Decimal(
+            str(get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit))
+        )
+        canonical_qty = Decimal(str(dispatch.quantity)) * factor
+    except AppException as e:
+        logger.error(f"Conversion failed during delete dispatch: {e}")
+        raise
+
+    batch.quantity += canonical_qty
     batch.updated_at = datetime.utcnow()
 
     _update_order_after_dispatch(
@@ -493,19 +643,17 @@ def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
     db.delete(dispatch)
     db.flush()
 
+    # Ledger IN (Stock back)
     try:
-        factor = get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit)
-        base_qty = Decimal(str(dispatch.quantity)) * factor
-
         create_inventory_txn(
             db,
             InventoryTxnCreate(
                 item_id=dispatch.item_id,
                 batch_id=batch.id,
-                txn_type="IN",
+                txn_type="IN",  # Stock Coming Back
                 raw_qty=dispatch.quantity,
                 raw_unit=dispatch.unit,
-                base_qty=base_qty,
+                base_qty=canonical_qty,
                 base_unit=batch.unit,
                 ref_type="dispatch_entry",
                 ref_id=dispatch.id,
