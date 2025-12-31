@@ -7,6 +7,9 @@ venv/
 
 # Logs
 *.log
+*.txt
+!requirements.txt
+!/docs/*.txt
 
 # MacOS
 .DS_Store
@@ -17,6 +20,8 @@ venv/
 # Data & artifacts
 *.sqlite3
 modal_debug*
+test_ord007_simple.py
+
 
 # Flutter / Dart
 **/build/
