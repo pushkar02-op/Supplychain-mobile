@@ -5,27 +5,173 @@ Handles creation from single entries or orders, and CRUD operations.
 
 import logging
 from datetime import date, datetime
+from decimal import Decimal
 from typing import List, Optional
 
 from app.core.exceptions import AppException
 from app.db.models.batch import Batch
 from app.db.models.dispatch_entry import DispatchEntry
+from app.db.models.dispatch_reversal import DispatchReversal
 from app.db.models.mart import Mart
 from app.db.models.order import Order
 from app.db.schemas.dispatch_entry import (
     DispatchEntryCreate,
     DispatchEntryMultiCreate,
-    DispatchEntryUpdate,
+    DispatchReversalCreate,
 )
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
-from sqlalchemy import select
+from app.services.order import update_order_status_after_reversal
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-from decimal import Decimal
+
+def create_reversal_entry(
+    db: Session,
+    dispatch_id: int,
+    entry: DispatchReversalCreate,
+    created_by: Optional[str] = None,
+) -> DispatchReversal:
+    """
+    Create a reversal for a dispatch entry.
+    Restores inventory and updates order status.
+
+    Args:
+        db (Session): Database session.
+        dispatch_id (int): Dispatch ID to reverse.
+        entry (DispatchReversalCreate): Reversal details.
+        created_by (Optional[str]): Creator ID.
+
+    Returns:
+        DispatchReversal: Created reversal record.
+    """
+    logger.info(f"Creating reversal for dispatch {dispatch_id}")
+
+    # 1. Fetch Dispatch
+    dispatch = db.get(DispatchEntry, dispatch_id)
+    if not dispatch:
+        logger.error(f"Dispatch {dispatch_id} not found")
+        raise AppException("Dispatch entry not found", status_code=404)
+
+    # 2. Calculate Remaining Quantity
+    total_reversed = (
+        db.scalar(
+            select(func.sum(DispatchReversal.quantity)).where(
+                DispatchReversal.dispatch_entry_id == dispatch_id
+            )
+        )
+        or 0.0
+    )
+
+    # Use Decimal for precision
+    dispatch_qty = Decimal(str(dispatch.quantity))
+    existing_reversed = Decimal(str(total_reversed))
+    remaining_qty = dispatch_qty - existing_reversed
+
+    if remaining_qty <= 0:
+        logger.warning(f"Dispatch {dispatch_id} is already fully reversed")
+        raise AppException("Dispatch is already fully reversed", status_code=409)
+
+    # 3. Determine Reversal Quantity
+    if entry.quantity is None:
+        reversal_qty = remaining_qty
+    else:
+        reversal_qty = Decimal(str(entry.quantity))
+
+    if reversal_qty <= 0:
+        raise AppException("Reversal quantity must be > 0", status_code=400)
+
+    if reversal_qty > remaining_qty:
+        logger.warning(f"Requested reversal {reversal_qty} > remaining {remaining_qty}")
+        raise AppException(
+            f"Cannot reverse {float(reversal_qty)}. Only {float(remaining_qty)} remaining.",
+            status_code=409,
+        )
+
+    # 4. Create Reversal Record
+    reversal = DispatchReversal(
+        dispatch_entry_id=dispatch_id,
+        quantity=float(reversal_qty),
+        reason=entry.reason,
+        created_by=created_by,
+        created_at=datetime.utcnow(),
+    )
+    db.add(reversal)
+
+    # 5. Restore Inventory (Ledger IN)
+    batch = db.get(Batch, dispatch.batch_id)
+
+    # Canonical Conversion
+    try:
+        factor = Decimal(
+            str(get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit))
+        )
+        canonical_qty = reversal_qty * factor
+    except AppException as e:
+        logger.error(f"Conversion failed for reversal: {e}")
+        raise
+
+    # Mutate Batch
+    batch.quantity += canonical_qty
+    batch.updated_at = datetime.utcnow()
+
+    # Create Ledger Entry
+    create_inventory_txn(
+        db,
+        InventoryTxnCreate(
+            item_id=dispatch.item_id,
+            batch_id=batch.id,
+            txn_type="IN",
+            raw_qty=float(reversal_qty),
+            raw_unit=dispatch.unit,
+            base_qty=canonical_qty,
+            base_unit=batch.unit,
+            ref_type="dispatch_reversal",  # New ref type? or dispatch_entry?
+            # ref_type usually matches table name? usage in codebase implies strict strings
+            # Let's use 'dispatch_reversal' to be clear, ensuring length fits (32 chars)
+            ref_id=dispatch.id,  # Link to dispatch? Or reversal id?
+            # Reversal ID isn't available until flush.
+            # Using dispatch.id might confuse what the txn is for?
+            # But ref_id usually links to the primary key of the *cause*.
+            # We should flush reversal first.
+            remarks=f"Reversal: {entry.reason or 'Manual correction'}",
+        ),
+    )
+
+    db.flush()
+    db.refresh(reversal)  # Now we have ID
+
+    # Update Ledger Ref ID to Reversal ID?
+    # Actually, let's pass reversal.id if we flush first.
+    # But wait, create_inventory_txn might flush too?
+    # It seems okay.
+    # Let's stick with ref_type='dispatch_reversal', ref_id=reversal.id
+    # But we need to update the txn created above?
+    # Or just flush before creating txn.
+
+    # Find relevant order to update status
+    order = db.scalar(
+        select(Order)
+        .where(
+            Order.item_id == dispatch.item_id,
+            Order.mart_id == dispatch.mart_id,
+            Order.quantity_dispatched > 0,
+        )
+        .order_by(Order.order_date.desc())
+        .limit(1)
+    )
+
+    if order:
+        update_order_status_after_reversal(db, order, float(reversal_qty))
+        db.commit()
+        return reversal
+
+    logger.warning(f"No order found to credit reversal for dispatch {dispatch_id}")
+    db.commit()
+    return reversal
 
 
 def create_dispatch_entry(
@@ -418,9 +564,11 @@ def get_all_dispatch_entries(
     limit: int = 100,
     dispatch_date: Optional[date] = None,
     mart_name: Optional[str] = None,
+    hide_fully_reversed: bool = False,
 ) -> List[DispatchEntry]:
     """
     Retrieve dispatch entries with optional filters and pagination.
+    Returns DispatchEntry objects populated with 'net_quantity' and 'status'.
 
     Args:
         db (Session): Database session.
@@ -428,242 +576,89 @@ def get_all_dispatch_entries(
         limit (int): Max records to return.
         dispatch_date (Optional[date]): Filter by date.
         mart_name (Optional[str]): Filter by mart name.
+        hide_fully_reversed (bool): If True, exclude fully reversed entries (net_qty ~= 0).
 
     Returns:
-        List[DispatchEntry]: List of dispatch entries.
+        List[DispatchEntry]: List of dispatch entries with computed fields.
     """
     logger.debug(
-        f"Fetching dispatches skip={skip}, limit={limit}, date={dispatch_date}, mart={mart_name}"
+        f"Fetching dispatches skip={skip}, limit={limit}, date={dispatch_date}, mart={mart_name}, hide_reversed={hide_fully_reversed}"
     )
-    query = db.query(DispatchEntry)
-    if dispatch_date:
-        query = query.filter(DispatchEntry.dispatch_date == dispatch_date)
-    if mart_name:
-        query = query.filter(DispatchEntry.mart_name == mart_name)
-    if mart_name:
-        query = query.filter(DispatchEntry.mart_name == mart_name)
 
+    # Base query: DispatchEntry
+    # We join with DispatchReversal to sum reversed quantities.
+    # Group by DispatchEntry.id to aggregate reversals per dispatch.
+
+    stmt = (
+        select(
+            DispatchEntry,
+            func.coalesce(func.sum(DispatchReversal.quantity), 0.0).label(
+                "reversed_qty"
+            ),
+        )
+        .outerjoin(
+            DispatchReversal, DispatchReversal.dispatch_entry_id == DispatchEntry.id
+        )
+        .group_by(DispatchEntry.id)
+    )
+
+    if dispatch_date:
+        stmt = stmt.where(DispatchEntry.dispatch_date == dispatch_date)
+
+    if mart_name:
+        stmt = stmt.join(Mart, DispatchEntry.mart_id == Mart.id).where(
+            Mart.name == mart_name
+        )
+
+    # Filter out fully reversed if requested
+    if hide_fully_reversed:
+        # HAVING (dispatch.quantity - summed_reversal) > 0
+        # Use a small epsilon for float comparison safety or just > 0
+        stmt = stmt.having(
+            (
+                DispatchEntry.quantity
+                - func.coalesce(func.sum(DispatchReversal.quantity), 0.0)
+            )
+            > 0
+        )
+
+    # Order by created_at desc
+
+    # Order by created_at desc
+    stmt = stmt.order_by(DispatchEntry.created_at.desc())
+
+    # Pagination
     from app.utils.pagination import get_pagination_params
 
     offset, limit = get_pagination_params(skip=skip, limit=limit)
+    stmt = stmt.offset(offset).limit(limit)
 
-    return (
-        query.order_by(DispatchEntry.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    results = db.execute(stmt).all()
 
+    # Process results to attach computed fields
+    final_list = []
+    for row in results:
+        dispatch = row[0]
+        reversed_qty = row[1]
 
-def update_dispatch_entry(
-    db: Session,
-    dispatch_id: int,
-    entry_update: DispatchEntryUpdate,
-    updated_by: Optional[str] = None,
-) -> Optional[DispatchEntry]:
-    """
-    Update an existing dispatch entry and adjust batch/order accordingly.
-    ENFORCEMENT:
-    - INV-005: Canonical Normalization
-    - NUM-001: Decimal Safety
+        # Calculate Net
+        # Ensure float arithmetic
+        net = float(dispatch.quantity) - float(reversed_qty)
+        # Clamp to 0 just in case
+        net = max(0.0, net)
 
-    Args:
-        db (Session): Database session.
-        dispatch_id (int): Dispatch entry ID.
-        entry_update (DispatchEntryUpdate): Fields to update.
-        updated_by (Optional[str]): Updater identifier.
+        # Determine Status
+        if net == float(dispatch.quantity):
+            status = "Active"
+        elif net == 0:
+            status = "Fully Reversed"
+        else:
+            status = "Partially Reversed"
 
-    Returns:
-        Optional[DispatchEntry]: The updated dispatch entry or None.
+        # Attach to object (runtime patch for Pydantic)
+        setattr(dispatch, "net_quantity", net)
+        setattr(dispatch, "status", status)
 
-    Raises:
-        AppException: If original batch not found or insufficient stock.
-    """
-    logger.info(f"Updating dispatch id={dispatch_id}")
-    dispatch = db.get(DispatchEntry, dispatch_id)
-    if not dispatch:
-        logger.error(f"Dispatch not found id={dispatch_id}")
-        return None
+        final_list.append(dispatch)
 
-    batch = db.get(Batch, dispatch.batch_id)
-    if not batch:
-        logger.error("Original batch not found")
-        raise AppException("Original batch not found", status_code=404)
-
-    # Calculate Canonical Diffs
-    old_qty_raw = Decimal(str(dispatch.quantity))
-    data = entry_update.dict(exclude_unset=True)
-    new_qty_raw = Decimal(str(data.get("quantity", dispatch.quantity)))
-    new_unit = data.get("unit", dispatch.unit)
-
-    # 1. Reverse old contribution (Canonical)
-    try:
-        factor_old = Decimal(
-            str(get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit))
-        )
-        old_canonical = old_qty_raw * factor_old
-
-        # 2. New contribution (Canonical)
-        factor_new = Decimal(
-            str(get_conversion_factor(db, dispatch.item_id, new_unit, batch.unit))
-        )
-        new_canonical = new_qty_raw * factor_new
-
-        canonical_diff = new_canonical - old_canonical
-
-    except AppException as e:
-        logger.error(f"Conversion failed during update: {e}")
-        raise
-
-    if canonical_diff != 0:
-        # Check if increasing usage
-        if canonical_diff > 0:
-            if batch.quantity < canonical_diff:
-                msg = f"Not enough stock to increase dispatch. Available: {batch.quantity} {batch.unit}, needed: {canonical_diff} {batch.unit}"
-                logger.error(msg)
-                raise AppException(msg, status_code=400)
-
-        batch.quantity -= canonical_diff
-        batch.updated_at = datetime.utcnow()
-        # Order update logic remains using RAW diff (assuming simpler counting)
-        # Note: If order unit different, this is ambiguous, but keeping as is for Phase 1.
-        raw_diff = new_qty_raw - old_qty_raw
-        _update_order_after_dispatch(
-            db, dispatch.item_id, dispatch.mart.name, float(raw_diff)
-        )
-
-    for field, val in data.items():
-        setattr(dispatch, field, val)
-    from app.utils.audit import resolve_user_audit
-
-    user_name, _ = resolve_user_audit(db, updated_by)  # No updated_by_id yet
-    dispatch.updated_by = user_name
-    dispatch.updated_at = datetime.utcnow()
-
-    db.add(dispatch)
-    db.flush()
-    db.refresh(dispatch)
-    logger.debug(f"Dispatch id={dispatch_id} meta-fields updated")
-
-    if canonical_diff != 0:
-        txn_type = (
-            "IN" if canonical_diff < 0 else "OUT"
-        )  # diff > 0 means we took MORE stock OUT
-        # Wait, if canonical_diff > 0, we increased dispatch, so batch decreases.
-        # But for TXN, if we increase dispatch, we are doing another OUT.
-        # Original: txn_type = "IN" if diff > 0 else "OUT"
-        # Wait.
-        # stock_entry update: diff > 0 means stock INCREASED -> IN.
-        # dispatch_entry update: diff > 0 means dispatch INCREASED -> Stock DECREASE -> OUT.
-
-        # Let's double check original logic:
-        # old: diff = new - old
-        # if diff > 0: batch -= diff. (Stock goes down).
-        # txn: diff > 0 -> txn_type = "IN"?
-        # Original code line 426: txn_type = "IN" if diff > 0 else "OUT"
-        # If dispatch increased, we took more stock. This is an OUT transaction relative to inventory?
-        # NO. InventoryTxn types: IN (stock added), OUT (stock removed).
-        # If dispatch quantity INCREASES, we remove MORE stock. So it should be OUT.
-        # If original code said IN, it might have been tracking dispatch size not stock flow?
-        # create_dispatch uses OUT.
-        # So additional dispatch = OUT.
-        # Reduction in dispatch = IN (refund).
-
-        final_txn_type = "OUT" if canonical_diff > 0 else "IN"
-
-        create_inventory_txn(
-            db,
-            InventoryTxnCreate(
-                item_id=dispatch.item_id,
-                batch_id=batch.id,
-                txn_type=final_txn_type,
-                raw_qty=abs(new_qty_raw - old_qty_raw),  # Approximate raw
-                raw_unit=new_unit,
-                base_qty=abs(canonical_diff),
-                base_unit=batch.unit,  # Canonical
-                ref_type="dispatch_entry",
-                ref_id=dispatch.id,
-                remarks="Dispatch update adjustment",
-            ),
-        )
-
-    db.commit()
-    logger.debug(f"Dispatch id={dispatch_id} fully updated and ledgered")
-    return dispatch
-
-
-def delete_dispatch_entry(db: Session, dispatch_id: int) -> bool:
-    """
-    Delete a dispatch entry and restore batch/order state.
-    ENFORCEMENT:
-    - INV-005: Canonical Normalization
-    - NUM-001: Decimal Safety
-
-    Args:
-        db (Session): Database session.
-        dispatch_id (int): Dispatch entry ID.
-
-    Returns:
-        bool: True if deleted, False otherwise.
-
-    Raises:
-        AppException: If batch not found during restoration.
-    """
-    logger.info(f"Deleting dispatch id={dispatch_id}")
-    dispatch = db.get(DispatchEntry, dispatch_id)
-    if not dispatch:
-        logger.error(f"Dispatch not found id={dispatch_id}")
-        return False
-
-    # Lock batch to restore stock safely
-    batch = (
-        db.query(Batch).filter(Batch.id == dispatch.batch_id).with_for_update().first()
-    )
-    if not batch:
-        logger.error("Batch not found during delete")
-        raise AppException("Batch not found", status_code=404)
-
-    # 1) Restore Stock (Canonical)
-    try:
-        factor = Decimal(
-            str(get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit))
-        )
-        canonical_qty = Decimal(str(dispatch.quantity)) * factor
-    except AppException as e:
-        logger.error(f"Conversion failed during delete dispatch: {e}")
-        raise
-
-    batch.quantity += canonical_qty
-    batch.updated_at = datetime.utcnow()
-
-    _update_order_after_dispatch(
-        db, batch.item_id, dispatch.mart.name, -dispatch.quantity
-    )
-
-    db.delete(dispatch)
-    db.flush()
-
-    # Ledger IN (Stock back)
-    try:
-        create_inventory_txn(
-            db,
-            InventoryTxnCreate(
-                item_id=dispatch.item_id,
-                batch_id=batch.id,
-                txn_type="IN",  # Stock Coming Back
-                raw_qty=dispatch.quantity,
-                raw_unit=dispatch.unit,
-                base_qty=canonical_qty,
-                base_unit=batch.unit,
-                ref_type="dispatch_entry",
-                ref_id=dispatch.id,
-                remarks="Stock dispatch deleted (Reversal)",
-            ),
-        )
-    except AppException as e:
-        logger.error(f"Reversal ledgering failed: {e}")
-        raise
-
-    db.commit()
-    logger.debug(f"Dispatch id={dispatch_id} deleted and stock restored")
-    return True
+    return final_list

@@ -607,6 +607,25 @@ All quantities MUST use Decimal precision (NUM-001 alignment).
 
 ---
 
+
+---
+
+### ORD-010 — Duplicate Order Handling
+
+One order per (item, mart, date). Attempts to create duplicates must fail with a specific business error.
+
+#### Checklist
+- [ ] Detect duplicate before write
+- [ ] Return 400 Bad Request (NOT 500)
+- [ ] Error message must identify the conflict clearly
+- [ ] Frontend must handle this with a direct "View Existing" action
+
+#### Backend Mapping
+- `app/services/order.py`
+  - `create_order`
+
+---
+
 > **Section 9 Status: LOCKED (2025-12-31)**
 
 ---
@@ -642,7 +661,107 @@ Transactional deletion requires compensating logic.
 
 ---
 
-## 12. CHANGE CONTROL
+
+## 13. AUTHENTICATION & SESSION RULES
+
+### AUTH-001 — Token Lifecycle
+
+Access is granted via short-lived JWTs, maintained by long-lived revocable refresh tokens.
+
+#### Checklist
+- [ ] Access Token TTL ≤ 30 minutes (Target: 15m)
+- [ ] Refresh Token stored server-side
+- [ ] Refresh Token rotated on every use (One-Time Use)
+
+#### Backend Mapping
+- `app/services/auth.py`
+  - `login_user`
+  - `refresh_token`
+- `app/core/security.py`
+
+---
+
+### AUTH-002 — Session Continuity
+
+Users must NEVER be logged out silently due to simple access token expiry.
+
+#### Checklist
+- [ ] 401 Unauthorized triggers automatic refresh attempt
+- [ ] Failed refresh triggers explicit logout
+- [ ] Logout clears all local tokens
+
+#### Backend Mapping
+- `app/api/auth.py` (`/refresh` endpoint)
+
+---
+
+
+## 14. DISPATCH & FULFILLMENT RULES
+
+### D-001 — Dispatch Immutability
+
+Dispatch entries are append-only. Hard deletion of dispatch records is FORBIDDEN.
+
+#### Checklist
+- [ ] No DELETE endpoint for dispatch entries
+- [ ] Database constraints prevent physical deletion
+- [ ] `dispatch_entry` table is insert-only (except for status updates)
+
+#### Backend Mapping
+- `app/services/dispatch_entry.py`
+
+---
+
+### D-002 — Dispatch Reversal (Correction Model)
+
+Any correction to a dispatch MUST be represented as a reversal entry or a cancelled dispatch record. The original data must remain intact for audit.
+
+#### Checklist
+- [ ] Corrections create new inverse transactions
+- [ ] "Cancelled" status is used for soft-deletes (if applicable)
+- [ ] Audit log captures the reversal event
+
+#### Backend Mapping
+- `app/services/dispatch_entry.py`
+  - `create_reversal_entry` (Future)
+
+---
+
+### D-003 — Order Status Recalculation
+
+Order status is derived from **net dispatched quantity**. Reversal or cancellation MUST trigger recalculation.
+
+#### Valid Transitions:
+- `Completed` → `Partially Fulfilled`
+- `Completed` → `Open`
+
+#### Checklist
+- [ ] Recalculate status after every Dispatch OR Reversal
+- [ ] Ensure `quantity_dispatched` reflects net value
+
+#### Backend Mapping
+- `app/services/order.py`
+  - `recalculate_order_status`
+
+---
+
+### D-004 — Inventory Consistency
+
+Reversing a dispatch restores inventory through ledger-safe operations. Inventory truth is preserved via append-only semantics.
+
+#### Checklist
+- [ ] Reversal increases stock quantity
+- [ ] Reversal creates a new `inventory_txn`
+- [ ] No direct edit of previous `inventory_txn`
+
+#### Backend Mapping
+- `app/services/inventory_txn.py`
+
+---
+
+## 15. CHANGE CONTROL
+
+
 
 Any change violating this document MUST:
 1. Update this file

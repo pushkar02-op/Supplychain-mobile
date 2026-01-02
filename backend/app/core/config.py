@@ -8,6 +8,7 @@ load_dotenv()
 class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL")
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY")
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     POSTGRES_USER = os.getenv("POSTGRES_USER")
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
     POSTGRES_DB = os.getenv("POSTGRES_DB")

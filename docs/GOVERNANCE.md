@@ -41,13 +41,28 @@ These documents define **non-negotiable rules**. They are not suggestions.
 
 *   **Scenario:** You want to add a new column to `stock_entry`.
     *   **Action:** You must first file an RFC (update `docs/`), get it approved, and *then* write the SQL.
-*   **Scenario:** You want to change how Dispatch deducts inventory.
     *   **Action:** Update `docs/business_rules_and_enforcement.md`, verify it doesn't violate the Freeze, then implement.
 
 ### B. "The Source of Truth" Rule
 Code is **NOT** the source of truth for Business Logic.
 *   If Code says `A`, but `business_rules_and_enforcement.md` says `B` -> **The Code is BUGGED.**
 *   Fix the code to match the doc.
+
+
+### C. Emergency Fix Clause
+In the event of a P0/Critical outage:
+1.  Code may be fixed first to restore service.
+2.  Documentation **MUST** be updated immediately after the incident is resolved (within 24 hours).
+3.  The incident report must link to the documentation update.
+
+
+### D. Destructive Operations Policy (Inventory & Financial)
+
+To ensure auditability and data integrity:
+
+1.  **Forbidden Deletions**: Records affecting inventory, financial ledger, or legal audit trails (e.g., `stock_entry`, `dispatch_entry`, `inventory_txn`) MUST NOT be physically deleted once committed.
+2.  **Correction by Reversal**: Errors must be corrected by creating a compensating transaction (Reversal) or setting a "Cancelled" status (Soft Delete).
+3.  **Admin-Only**: Reversal actions are restricted to Administrators.
 
 ---
 

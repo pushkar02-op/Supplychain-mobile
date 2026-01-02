@@ -9,21 +9,23 @@ from typing import List, Optional
 
 from app.core.auth import get_current_user
 from app.core.exceptions import AppException
+from app.db.models.dispatch_entry import DispatchEntry  # Added
 from app.db.models.user import User
 from app.db.schemas.dispatch_entry import (
     DispatchEntryCreate,
     DispatchEntryMultiCreate,
+    DispatchEntryNetRead,
     DispatchEntryRead,
-    DispatchEntryUpdate,
+    DispatchReversalCreate,
+    DispatchReversalRead,
 )
 from app.db.session import get_db
 from app.services.dispatch_entry import (
     create_dispatch_entry,
     create_dispatch_from_order,
-    delete_dispatch_entry,
+    create_reversal_entry,
     get_all_dispatch_entries,
     get_dispatch_entry,
-    update_dispatch_entry,
 )
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
@@ -83,34 +85,29 @@ def dispatch_from_order(
         raise AppException(str(e), status_code=400)
 
 
-@router.get("/", response_model=List[DispatchEntryRead])
-def read_all(
+@router.get("/", response_model=List[DispatchEntryNetRead])
+def get_dispatches(
     skip: int = 0,
     limit: int = 100,
     dispatch_date: Optional[date] = Query(None),
     mart_name: Optional[str] = Query(None),
+    hide_fully_reversed: bool = Query(False),
     db: Session = Depends(get_db),
-) -> List[DispatchEntryRead]:
+) -> List[DispatchEntry]:
     """
-    Retrieve all dispatch entries with optional filters.
-
-    Args:
-        skip (int): Number of records to skip.
-        limit (int): Maximum number of records to return.
-        dispatch_date (Optional[date]): Filter by dispatch date.
-        mart_name (Optional[str]): Filter by mart name.
-        db (Session): Database session dependency.
-
-    Returns:
-        List[DispatchEntryRead]: List of dispatch entries.
+    Retrieve all dispatch entries.
+    Returns Net View (net_quantity, status).
     """
-    logger.info(f"Fetching dispatch entries skip={skip}, limit={limit}")
+    logger.info(
+        f"Fetching dispatch entries skip={skip}, limit={limit}, hide_reversed={hide_fully_reversed}"
+    )
     return get_all_dispatch_entries(
         db=db,
         skip=skip,
         limit=limit,
         dispatch_date=dispatch_date,
         mart_name=mart_name,
+        hide_fully_reversed=hide_fully_reversed,
     )
 
 
@@ -137,54 +134,24 @@ def read_one(id: int, db: Session = Depends(get_db)) -> DispatchEntryRead:
     return entry
 
 
-@router.put("/{id}", response_model=DispatchEntryRead)
-def update_route(
+@router.post(
+    "/{id}/reverse",
+    response_model=DispatchReversalRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def reverse_dispatch(
     id: int,
-    entry: DispatchEntryUpdate,
+    entry: DispatchReversalCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> DispatchEntryRead:
+) -> DispatchReversalRead:
     """
-    Update a dispatch entry by ID.
-
-    Args:
-        id (int): Dispatch entry ID.
-        entry (DispatchEntryUpdate): Update data.
-        db (Session): Database session dependency.
-
-    Returns:
-        DispatchEntryRead: The updated dispatch entry.
-
-    Raises:
-        AppException: If the entry is not found (404).
+    Reverse a dispatch entry (Admin Only).
     """
-    logger.info(f"Updating dispatch entry id={id}")
-    updated = update_dispatch_entry(db, id, entry, updated_by=current_user.username)
-    if not updated:
-        logger.error(f"Dispatch entry not found: id={id}")
-        raise AppException("Dispatch entry not found", status_code=404)
-    return updated
+    logger.info(f"Reversing dispatch {id} by user {current_user.username}")
 
+    if not current_user.is_admin:
+        logger.warning(f"Unauthorized reversal attempt by {current_user.username}")
+        raise AppException("Only admins can reverse dispatches", status_code=403)
 
-@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_route(
-    id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> None:
-    """
-    Delete a dispatch entry by ID.
-
-    Args:
-        id (int): Dispatch entry ID.
-        db (Session): Database session dependency.
-
-    Raises:
-        AppException: If the entry is not found (404).
-    """
-    logger.info(f"Deleting dispatch entry id={id}")
-    success = delete_dispatch_entry(db, id)
-    if not success:
-        logger.error(f"Dispatch entry not found: id={id}")
-        raise AppException("Dispatch entry not found", status_code=404)
-    return None
+    return create_reversal_entry(db, id, entry, created_by=current_user.username)

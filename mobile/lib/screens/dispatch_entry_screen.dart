@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
 import '../services/dispatch_service.dart';
 
 class CreateOrEditDispatchScreen extends StatefulWidget {
@@ -170,14 +171,11 @@ class _CreateOrEditDispatchScreenState
               .toList(),
     };
     try {
+      // Dispatch entries are immutable. Only creation is allowed.
       if (widget.data!['id'] != null) {
-        await DispatchService.updateDispatch(
-          widget.data!['id'] as int,
-          payload,
-        );
-      } else {
-        await DispatchService.createDispatch(payload);
+        throw Exception('Editing dispatch entries is not allowed.');
       }
+      await DispatchService.createDispatch(payload);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Dispatch saved successfully')),
@@ -341,7 +339,8 @@ class _CreateOrEditDispatchScreenState
                       borderRadius: BorderRadius.circular(8),
                       border: Border(
                         left: BorderSide(
-                          color: r.selected ? Colors.blue : Colors.grey.shade300,
+                          color:
+                              r.selected ? Colors.blue : Colors.grey.shade300,
                           width: 6,
                         ),
                       ),

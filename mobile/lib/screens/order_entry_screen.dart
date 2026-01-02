@@ -1,12 +1,12 @@
 // lib/screens/order_entry_screen.dart
 
 import 'package:dio/dio.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:dropdown_search/dropdown_search.dart';
+
 import '../services/order_service.dart';
-import '../services/stock_service.dart';
 import '../widgets/form/custom_date_picker.dart';
 
 class OrderEntryScreen extends StatefulWidget {
@@ -34,6 +34,9 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
 
   Map<String, dynamic>? _editingOrder;
 
+  String? _submitError;
+  bool _isDuplicate = false;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +60,8 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     _quantity = _editingOrder!['quantity_ordered'].toString();
     _unit = _editingOrder!['unit'] as String;
     _selectedMartId = _editingOrder!['mart_id'];
+    _selectedMart = _editingOrder!['mart_name']; // Fix: Initialize mart name
+
     _selectedItem = {
       'id': _editingOrder!['item_id'],
       'item_name': _editingOrder!['item']['name'],
@@ -67,29 +72,42 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     if (!_unitOptions.contains(_unit)) {
       _unitOptions = List.from(_unitOptions)..add(_unit);
     }
+
+    // Load items for the pre-selected mart so search works immediately
+    if (_selectedMart != null) {
+      _loadItemsForMart(_selectedMart!, keepSelection: true);
+    }
   }
 
-  Future<void> _loadItemsForMart(String martName) async {
+  Future<void> _loadItemsForMart(
+    String martName, {
+    bool keepSelection = false,
+  }) async {
     setState(() {
       _items = [];
-      _selectedItem = null;
-      _unitOptions = [];
-      _unit = '';
+      if (!keepSelection) {
+        _selectedItem = null;
+        _unitOptions = [];
+        _unit = '';
+      }
+      _error = ''; // Clear component-level error
     });
     try {
       final items = await OrderService.fetchDistinctItemsForMart(martName);
+      if (!mounted) return;
       setState(() {
         _items = items;
       });
     } catch (e, st) {
       print('Error loading items: $e\n$st');
-      setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = e.toString());
     }
   }
 
   Future<void> _loadMarts() async {
     try {
       final marts = await OrderService.fetchMartList();
+      if (!mounted) return;
       setState(() {
         _marts = marts;
       });
@@ -106,13 +124,19 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       firstDate: DateTime(today.year - 1),
       lastDate: today,
     );
-    if (picked != null) setState(() => _orderDate = picked);
+    if (picked != null && mounted) setState(() => _orderDate = picked);
   }
 
   Future<void> _submit() async {
+    setState(() {
+      _submitError = null;
+      _isDuplicate = false;
+    });
+
     if (!_formKey.currentState!.validate() ||
         _selectedItem == null ||
-        _selectedMartId == null) {
+        _selectedMartId == null ||
+        _selectedMart == null) {
       return;
     }
     _formKey.currentState!.save();
@@ -120,7 +144,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
 
     final payload = {
       'item_id': _selectedItem!['item_id'],
-      'mart_id': _selectedMartId!,
+      'mart_name': _selectedMart!,
       'order_date': DateFormat('yyyy-MM-dd').format(_orderDate),
       'quantity_ordered': double.parse(_quantity),
       'unit': _unit,
@@ -133,13 +157,14 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       } else {
         result = await OrderService.createOrder(
           itemId: payload['item_id'],
-          martId: payload['mart_id'],
+          martName: payload['mart_name'],
           orderDate: payload['order_date'],
           quantityOrdered: payload['quantity_ordered'],
           unit: payload['unit'],
         );
       }
 
+      if (!mounted) return;
       setState(() => _isLoading = false);
 
       if (context.mounted) {
@@ -154,18 +179,31 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       }
     } on DioException catch (dioErr) {
       print('Order create error: ${dioErr.response?.data}');
-      // Backend threw HTTPException with detail {"error":..., "message":...}
+      setState(() => _isLoading = false);
+
       final data = dioErr.response?.data['detail'];
+      String msg = 'Something went wrong. Please try again.';
+
+      if (data is String) {
+        msg = data;
+      } else if (data is Map && data['message'] is String) {
+        msg = data['message'];
+      }
+
+      final isDup =
+          dioErr.response?.statusCode == 400 &&
+          msg.toLowerCase().contains('duplicate order');
+
       setState(() {
-        _error =
-            (data is Map && data['message'] is String)
-                ? data['message']
-                : 'Something went wrong. Please try again.';
-        _isLoading = false;
+        _submitError =
+            isDup
+                ? "An order for this item, mart, and date already exists."
+                : msg;
+        _isDuplicate = isDup;
       });
-    } catch (_) {
+    } catch (e) {
       setState(() {
-        _error = 'Something went wrong. Please try again.';
+        _submitError = 'Something went wrong. Please try again.';
         _isLoading = false;
       });
     }
@@ -203,10 +241,15 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                      Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: Colors.red[300],
+                      ),
                       const SizedBox(height: 12),
                       Text(
-                        'Could not load data',
+                        'Could not load data: $_error',
+                        textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 8),
@@ -250,16 +293,19 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                                 )
                                 .toList(),
                         onChanged: (val) {
-                          setState(() => _selectedMartId = val);
                           print('Selected mart ID: $val');
                           if (val != null) {
                             final martName =
                                 _marts.firstWhere(
                                   (m) => m['id'] == val,
                                 )['name'];
-                            _loadItemsForMart(
-                              martName,
-                            ); // This API still uses mart_name
+                            setState(() {
+                              _selectedMartId = val;
+                              _selectedMart = martName;
+                            });
+                            _loadItemsForMart(martName);
+                          } else {
+                            setState(() => _selectedMartId = val);
                           }
                         },
                         validator:
@@ -365,6 +411,56 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                                     : null,
                       ),
                       const SizedBox(height: 24),
+
+                      if (_submitError != null)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.error,
+                                    color: Colors.red.shade700,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _submitError!,
+                                      style: TextStyle(
+                                        color: Colors.red.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_isDuplicate) ...[
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton(
+                                    onPressed: () => context.push('/orders'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red.shade700,
+                                      side: BorderSide(
+                                        color: Colors.red.shade300,
+                                      ),
+                                    ),
+                                    child: const Text('View existing orders'),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
 
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(

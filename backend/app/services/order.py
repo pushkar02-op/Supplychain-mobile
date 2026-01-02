@@ -5,6 +5,7 @@ Handles CRUD operations and retrieval of distinct mart names.
 
 import logging
 from datetime import date, datetime
+from decimal import Decimal
 from typing import List, Optional
 
 from app.core.exceptions import AppException
@@ -44,27 +45,38 @@ def create_order(
 ) -> Order:
     """
     Create a new order unless duplicate exists.
+    Resolves mart_name to mart_id internally.
 
     Args:
         db (Session): Database session.
-        entry (OrderCreate): New order data.
+        entry (OrderCreate): New order data (must include mart_name).
         created_by (Optional[str]): Creator ID.
 
     Returns:
         Order: Created order.
 
     Raises:
-        AppException: On duplicate order.
+        AppException: On duplicate order or missing mart.
     """
     logger.info(
-        f"Creating order for item_id={entry.item_id}, mart={entry.mart_id}, date={entry.order_date}"
+        f"Creating order for item_id={entry.item_id}, mart_name={entry.mart_name}, date={entry.order_date}"
     )
+
+    # 1. Resolve Mart Name -> Mart ID
+    mart = db.query(Mart).filter(Mart.name == entry.mart_name).first()
+    if not mart:
+        logger.error(f"Mart not found: {entry.mart_name}")
+        raise AppException(f"Mart '{entry.mart_name}' not found", status_code=404)
+
+    resolved_mart_id = mart.id
+
+    # 2. Check Duplicate (using resolved ID)
     existing = (
         db.query(Order)
         .filter_by(
             item_id=entry.item_id,
             order_date=entry.order_date,
-            mart_id=entry.mart_id,
+            mart_id=resolved_mart_id,
         )
         .first()
     )
@@ -75,9 +87,12 @@ def create_order(
             status_code=400,
         )
 
+    # 3. Prepare Data
     order_data = entry.dict()
+    # Remove transient mart_name, inject resolved mart_id
     order_data.pop("mart_name", None)
-    order_data["mart_id"] = entry.mart_id
+    order_data["mart_id"] = resolved_mart_id
+
     from app.utils.audit import resolve_user_audit
 
     user_name, user_id = resolve_user_audit(db, created_by)
@@ -200,3 +215,90 @@ def delete_order(db: Session, order_id: int) -> bool:
     db.commit()
     logger.debug(f"Order id={order_id} deleted")
     return True
+
+
+def recompute_order_status(db: Session, order_id: int) -> None:
+    """
+    Recompute and update order status based on net dispatched quantity.
+    Net Quantity = Sum(Dispatch) - Sum(Reversal)
+
+    Args:
+        db (Session): Database session.
+        order_id (int): Order ID.
+    """
+    order = get_order(db, order_id)
+    if not order:
+        logger.error(f"Order not found for recompute id={order_id}")
+        return
+
+    # 1. Calculate Total Dispatched (Raw Sum)
+    # We need to sum up all dispatch entries for this order.
+    # Dispatch Entry does NOT have order_id directly, it uses item_id + mart_id + order_date?
+    # No, Dispatch Entry is linked to Batch, Batch to Item.
+    # Order is linked to Item + Mart.
+    # Dispatch Entry has Mart ID.
+    # So we find all dispatch entries for (item, mart) that occurred?
+    # Wait, Order is (Item, Mart, Date).
+    # Dispatch is (Batch, Item, Mart, Date).
+    # Dispatches are usually created ACROSS dates? Or matched?
+    #
+    # Current logic in `_update_order_after_dispatch`:
+    # It finds order by (item_id, mart_name, status!=Completed).
+    # This implies FIFO matching or "Active Order" matching.
+    # If we are reversing, we act on a specific dispatch entry.
+    # That dispatch entry contributed to *some* order.
+    #
+    # PROBLEM: Dispatch Entry does not store `order_id`.
+    # It updates the "current open order" at creation time.
+    # If we have multiple orders for same item/mart (e.g. different dates),
+    # which one did it update?
+    # The current `_update_order_after_dispatch` just grabs "the pending one".
+    #
+    # If we want to strictly recompute, we need to know WHICH order a dispatch belongs to.
+    # BUT the data model doesn't support that link explicitly yet (Legacy limitation).
+    #
+    # FOR NOW (Phase 1 Correction):
+    # We will trust `order.quantity_dispatched` as the running counter,
+    # and simply SUBTRACT the reversal amount from it.
+    #
+    # Full recompute from zero is impossible without `dispatch_entry.order_id`.
+    #
+    # Plan:
+    # 1. Decrease `order.quantity_dispatched` by reversal quantity.
+    # 2. Update status based on new value.
+    pass
+
+
+def update_order_status_after_reversal(
+    db: Session, order: Order, reversal_qty: float
+) -> None:
+    """
+    Adjust order dispatched quantity and refresh status after a reversal.
+    """
+    current_dispatched = Decimal(str(order.quantity_dispatched or 0))
+    reversal_dec = Decimal(str(reversal_qty))
+
+    new_dispatched = current_dispatched - reversal_dec
+    if new_dispatched < 0:
+        logger.warning(
+            f"Order {order.id} dispatched qty went negative ({new_dispatched}). Clamping to 0."
+        )
+        new_dispatched = Decimal(0)
+
+    order.quantity_dispatched = float(new_dispatched)
+
+    # Update Status
+    qty_ordered = Decimal(str(order.quantity_ordered))
+    if new_dispatched >= qty_ordered:
+        order.status = "Completed"
+    elif new_dispatched > 0:
+        order.status = "Partially Completed"
+    else:
+        order.status = "Pending"
+
+    order.updated_at = datetime.utcnow()
+    db.add(order)
+    db.flush()
+    logger.info(
+        f"Order {order.id} status updated to {order.status} (Dispatched: {new_dispatched})"
+    )

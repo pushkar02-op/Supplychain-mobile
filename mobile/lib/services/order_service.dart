@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import '../core/dio_client.dart';
 
 class OrderService {
@@ -40,7 +41,7 @@ class OrderService {
   /// Create a new order; status defaults to "Pending" server-side.
   static Future<dynamic> createOrder({
     required int itemId,
-    required int martId,
+    required String martName,
     required String orderDate, // "YYYY-MM-DD"
     required double quantityOrdered,
     required String unit,
@@ -50,7 +51,7 @@ class OrderService {
         '/orders/',
         data: {
           'item_id': itemId,
-          'mart_id': martId,
+          'mart_name': martName,
           'order_date': orderDate,
           'quantity_ordered': quantityOrdered,
           'unit': unit,
