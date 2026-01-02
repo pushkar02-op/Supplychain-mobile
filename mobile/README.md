@@ -42,6 +42,8 @@ Violating these rules breaks the stability guarantee.
 3.  **NEVER use `setState` for async/business logic:** `setState` is strictly for ephemeral UI interactions (e.g., simple animations, toggles). Data fetching MUST use Riverpod.
 4.  **NEVER navigate manually on auth changes:** Do not call `context.go('/login')`. The `AuthProvider` state change will trigger `GoRouter` to redirect automatically.
 5.  **NEVER catch `DioException` outside Infrastructure:** UI and Controllers should catch/handle `AppException` hierarchies only. Usage of `package:dio` imports in UI files is forbidden.
+6.  **NEVER fail silently:** Every "Submit" action must result in either success (navigation/toast) or a visible error message.
+7.  **ALWAYS guard async gaps:** Use `if (!mounted) return;` after every `await` in a StatefulWidget before calling `setState` or navigating.
 
 ---
 
@@ -106,6 +108,20 @@ We use a **Reactive Auth Architecture**.
 -   Don't write navigation logic for logout.
 -   Don't check for tokens in `initState`.
 -   Just update the provider; the app will react.
+
+
+### Refresh Token Lifecycle (New in v1.1)
+
+To prevent annoyance, we use a **Silent Refresh Strategy**:
+1.  **Access Token:** Short-lived (15 mins). Used for API calls.
+2.  **Refresh Token:** Long-lived (30 days). Stored securely.
+3.  **Auto-Renewal:**
+    -   When Dio catches a `401 Unauthorized`, it pauses the request.
+    -   It acts as a mutex: only ONE refresh request is sent.
+    -   On success: It updates storage and retries the original request.
+    -   On failure: It triggers `AuthProvider.logout()`.
+
+**User Experience:** Use the app freely. You will only be logged out if you are inactive for 30+ days.
 
 ---
 

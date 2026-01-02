@@ -35,8 +35,26 @@ class DispatchEntryRead(DispatchEntryBase):
 
     batch: BatchRead
 
+
+# ========================
+# Reversal Schemas
+# ========================
+class DispatchReversalCreate(BaseModel):
+    quantity: Optional[float] = None  # None = full reversal
+    reason: Optional[str] = None
+
+
+class DispatchReversalRead(BaseModel):
+    id: int
+    dispatch_entry_id: int
+    quantity: float
+    reason: Optional[str]
+    created_at: datetime
+    created_by: Optional[str]
+
     class Config:
         orm_mode = True
+
         from_attributes = True
         json_encoders = {
             datetime: lambda v: v.isoformat(),
@@ -62,3 +80,11 @@ class DispatchEntryCreated(BaseModel):
     dispatch_id: int
     batch_id: int
     quantity: float
+
+
+class DispatchEntryNetRead(DispatchEntryRead):
+    net_quantity: float
+    status: str  # 'Active', 'Partially Reversed', 'Fully Reversed'
+
+    class Config:
+        orm_mode = True

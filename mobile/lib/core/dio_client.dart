@@ -1,8 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart'; // For debugPrint
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
+
 import 'api_config.dart';
-import 'package:flutter/foundation.dart'; // For debugPrint
 
 class DioClient {
   static final _storage = FlutterSecureStorage();
@@ -10,6 +11,9 @@ class DioClient {
 
   /// Callback for when a 401 occurs.
   static VoidCallback? onUnauthorized;
+
+  // Mutex-like flag to prevent concurrent refreshes
+  static bool _isRefreshing = false;
 
   // Setup Dio client with JWT interceptor
   static void setup() {
@@ -47,10 +51,51 @@ class DioClient {
             return handler.next(options);
           },
           // This is called on error (e.g., 401 Unauthorized)
-          onError: (error, handler) {
+          onError: (error, handler) async {
             if (error.response?.statusCode == 401) {
-              // Handle unauthorized errors: force logout, clear storage, etc.
-              _handleUnauthorizedError();
+              final path = error.requestOptions.path;
+              // Don't retry login or refresh endpoints to avoid infinite loops
+              if (path.contains('/login') || path.contains('/refresh')) {
+                _handleUnauthorizedError();
+                return handler.next(error);
+              }
+
+              // Check if we have a refresh token
+              final hasRefresh =
+                  await _storage.read(key: 'refresh_token') != null;
+              if (!hasRefresh) {
+                _handleUnauthorizedError();
+                return handler.next(error);
+              }
+
+              // Attempt refresh
+              if (!_isRefreshing) {
+                _isRefreshing = true;
+                final success = await _refreshToken();
+                _isRefreshing = false;
+
+                if (success) {
+                  // Retry the original request
+                  final opts = error.requestOptions;
+                  final newToken = await _storage.read(key: 'access_token');
+                  opts.headers['Authorization'] = 'Bearer $newToken';
+
+                  try {
+                    final cloneReq = await instance.fetch(opts);
+                    return handler.resolve(cloneReq);
+                  } catch (e) {
+                    // If retry fails, pass the original error
+                    return handler.next(error);
+                  }
+                } else {
+                  _handleUnauthorizedError();
+                  return handler.next(error);
+                }
+              } else {
+                // Another request is refreshing, wait a bit and retry (simple approach)
+                // Ideally we queue, but for now we just fail to keep it simple or wait
+                return handler.next(error);
+              }
             }
             return handler.next(error);
           },
@@ -59,6 +104,37 @@ class DioClient {
     // Print the baseUrl after setting up Dio
     debugPrint('Dio baseUrl: ${ApiConfig.baseUrl}');
     debugPrint('Dio instance baseUrl: ${instance.options.baseUrl}');
+  }
+
+  static Future<bool> _refreshToken() async {
+    try {
+      final refreshToken = await _storage.read(key: 'refresh_token');
+      if (refreshToken == null) return false;
+
+      // Use a new Dio instance to avoid interceptors
+      final dio = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl));
+      final response = await dio.post(
+        '/refresh',
+        data: {'refresh_token': refreshToken},
+      );
+
+      if (response.statusCode == 200) {
+        await _storage.write(
+          key: 'access_token',
+          value: response.data['access_token'],
+        );
+        await _storage.write(
+          key: 'refresh_token',
+          value: response.data['refresh_token'],
+        );
+        debugPrint('Token refreshed successfully');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Token refresh failed: $e');
+      return false;
+    }
   }
 
   // Helper function to handle 401 errors (Unauthorized)

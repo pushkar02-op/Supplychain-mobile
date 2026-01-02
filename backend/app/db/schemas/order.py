@@ -8,23 +8,24 @@ from pydantic import BaseModel, model_validator
 class OrderBase(BaseModel):
     item_id: int
     unit: str
-    mart_id: int
-    mart_name: Optional[str]
     order_date: date
     quantity_ordered: float
 
 
 class OrderCreate(OrderBase):
-    pass
+    mart_name: str
 
 
 class OrderUpdate(BaseModel):
     quantity_ordered: Optional[float] = None
-    mart_id: Optional[int] = None
+    # Updates to mart are typically restricted, but if needed, use mart_name
+    mart_name: Optional[str] = None
 
 
 class OrderRead(OrderBase):
     id: int
+    mart_id: int
+    mart_name: Optional[str] = None
     item: ItemRead
     unit: str
     quantity_dispatched: float

@@ -6,8 +6,10 @@ Do not place runtime logic in this module.
 """
 
 from .audit_log import AuditLog as AuditLog
+from .auth import RefreshToken as RefreshToken
 from .batch import Batch as Batch
 from .dispatch_entry import DispatchEntry as DispatchEntry
+from .dispatch_reversal import DispatchReversal as DispatchReversal
 from .idempotency_record import IdempotencyRecord
 from .inventory_txn import InventoryTxn as InventoryTxn
 from .invoice import Invoice as Invoice
@@ -29,6 +31,7 @@ __all__ = [
     "Batch",
     "StockEntry",
     "DispatchEntry",
+    "DispatchReversal",
     "Invoice",
     "RejectionEntry",
     "InvoiceItem",
@@ -39,4 +42,6 @@ __all__ = [
     "InventoryTxn",
     "UOM",
     "Mart",
+    "RefreshToken",
+    "IdempotencyRecord",
 ]

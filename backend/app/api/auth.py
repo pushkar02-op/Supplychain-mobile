@@ -5,9 +5,9 @@ Handles user registration and login.
 
 import logging
 
-from app.db.schemas.auth import Token, UserCreate, UserLogin
+from app.db.schemas.auth import Token, TokenRefresh, UserCreate, UserLogin
 from app.db.session import get_db
-from app.services.auth import login_user, register_user
+from app.services.auth import login_user, refresh_token, register_user
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -45,3 +45,13 @@ def login(user: UserLogin, db: Session = Depends(get_db)) -> Token:
     """
     logger.info("User login attempt")
     return login_user(db, user)
+
+
+@router.post("/refresh", response_model=Token)
+def refresh(token_data: TokenRefresh, db: Session = Depends(get_db)) -> Token:
+    """
+    Refresh access token using a refresh token.
+    Revokes the old refresh token and issues a new pair.
+    """
+    logger.info("Token refresh attempt")
+    return refresh_token(db, token_data.refresh_token)

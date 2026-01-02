@@ -2,7 +2,10 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
+import '../services/auth_service.dart';
 import '../services/dispatch_service.dart';
+import '../widgets/reversal_dialog.dart';
 import '../widgets/skeleton_loader.dart';
 
 class DispatchListScreen extends StatefulWidget {
@@ -19,12 +22,20 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
   List<dynamic> _dispatches = [];
   bool _isLoading = false;
   String _error = '';
+  bool _isAdmin = false;
+  bool _showHidden = false;
 
   @override
   void initState() {
     super.initState();
+    _checkRole();
     _loadMarts();
     _fetch();
+  }
+
+  Future<void> _checkRole() async {
+    final val = await AuthService.storage.read(key: 'is_admin');
+    setState(() => _isAdmin = val == 'true');
   }
 
   Future<void> _loadMarts() async {
@@ -43,6 +54,7 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
       final list = await DispatchService.fetchDispatches(
         dispatchDate: DateFormat('yyyy-MM-dd').format(_selectedDate),
         martName: _selectedMart,
+        hideFullyReversed: !_showHidden,
       );
       setState(() => _dispatches = list);
     } catch (e) {
@@ -66,28 +78,32 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
     }
   }
 
-  Future<void> _confirmDelete(int id) async {
-    final ok = await showDialog<bool>(
+  Future<void> _handleReversal(int id, double currentQty) async {
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text('Delete Dispatch'),
-            content: const Text('Really delete this entry?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
+      builder: (_) => ReversalDialog(dispatchId: id, maxQuantity: currentQty),
     );
-    if (ok == true) {
-      await DispatchService.deleteDispatch(id);
-      _fetch();
+
+    if (result != null) {
+      setState(() => _isLoading = true);
+      try {
+        await DispatchService.reverseDispatch(
+          id,
+          result['quantity'],
+          result['reason'],
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dispatch reversed successfully')),
+        );
+        _fetch();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -97,6 +113,16 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Dispatch'),
+        actions: [
+          if (_isAdmin)
+            // Standard popup has no switch usually, better to put in body or leading
+            // Let's put a simple icon button or popup check?
+            // Or just put it in the filter row if space permits.
+            // Filter row is crowded.
+            // Let's add it as a small row below filters or inside a filter drawer.
+            // For simplicity, let's put it below the filters row.
+            const SizedBox(),
+        ],
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
@@ -105,6 +131,7 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // Filters Row
             Row(
               children: [
                 ElevatedButton.icon(
@@ -113,7 +140,6 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
                   onPressed: _pickDate,
                 ),
                 const SizedBox(width: 12),
-
                 Expanded(
                   child: DropdownButtonFormField2<String>(
                     isExpanded: true,
@@ -128,7 +154,7 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
                     ),
                     dropdownStyleData: DropdownStyleData(
                       maxHeight: 200,
-                      width: 200, // You can adjust this as needed
+                      width: 200,
                     ),
                     hint: const Text('All Marts'),
                     items: [
@@ -149,28 +175,49 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                   ),
                   icon: const Icon(Icons.add),
-                  label: const Text('New Dispatch'),
+                  label: const Text('New'),
                   onPressed: () => context.push('/orders'),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            // Toggle for Reversed
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Text("Show Reversed"),
+                Switch(
+                  value: _showHidden,
+                  onChanged: (val) {
+                    setState(() {
+                      _showHidden = val;
+                      _fetch();
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             Expanded(
               child:
                   _isLoading
                       ? const StaticSkeletonList(itemCount: 5)
                       : _error.isNotEmpty
                       ? Center(
+                        // ... error view ...
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                            Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: Colors.red[300],
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               'Could not load dispatches',
@@ -187,19 +234,30 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
                       )
                       : _dispatches.isEmpty
                       ? Center(
+                        // ... empty view ...
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.local_shipping_outlined, size: 64, color: Colors.grey[400]),
+                            Icon(
+                              Icons.local_shipping_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
                             const SizedBox(height: 16),
                             Text(
                               'No dispatches for this date',
-                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[600],
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Create orders first, then dispatch',
-                              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
                             ),
                           ],
                         ),
@@ -208,40 +266,88 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
                         itemCount: _dispatches.length,
                         itemBuilder: (ctx, i) {
                           final d = _dispatches[i];
+
                           final batch = d['batch'] ?? {};
+                          final netQty =
+                              d['net_quantity'] ??
+                              d['quantity']; // Fallback if missing
+
+                          final status =
+                              d['status'] as String? ??
+                              'Active'; // Restored definition
+
+                          // Visual indicator for Partial
+                          final isPartial = status == 'Partially Reversed';
+
                           return Card(
                             margin: const EdgeInsets.only(bottom: 12),
                             child: ListTile(
-                              title: Text(
-                                '${batch['item_name']} — ${d['quantity']} ${d['unit']}',
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${batch['item_name']} — $netQty ${d['unit']}',
+                                      style: TextStyle(
+                                        decoration:
+                                            isPartial
+                                                ? TextDecoration.none
+                                                : null, // Maybe strikethrough if cancelled? No.
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isPartial)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange[100],
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        'Partial',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.orange[800],
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                               subtitle: Text(
                                 '${d['dispatch_date']} @ ${d['mart_name']}',
                               ),
-                              trailing: PopupMenuButton<String>(
-                                onSelected: (v) async {
-                                  if (v == 'edit') {
-                                    final ok = await context.push(
-                                      '/dispatch-entry',
-                                      extra: d,
-                                    );
-                                    if (ok == true) _fetch();
-                                  } else {
-                                    _confirmDelete(d['id'] as int);
-                                  }
-                                },
-                                itemBuilder:
-                                    (_) => const [
-                                      // PopupMenuItem(
-                                      //   value: 'edit',
-                                      //   child: Text('Edit'),
-                                      // ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Delete'),
-                                      ),
-                                    ],
-                              ),
+                              trailing:
+                                  _isAdmin
+                                      ? PopupMenuButton<String>(
+                                        onSelected: (v) async {
+                                          if (v == 'reverse') {
+                                            final double currentQty =
+                                                netQty is num
+                                                    ? netQty.toDouble()
+                                                    : 0.0;
+                                            _handleReversal(
+                                              d['id'] as int,
+                                              currentQty,
+                                            );
+                                          }
+                                        },
+                                        itemBuilder:
+                                            (_) => const [
+                                              PopupMenuItem(
+                                                value: 'reverse',
+                                                child: Text(
+                                                  'Reverse Dispatch',
+                                                  style: TextStyle(
+                                                    color: Colors.orange,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                      )
+                                      : null,
                             ),
                           );
                         },

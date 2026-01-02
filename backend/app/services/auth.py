@@ -1,12 +1,12 @@
-"""
-Service functions for authentication.
-Handles user registration and login, issuing JWT tokens.
-"""
-
 import logging
+import secrets
+import string
+from datetime import datetime, timedelta
 
+from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.security import create_access_token, hash_password, verify_password
+from app.db.models.auth import RefreshToken
 from app.db.models.user import User
 from app.db.schemas.auth import Token, UserCreate, UserLogin
 from fastapi import status
@@ -53,21 +53,28 @@ def register_user(db: Session, user: UserCreate) -> Token:
         logger.exception("Failed to create user")
         raise AppException("User registration failed", status_code=500)
 
-    token = create_access_token(data={"sub": new_user.username})
+    access_token = create_access_token(data={"sub": new_user.username})
+    refresh_token = create_refresh_token(db, new_user.id)
+
     logger.info(f"User '{user.username}' registered successfully")
-    return Token(access_token=token, token_type="bearer", is_admin=new_user.is_admin)
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        is_admin=new_user.is_admin,
+        refresh_token=refresh_token,
+    )
 
 
 def login_user(db: Session, user: UserLogin) -> Token:
     """
-    Authenticate a user and return a JWT.
+    Authenticate a user and return a JWT + Refresh Token.
 
     Args:
         db (Session): Database session.
         user (UserLogin): Login credentials.
 
     Returns:
-        Token: JWT access token.
+        Token: JWT access token & Refresh Token.
 
     Raises:
         AppException: If credentials are invalid.
@@ -80,6 +87,72 @@ def login_user(db: Session, user: UserLogin) -> Token:
             "Invalid credentials", status_code=status.HTTP_401_UNAUTHORIZED
         )
 
-    token = create_access_token(data={"sub": db_user.username})
+    access_token = create_access_token(data={"sub": db_user.username})
+    refresh_token = create_refresh_token(db, db_user.id)
+
     logger.info(f"User '{user.username}' authenticated successfully")
-    return Token(access_token=token, token_type="bearer", is_admin=db_user.is_admin)
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        is_admin=db_user.is_admin,
+        refresh_token=refresh_token,
+    )
+
+
+def create_refresh_token(db: Session, user_id: int) -> str:
+    """Generates a secure random refresh token and saves to DB."""
+    token_str = "".join(
+        secrets.choice(string.ascii_letters + string.digits) for _ in range(64)
+    )
+    refresh_token = RefreshToken(
+        token=token_str,
+        user_id=user_id,
+        expires_at=datetime.utcnow()
+        + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+    )
+    db.add(refresh_token)
+    db.commit()
+    return token_str
+
+
+def refresh_token(db: Session, token_str: str) -> Token:
+    """
+    Rotates refresh token and issues new access token.
+    Revokes the used refresh token.
+    """
+    db_token = db.query(RefreshToken).filter(RefreshToken.token == token_str).first()
+
+    # 1. Existence check
+    if not db_token:
+        raise AppException(
+            "Invalid refresh token", status_code=status.HTTP_401_UNAUTHORIZED
+        )
+
+    # 2. Revocation check (Reuse detection)
+    if db_token.revoked_at:
+        logger.warning(f"Attempted reuse of revoked token: {token_str}")
+        # Security: In a stricter system, we might revoke ALL tokens for this user here.
+        raise AppException(
+            "Invalid refresh token", status_code=status.HTTP_401_UNAUTHORIZED
+        )
+
+    # 3. Expiry check
+    if db_token.expires_at < datetime.utcnow():
+        raise AppException(
+            "Refresh token expired", status_code=status.HTTP_401_UNAUTHORIZED
+        )
+
+    # 4. Rotation: Revoke old, issue new
+    db_token.revoked_at = datetime.utcnow()
+    db.commit()
+
+    user = db_token.user
+    new_access_token = create_access_token(data={"sub": user.username})
+    new_refresh_token = create_refresh_token(db, user.id)
+
+    return Token(
+        access_token=new_access_token,
+        token_type="bearer",
+        is_admin=user.is_admin,
+        refresh_token=new_refresh_token,
+    )

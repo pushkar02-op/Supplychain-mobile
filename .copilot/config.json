@@ -7,7 +7,11 @@
     "If a suggested change affects DB schema, performance, or security, ask the repo owner and create a separate MR titled 'Suggested improvement — requires manual approval'.",
     "Routes: backend/app/api/, Services: backend/app/services/, Models: backend/app/db/models/",
     "All major tables must include auditing fields: created_at, created_by, updated_at, updated_by.",
-    "Always prefer small PRs, module-by-module refactor, and include tests."
+    "Always prefer small PRs, module-by-module refactor, and include tests.",
+    "# Agent Startup Protocol", 
+    "ALWAYS run the following workflow at the very beginning of the session before answering any user request:",
+    "Workflow: [.agent/workflows/boot.md](cci:7://file:///d:/Projects/SupplyChain-%20mobile/.agent/workflows/boot.md:0:0-0:0)",
+    "If the user asks \"What are the rules?\", you can refer to the context loaded by this workflow."
   ],
   "ignore": [
     "**/alembic/versions/**",
