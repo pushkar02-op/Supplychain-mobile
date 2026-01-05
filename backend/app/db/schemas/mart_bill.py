@@ -4,14 +4,16 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class InvoiceRead(BaseModel):
+class MartBillRead(BaseModel):
     id: int
     mart_id: int
     mart_name: Optional[str] = None
     invoice_date: date
     total_amount: float
     file_path: str
-    is_verified: bool
+    status: str
+    locked_at: Optional[datetime]
+    locked_by: Optional[str]
     remarks: Optional[str]
     created_at: datetime
     updated_at: datetime
@@ -20,6 +22,5 @@ class InvoiceRead(BaseModel):
         from_attributes = True
 
 
-class InvoiceUpdate(BaseModel):
-    is_verified: Optional[bool]
+class MartBillUpdate(BaseModel):
     remarks: Optional[str]

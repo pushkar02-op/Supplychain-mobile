@@ -11,6 +11,8 @@ from app.api.item_alias import router as item_alias_router
 from app.api.item_conversion_map import router as conversion_router
 from app.api.item_management import router as item_management_router
 from app.api.mart import router as mart_router
+from app.api.mart_bill import router as mart_bill_router
+from app.api.mart_bill_item import router as mart_bill_item_router
 from app.api.order import router as order_router
 from app.api.rejection_entry import router as rejection_router
 from app.api.reports import router as reports_router
@@ -40,3 +42,5 @@ router.include_router(inventory_txn_router)
 router.include_router(mart_router)
 router.include_router(item_management_router)
 router.include_router(admin_ledger_router)
+router.include_router(mart_bill_router)
+router.include_router(mart_bill_item_router)

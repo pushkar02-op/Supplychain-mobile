@@ -1,21 +1,22 @@
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
-import '../services/invoice_service.dart';
+import 'package:intl/intl.dart';
 
-class InvoiceListScreen extends StatefulWidget {
-  const InvoiceListScreen({Key? key}) : super(key: key);
+import '../services/mart_bill_service.dart';
+
+class MartBillListScreen extends StatefulWidget {
+  const MartBillListScreen({Key? key}) : super(key: key);
   @override
-  State<InvoiceListScreen> createState() => _InvoiceListScreenState();
+  State<MartBillListScreen> createState() => _MartBillListScreenState();
 }
 
-class _InvoiceListScreenState extends State<InvoiceListScreen> {
+class _MartBillListScreenState extends State<MartBillListScreen> {
   DateTime? _filterDate;
   String? _filterMart;
   String _search = '';
-  List<Map<String, dynamic>> _invoices = [];
+  List<Map<String, dynamic>> _martBills = [];
   List<String> _marts = [];
   bool _loading = true, _uploading = false;
   String? _error;
@@ -26,23 +27,23 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   int _pageSize = 20;
   bool _hasMore = true;
   bool _isLoadingMore = false;
-  int _totalInvoices = 0; // Added state variable for total invoices
+  int _totalBills = 0;
 
   @override
   void initState() {
     super.initState();
     _loadMarts();
-    _fetchInvoices();
+    _fetchMartBills();
   }
 
   Future<void> _loadMarts() async {
     try {
-      final list = await InvoiceService.fetchMartNames();
+      final list = await MartBillService.fetchMartNames();
       setState(() => _marts = list);
     } catch (_) {}
   }
 
-  Future<void> _fetchInvoices({bool loadMore = false}) async {
+  Future<void> _fetchMartBills({bool loadMore = false}) async {
     if (loadMore) {
       if (_isLoadingMore || !_hasMore) return;
       setState(() => _isLoadingMore = true);
@@ -52,11 +53,11 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
         _error = null;
         _page = 1;
         _hasMore = true;
-        _invoices.clear();
+        _martBills.clear();
       });
     }
     try {
-      final result = await InvoiceService.fetchInvoices(
+      final result = await MartBillService.fetchMartBills(
         date: _filterDate,
         martName: _filterMart,
         search: _search.isNotEmpty ? _search : null,
@@ -66,12 +67,12 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       final list = List<Map<String, dynamic>>.from(result['results']);
       setState(() {
         if (loadMore) {
-          _invoices.addAll(list);
+          _martBills.addAll(list);
         } else {
-          _invoices = list;
+          _martBills = list;
         }
-        _totalInvoices = result['total'] ?? 0; // Store total invoices
-        _hasMore = _invoices.length < _totalInvoices;
+        _totalBills = result['total'] ?? 0;
+        _hasMore = _martBills.length < _totalBills;
         if (_hasMore) _page++;
       });
     } catch (e) {
@@ -105,7 +106,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
         _pickedPaths =
             pdfFiles.map((file) => file.path!).toList().cast<String>();
         _showUploadSection = true;
-        _uploadResults.clear(); // clear previous results if new files selected
+        _uploadResults.clear();
       });
     }
   }
@@ -120,31 +121,27 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     });
 
     try {
-      final responses = await InvoiceService.uploadInvoices(_pickedPaths);
+      final responses = await MartBillService.uploadMartBills(_pickedPaths);
 
       for (final resp in responses) {
         if (resp['unmapped_items'] != null &&
             resp['unmapped_items'].isNotEmpty) {
-          final invoiceId = resp['invoice_id'];
+          final billId =
+              resp['invoice_id']; // field name might still be invoice_id in response for now
           final unmappedItems = List<Map<String, dynamic>>.from(
             resp['unmapped_items'],
           );
-          // if (mounted) {
-          //   await context.push(
-          //     '/map-items',
-          //     extra: {'invoice_id': invoiceId, 'unmapped_items': unmappedItems},
-          //   );
-          // }
+          // Navigation to mapping screen currently commented out in original code
         }
       }
 
       setState(() {
         _uploadResults = responses;
         _pickedPaths.clear();
-        _showUploadSection = false; // hide upload form
+        _showUploadSection = false;
       });
 
-      await _fetchInvoices(); // refresh table
+      await _fetchMartBills();
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -166,7 +163,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     );
     if (picked != null) {
       setState(() => _filterDate = picked);
-      _fetchInvoices();
+      _fetchMartBills();
     }
   }
 
@@ -175,7 +172,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       context: context,
       builder:
           (_) => AlertDialog(
-            title: const Text('Delete Invoice'),
+            title: const Text('Delete Mart Bill'),
             content: const Text('Are you sure?'),
             actions: [
               TextButton(
@@ -190,8 +187,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           ),
     );
     if (ok == true) {
-      await InvoiceService.deleteInvoice(id);
-      _fetchInvoices();
+      await MartBillService.deleteMartBill(id);
+      _fetchMartBills();
     }
   }
 
@@ -211,10 +208,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       totalController.text = total.toStringAsFixed(2);
     }
 
-    // Set initial total
     calculateTotal();
 
-    // Add listeners to update total when qty or price changes
     qtyController.addListener(calculateTotal);
     priceController.addListener(calculateTotal);
 
@@ -222,7 +217,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Edit Invoice Item'),
+          title: const Text('Edit Bill Item'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -263,13 +258,13 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                   return;
                 }
 
-                await InvoiceService.updateInvoiceItem(item['id'], {
+                await MartBillService.updateMartBillItem(item['id'], {
                   'quantity': updatedQty,
                   'price': updatedPrice,
                   'total': updatedTotal,
                 });
                 Navigator.pop(context);
-                await _fetchInvoices();
+                await _fetchMartBills();
               },
               child: const Text('Save'),
             ),
@@ -279,42 +274,117 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     );
   }
 
-  Widget _buildInvoiceCard(Map<String, dynamic> inv) {
+  Widget _buildBillCard(Map<String, dynamic> bill) {
+    final status = bill['status'] as String? ?? 'NEEDS_REVIEW';
+    final isVerified = status == 'VERIFIED';
+    final isProcessing = status == 'PROCESSING';
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusLabel;
+
+    switch (status) {
+      case 'VERIFIED':
+        statusColor = Colors.green;
+        statusIcon = Icons.check_circle;
+        statusLabel = 'Verified';
+        break;
+      case 'PROCESSING':
+        statusColor = Colors.grey;
+        statusIcon = Icons.hourglass_top;
+        statusLabel = 'Processing';
+        break;
+      case 'NEEDS_REVIEW':
+      default:
+        statusColor = Colors.orange;
+        statusIcon = Icons.warning_amber_rounded;
+        statusLabel = 'Review Needed';
+        break;
+    }
+
     return ExpansionTile(
-      title: Text(
-        inv['mart_name'],
-        style: const TextStyle(fontWeight: FontWeight.bold),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              bill['mart_name'] ?? 'Unknown Mart',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: statusColor),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(statusIcon, size: 12, color: statusColor),
+                const SizedBox(width: 4),
+                Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
       subtitle: Text(
-        '${DateFormat('MMM dd, yyyy').format(DateTime.parse(inv['invoice_date']))}   ₹ ${inv['total_amount'].toStringAsFixed(2)}',
+        '${DateFormat('MMM dd, yyyy').format(DateTime.parse(bill['invoice_date']))}   ₹ ${bill['total_amount'].toStringAsFixed(2)}',
       ),
       trailing: Wrap(
         spacing: 4,
         children: [
+          if (!isProcessing)
+            Tooltip(
+              message: isVerified ? 'Unlock Bill' : 'Verify Bill',
+              child: IconButton(
+                icon: Icon(
+                  isVerified ? Icons.lock : Icons.lock_open,
+                  color: isVerified ? Colors.green : Colors.grey,
+                ),
+                onPressed: () async {
+                  try {
+                    if (isVerified) {
+                      await MartBillService.unverifyMartBill(bill['id']);
+                    } else {
+                      await MartBillService.verifyMartBill(bill['id']);
+                    }
+                    _fetchMartBills();
+                  } catch (e) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(e.toString())));
+                  }
+                },
+              ),
+            ),
           Tooltip(
-            message:
-                inv['is_verified'] ? 'Mark as Unverified' : 'Mark as Verified',
+            message: 'Delete Bill',
             child: IconButton(
               icon: Icon(
-                inv['is_verified']
-                    ? Icons.check_circle
-                    : Icons.hourglass_bottom,
+                Icons.delete,
+                color: isVerified ? Colors.grey[300] : Colors.red,
               ),
-              onPressed: () async {
-                await InvoiceService.updateInvoice(
-                  inv['id'],
-                  !(inv['is_verified'] as bool),
-                  inv['remarks'] as String? ?? '',
-                );
-                _fetchInvoices();
-              },
-            ),
-          ),
-          Tooltip(
-            message: 'Delete Invoice',
-            child: IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: () => _confirmDelete(inv['id']),
+              onPressed:
+                  isVerified
+                      ? () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Cannot delete a verified bill. Unlock it first.',
+                            ),
+                          ),
+                        );
+                      }
+                      : () => _confirmDelete(bill['id']),
             ),
           ),
         ],
@@ -322,19 +392,19 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
 
       children: [
         ListTile(
-          title: Text(inv['file_path'].toString().split('/').last),
+          title: Text(bill['file_path'].toString().split('/').last),
           trailing: TextButton(
             onPressed: () {
               context.push(
                 '/pdf-viewer',
-                extra: int.parse(inv['id'].toString()),
+                extra: int.parse(bill['id'].toString()),
               );
             },
             child: const Text('View'),
           ),
         ),
         FutureBuilder<List<Map<String, dynamic>>>(
-          future: InvoiceService.fetchInvoiceItems(inv['id']),
+          future: MartBillService.fetchMartBillItems(bill['id']),
           builder: (ctx, snap) {
             if (!snap.hasData) {
               return const LinearProgressIndicator();
@@ -354,54 +424,65 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                 rows:
                     items.map((it) {
                       return DataRow(
-                        onLongPress: () async {
-                          final selected = await showMenu<String>(
-                            context: context,
-                            position: RelativeRect.fill,
-                            items: [
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Text('Edit'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Delete'),
-                              ),
-                            ],
-                          );
-
-                          if (selected == 'edit') {
-                            await _showEditItemDialog(it);
-                            setState(() {}); // refresh UI
-                          } else if (selected == 'delete') {
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              builder:
-                                  (_) => AlertDialog(
-                                    title: const Text('Delete Item'),
-                                    content: const Text(
-                                      'Are you sure you want to delete this item?',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed:
-                                            () => Navigator.pop(context, false),
-                                        child: const Text('No'),
+                        onLongPress:
+                            isVerified
+                                ? null
+                                : () async {
+                                  final selected = await showMenu<String>(
+                                    context: context,
+                                    position: RelativeRect.fill,
+                                    items: [
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Edit'),
                                       ),
-                                      TextButton(
-                                        onPressed:
-                                            () => Navigator.pop(context, true),
-                                        child: const Text('Yes'),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Delete'),
                                       ),
                                     ],
-                                  ),
-                            );
-                            if (confirmed == true) {
-                              await InvoiceService.deleteInvoiceItem(it['id']);
-                              setState(() {});
-                            }
-                          }
-                        },
+                                  );
+
+                                  if (selected == 'edit') {
+                                    await _showEditItemDialog(it);
+                                    setState(() {}); // refresh UI
+                                  } else if (selected == 'delete') {
+                                    final confirmed = await showDialog<bool>(
+                                      context: context,
+                                      builder:
+                                          (_) => AlertDialog(
+                                            title: const Text('Delete Item'),
+                                            content: const Text(
+                                              'Are you sure you want to delete this item?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.pop(
+                                                      context,
+                                                      false,
+                                                    ),
+                                                child: const Text('No'),
+                                              ),
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.pop(
+                                                      context,
+                                                      true,
+                                                    ),
+                                                child: const Text('Yes'),
+                                              ),
+                                            ],
+                                          ),
+                                    );
+                                    if (confirmed == true) {
+                                      await MartBillService.deleteMartBillItem(
+                                        it['id'],
+                                      );
+                                      setState(() {});
+                                    }
+                                  }
+                                },
                         cells: [
                           DataCell(Text(it['item_name'] ?? '')),
                           DataCell(Text(it['quantity'].toString())),
@@ -413,60 +494,66 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                             Text((it['total'] as num).toStringAsFixed(2)),
                           ),
                           DataCell(
-                            PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert, size: 18),
-                              onSelected: (value) async {
-                                if (value == 'edit') {
-                                  await _showEditItemDialog(it);
-                                } else if (value == 'delete') {
-                                  final confirmed = await showDialog<bool>(
-                                    context: context,
-                                    builder:
-                                        (_) => AlertDialog(
-                                          title: const Text('Delete Item'),
-                                          content: const Text(
-                                            'Are you sure you want to delete this item?',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed:
-                                                  () => Navigator.pop(
-                                                    context,
-                                                    false,
-                                                  ),
-                                              child: const Text('No'),
+                            isVerified
+                                ? const Icon(
+                                  Icons.lock,
+                                  size: 16,
+                                  color: Colors.grey,
+                                )
+                                : PopupMenuButton<String>(
+                                  icon: const Icon(Icons.more_vert, size: 18),
+                                  onSelected: (value) async {
+                                    if (value == 'edit') {
+                                      await _showEditItemDialog(it);
+                                    } else if (value == 'delete') {
+                                      final confirmed = await showDialog<bool>(
+                                        context: context,
+                                        builder:
+                                            (_) => AlertDialog(
+                                              title: const Text('Delete Item'),
+                                              content: const Text(
+                                                'Are you sure you want to delete this item?',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed:
+                                                      () => Navigator.pop(
+                                                        context,
+                                                        false,
+                                                      ),
+                                                  child: const Text('No'),
+                                                ),
+                                                TextButton(
+                                                  onPressed:
+                                                      () => Navigator.pop(
+                                                        context,
+                                                        true,
+                                                      ),
+                                                  child: const Text('Yes'),
+                                                ),
+                                              ],
                                             ),
-                                            TextButton(
-                                              onPressed:
-                                                  () => Navigator.pop(
-                                                    context,
-                                                    true,
-                                                  ),
-                                              child: const Text('Yes'),
-                                            ),
-                                          ],
+                                      );
+                                      if (confirmed == true) {
+                                        await MartBillService.deleteMartBillItem(
+                                          it['id'],
+                                        );
+                                        setState(() {});
+                                      }
+                                    }
+                                  },
+                                  itemBuilder:
+                                      (context) => [
+                                        const PopupMenuItem(
+                                          value: 'edit',
+                                          child: Text('Edit'),
                                         ),
-                                  );
-                                  if (confirmed == true) {
-                                    await InvoiceService.deleteInvoiceItem(
-                                      it['id'],
-                                    );
-                                    setState(() {}); // More efficient refresh
-                                  }
-                                }
-                              },
-                              itemBuilder:
-                                  (context) => [
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edit'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Delete'),
-                                    ),
-                                  ],
-                            ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('Delete'),
+                                        ),
+                                      ],
+                                ),
                           ),
                         ],
                       );
@@ -481,23 +568,17 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final availableHeight =
-        MediaQuery.of(context).size.height -
-        kToolbarHeight -
-        MediaQuery.of(context).padding.top -
-        32; // 32 for vertical padding
-
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Invoices'),
+        title: const Text('Mart Bills'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
         actions: [
           IconButton(
             icon: const Icon(Icons.upload_file),
-            tooltip: 'Upload Invoice',
+            tooltip: 'Upload Mart Bill',
             onPressed: _pickFiles,
           ),
         ],
@@ -549,7 +630,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                     onChanged: (v) {
                       setState(() {
                         _filterMart = v;
-                        _fetchInvoices();
+                        _fetchMartBills();
                       });
                     },
                   ),
@@ -560,7 +641,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                     decoration: const InputDecoration(hintText: 'Search…'),
                     onSubmitted: (v) {
                       _search = v;
-                      _fetchInvoices();
+                      _fetchMartBills();
                     },
                   ),
                 ),
@@ -574,12 +655,9 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                 child: Text(_error!, style: const TextStyle(color: Colors.red)),
               ),
 
-            // Upload and Results Cards — Add here if needed
             const SizedBox(height: 12),
 
-            // ───────────────────────────────────────────────
             // 1) UPLOAD FORM CARD
-            // ───────────────────────────────────────────────
             if (_showUploadSection)
               Card(
                 elevation: 2,
@@ -592,7 +670,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // header with close button
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -615,18 +692,14 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 8),
-                      // file list
                       ..._pickedPaths.map(
                         (p) => Text(
                           '• ${p.split('/').last}',
                           style: const TextStyle(fontSize: 14),
                         ),
                       ),
-
                       const SizedBox(height: 12),
-                      // Upload button
                       Align(
                         alignment: Alignment.centerRight,
                         child: ElevatedButton.icon(
@@ -643,12 +716,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                   : const Icon(Icons.cloud_upload),
                           label: const Text('Upload'),
                           onPressed: _uploading ? null : _uploadFiles,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
                         ),
                       ),
                     ],
@@ -656,9 +723,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                 ),
               ),
 
-            // ───────────────────────────────────────────────
             // 2) UPLOAD RESULTS CARD
-            // ───────────────────────────────────────────────
             if (_uploadResults.isNotEmpty)
               Card(
                 elevation: 2,
@@ -671,7 +736,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // header + close
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -693,9 +757,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 8),
-                      // each result
                       for (final result in _uploadResults)
                         ListTile(
                           dense: true,
@@ -719,9 +781,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                     ),
                                   ),
                         ),
-
                       const SizedBox(height: 12),
-                      // add more
                       Center(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.add),
@@ -741,7 +801,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                 ),
               ),
 
-            // 👇 The fixed scrollable list
+            // List
             Expanded(
               child:
                   _loading
@@ -753,44 +813,58 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                       100 &&
                               !_isLoadingMore &&
                               _hasMore) {
-                            _fetchInvoices(loadMore: true);
+                            _fetchMartBills(loadMore: true);
                           }
                           return false;
                         },
-                        child: _invoices.isEmpty
-                            ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey[400]),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No invoices found',
-                                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                        child:
+                            _martBills.isEmpty
+                                ? Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.receipt_long_outlined,
+                                      size: 64,
+                                      color: Colors.grey[400],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No mart bills found',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    TextButton.icon(
+                                      onPressed: _pickFiles,
+                                      icon: const Icon(Icons.upload_file),
+                                      label: const Text(
+                                        'Upload your first bill',
+                                      ),
+                                    ),
+                                  ],
+                                )
+                                : ListView.builder(
+                                  padding: const EdgeInsets.only(
+                                    top: 12,
+                                    bottom: 24,
+                                  ),
+                                  itemCount:
+                                      _martBills.length + (_hasMore ? 1 : 0),
+                                  itemBuilder: (ctx, i) {
+                                    if (i == _martBills.length) {
+                                      return const Center(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(12),
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      );
+                                    }
+                                    final bill = _martBills[i];
+                                    return _buildBillCard(bill);
+                                  },
                                 ),
-                                const SizedBox(height: 8),
-                                TextButton.icon(
-                                  onPressed: _pickFiles,
-                                  icon: const Icon(Icons.upload_file),
-                                  label: const Text('Upload your first invoice'),
-                                ),
-                              ],
-                            )
-                            : ListView.builder(
-                          padding: const EdgeInsets.only(top: 12, bottom: 24),
-                          itemCount: _invoices.length + (_hasMore ? 1 : 0),
-                          itemBuilder: (ctx, i) {
-                            if (i == _invoices.length) {
-                              return const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(12),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            final inv = _invoices[i];
-                            return _buildInvoiceCard(inv);
-                          },
-                        ),
                       ),
             ),
           ],

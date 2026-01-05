@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+
 import '../../services/item_service.dart';
 
 class MapItemsScreen extends StatefulWidget {
-  final int invoiceId;
+  final int billId;
   final List<Map<String, dynamic>> unmappedItems;
 
   const MapItemsScreen({
     super.key,
-    required this.invoiceId,
+    required this.billId,
     required this.unmappedItems,
   });
 
@@ -36,6 +37,7 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
 
     final saved = await ItemService.saveAliasMapping(payload);
     if (saved != null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Mapping saved for ${row.aliasName}")),
       );
@@ -93,7 +95,7 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
     // as soon as we've removed the last row, reprocess + pop once
     if (rows.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await ItemService.reprocessStock(widget.invoiceId);
+        await ItemService.reprocessStock(widget.billId);
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
@@ -103,7 +105,7 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Map Invoice Items")),
+      appBar: AppBar(title: const Text("Map Mart Bill Items")),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: rows.length,

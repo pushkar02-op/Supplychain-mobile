@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/item_service.dart';
 
 class AliasMappingScreen extends StatefulWidget {
@@ -23,7 +24,7 @@ class _AliasMappingScreenState extends State<AliasMappingScreen> {
   Future<void> _loadData() async {
     setState(() => isLoading = true);
     try {
-      final aliases = await ItemService.fetchUnmappedAliases();
+      final aliases = await ItemService.fetchUnmappedMartBillItems();
       final allItems = await ItemService.fetchItems();
 
       setState(() {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../services/item_service.dart';
 
 class ItemListScreen extends StatefulWidget {
@@ -11,10 +12,10 @@ class ItemListScreen extends StatefulWidget {
 
 class _ItemListScreenState extends State<ItemListScreen> {
   List<Map<String, dynamic>> items = [];
-  List<Map<String, dynamic>> unmappedInvoiceItems = [];
+  List<Map<String, dynamic>> unmappedBillItems = [];
   bool isLoading = true;
   String error = '';
-  int? selectedInvoiceItemId;
+  int? selectedBillItemId;
   int? selectedItemId;
 
   @override
@@ -26,10 +27,10 @@ class _ItemListScreenState extends State<ItemListScreen> {
   Future<void> _fetchItems() async {
     try {
       final fetchedItems = await ItemService.fetchItems();
-      final invoiceItems = await ItemService.fetchUnmappedAliases();
+      final billItems = await ItemService.fetchUnmappedMartBillItems();
       setState(() {
         items = fetchedItems;
-        unmappedInvoiceItems = invoiceItems;
+        unmappedBillItems = billItems;
       });
     } catch (e) {
       setState(() => error = e.toString());
@@ -43,31 +44,32 @@ class _ItemListScreenState extends State<ItemListScreen> {
     _fetchItems();
   }
 
-  Future<void> _mapInvoiceItemToItem(int invoiceItemId, int itemId) async {
-    await ItemService.mapAlias(invoiceItemId, itemId);
+  Future<void> _mapBillItemToItem(int billItemId, int itemId) async {
+    await ItemService.mapAlias(billItemId, itemId);
     _fetchItems();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invoice item mapped successfully')),
+      const SnackBar(content: Text('Mart Bill item mapped successfully')),
     );
   }
 
-  void _showInvoiceMappingDialog() {
-    selectedInvoiceItemId = null;
+  void _showMappingDialog() {
+    selectedBillItemId = null;
     selectedItemId = null;
 
     showDialog(
       context: context,
       builder: (_) {
         return AlertDialog(
-          title: const Text('Map Invoice Item to Item'),
+          title: const Text('Map Mart Bill Item to Item'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<int>(
-                value: selectedInvoiceItemId,
+                value: selectedBillItemId,
                 isExpanded: true,
                 items:
-                    unmappedInvoiceItems.map((inv) {
+                    unmappedBillItems.map((inv) {
                       return DropdownMenuItem<int>(
                         value: inv['invoice_item_id'],
                         child: Text(
@@ -75,9 +77,9 @@ class _ItemListScreenState extends State<ItemListScreen> {
                         ),
                       );
                     }).toList(),
-                onChanged: (val) => setState(() => selectedInvoiceItemId = val),
+                onChanged: (val) => setState(() => selectedBillItemId = val),
                 decoration: const InputDecoration(
-                  labelText: 'Unmapped Invoice Item',
+                  labelText: 'Unmapped Mart Bill Item',
                 ),
               ),
               const SizedBox(height: 10),
@@ -103,11 +105,8 @@ class _ItemListScreenState extends State<ItemListScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                if (selectedInvoiceItemId != null && selectedItemId != null) {
-                  _mapInvoiceItemToItem(
-                    selectedInvoiceItemId!,
-                    selectedItemId!,
-                  );
+                if (selectedBillItemId != null && selectedItemId != null) {
+                  _mapBillItemToItem(selectedBillItemId!, selectedItemId!);
                   Navigator.pop(context);
                 }
               },
@@ -131,8 +130,8 @@ class _ItemListScreenState extends State<ItemListScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.link),
-            tooltip: 'Map Invoice Items',
-            onPressed: _showInvoiceMappingDialog,
+            tooltip: 'Map Mart Bill Items',
+            onPressed: _showMappingDialog,
           ),
           IconButton(
             icon: const Icon(Icons.add),
@@ -154,7 +153,11 @@ class _ItemListScreenState extends State<ItemListScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.category_outlined, size: 64, color: Colors.grey[400]),
+                    Icon(
+                      Icons.category_outlined,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       'No items in catalog',

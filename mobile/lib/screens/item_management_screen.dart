@@ -20,7 +20,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
   List<Map<String, dynamic>> uoms = [];
   List<Map<String, dynamic>> conversions = [];
   List<Map<String, dynamic>> aliasOptions = [];
-  List<Map<String, dynamic>> fetchedAliases = []; // <-- Add this line
+  List<Map<String, dynamic>> fetchedAliases = [];
 
   bool isLoading = true;
   String error = '';
@@ -35,11 +35,11 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
   Future<void> _fetchData() async {
     try {
       final fetchedUoms = await ItemService.fetchUOMs();
-      final unmappedInvoiceItems = await ItemService.fetchUnmappedAliases();
+      final unmappedBillItems = await ItemService.fetchUnmappedMartBillItems();
 
       // Transform unmapped items to look like aliases for the UI
       final unmappedAsAliases =
-          unmappedInvoiceItems.map((item) {
+          unmappedBillItems.map((item) {
             return {
               'id': item['invoice_item_id'],
               'alias_name': item['item_name'],

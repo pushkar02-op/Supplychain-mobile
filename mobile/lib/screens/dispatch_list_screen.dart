@@ -272,11 +272,7 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
                               d['net_quantity'] ??
                               d['quantity']; // Fallback if missing
 
-                          final status =
-                              d['status'] as String? ??
-                              'Active'; // Restored definition
-
-                          // Visual indicator for Partial
+                          final status = d['status'] as String? ?? 'Active';
                           final isPartial = status == 'Partially Reversed';
 
                           return Card(

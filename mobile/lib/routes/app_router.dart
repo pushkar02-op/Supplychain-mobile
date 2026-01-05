@@ -1,46 +1,48 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/auth_provider.dart';
+import 'package:mobile/providers/auth_state.dart';
+import 'package:mobile/screens/admin_diagnostics_screen.dart';
+import 'package:mobile/screens/admin_inventory_drift_screen.dart';
+import 'package:mobile/screens/admin_inventory_health_screen.dart';
 import 'package:mobile/screens/dispatch_entry_screen.dart';
 import 'package:mobile/screens/dispatch_list_screen.dart';
 import 'package:mobile/screens/map_items_screen.dart';
 import 'package:mobile/screens/pdf_view_screen.dart';
 import 'package:mobile/screens/rejection_entry_screen.dart';
 import 'package:mobile/screens/rejection_list_screen.dart';
-import 'package:mobile/screens/admin_inventory_health_screen.dart';
-import 'package:mobile/screens/admin_inventory_drift_screen.dart';
-import 'package:mobile/screens/admin_diagnostics_screen.dart';
-import 'package:mobile/providers/auth_state.dart';
 
 import '../auth/login_screen.dart';
+import '../providers/auth_provider.dart';
+import '../screens/alias_mapping_screen.dart';
 import '../screens/dashboard_screen.dart';
-import '../screens/orders_screen.dart';
-import '../screens/stock_list_screen.dart';
-import '../screens/stock_entry_screen.dart';
-import '../screens/order_entry_screen.dart';
-import '../screens/invoice_list_screen.dart';
 import '../screens/inventory_screen.dart';
 import '../screens/item_list_screen.dart';
 import '../screens/item_management_screen.dart';
-import '../screens/alias_mapping_screen.dart';
-
-
+import '../screens/mart_bill_list_screen.dart';
+import '../screens/order_entry_screen.dart';
+import '../screens/orders_screen.dart';
+import '../screens/stock_entry_screen.dart';
+import '../screens/stock_list_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
-  debugPrint('[ROUTER_PROVIDER] Rebuilding GoRouter. AuthState: ${authState.value}');
+  debugPrint(
+    '[ROUTER_PROVIDER] Rebuilding GoRouter. AuthState: ${authState.value}',
+  );
 
   return GoRouter(
     initialLocation: '/login',
     refreshListenable: _AuthStateListenable(authState),
     redirect: (context, state) {
-      debugPrint('[ROUTER] redirect check. Path: ${state.uri.path}, AuthState: ${authState.value}');
+      debugPrint(
+        '[ROUTER] redirect check. Path: ${state.uri.path}, AuthState: ${authState.value}',
+      );
       // If auth state is loading, maybe show a splash?
       // For now, if loading, we wait.
       if (authState.isLoading || authState.hasError) {
-          debugPrint('[ROUTER] Auth loading or error. Staying put.');
-          return null;
+        debugPrint('[ROUTER] Auth loading or error. Staying put.');
+        return null;
       }
 
       final isLoggedIn = authState.value?.isLoggedIn ?? false;
@@ -49,19 +51,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isRestricted = state.uri.path.startsWith('/admin');
 
       if (!isLoggedIn && !isLoggingIn) {
-          debugPrint('[ROUTER] Not logged in, redirecting to /login');
-          return '/login';
+        debugPrint('[ROUTER] Not logged in, redirecting to /login');
+        return '/login';
       }
       if (isLoggedIn && isLoggingIn) {
-          debugPrint('[ROUTER] Logged in, redirecting to /dashboard');
-          return '/dashboard';
+        debugPrint('[ROUTER] Logged in, redirecting to /dashboard');
+        return '/dashboard';
       }
-      
+
       // Admin Guard
       if (isRestricted && !isAdmin) {
         return '/dashboard';
       }
-      
+
       debugPrint('[ROUTER] No redirect needed.');
       return null;
     },
@@ -75,7 +77,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/stock-list',
         builder: (context, state) => const StockListScreen(),
       ),
-      GoRoute(path: '/orders', builder: (context, state) => const OrdersScreen()),
+      GoRoute(
+        path: '/orders',
+        builder: (context, state) => const OrdersScreen(),
+      ),
       GoRoute(
         path: '/order-entry',
         builder: (context, state) => const OrderEntryScreen(),
@@ -95,7 +100,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return CreateOrEditDispatchScreen(data: extra);
         },
       ),
-      GoRoute(path: '/invoices', builder: (c, s) => const InvoiceListScreen()),
+      GoRoute(
+        path: '/mart-bills',
+        name: 'mart_bills',
+        builder: (c, s) => const MartBillListScreen(),
+      ),
       GoRoute(
         path: '/pdf-viewer',
         builder: (context, state) {
@@ -116,7 +125,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>;
           return MapItemsScreen(
-            invoiceId: extra['invoice_id'],
+            billId: extra['invoice_id'],
             unmappedItems: List<Map<String, dynamic>>.from(
               extra['unmapped_items'],
             ),
@@ -134,8 +143,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/item-edit',
         builder:
-            (context, state) =>
-                ItemManagementScreen(data: state.extra as Map<String, dynamic>?),
+            (context, state) => ItemManagementScreen(
+              data: state.extra as Map<String, dynamic>?,
+            ),
       ),
       GoRoute(
         path: '/alias-mapping',
@@ -162,4 +172,3 @@ class _AuthStateListenable extends ChangeNotifier {
   _AuthStateListenable(this._state);
   final AsyncValue<AuthState> _state;
 }
-

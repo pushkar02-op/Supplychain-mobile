@@ -15,6 +15,7 @@ class Settings:
     POSTGRES_PORT = os.getenv("POSTGRES_PORT")
     POSTGRES_HOST = os.getenv("POSTGRES_HOST")
     INVOICE_UPLOAD_DIR: str = "invoices"
+    STORAGE_ROOT: str = os.getenv("STORAGE_ROOT", "invoices")
     SEED_INITIAL_DATA: bool = True
 
     class Config:

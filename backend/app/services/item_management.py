@@ -8,7 +8,8 @@ from collections import defaultdict
 from typing import List
 
 from app.core.exceptions import AppException
-from app.db.models import UOM, InvoiceItem, Item, ItemAlias, ItemConversionMap, User
+from app.db.models import UOM, Item, ItemAlias, ItemConversionMap, User
+from app.db.models.mart_bill_item import MartBillItem
 from app.db.schemas.item_management import (
     ItemManagementCreateUpdate,
     ItemManagementRead,
@@ -68,7 +69,7 @@ def get_unmapped_invoice_items_with_suggestions(db: Session) -> List[dict]:
     Returns a list of invoice items that are not mapped to any master Item.
     For each unmapped item, it provides a list of potential mapping suggestions.
     """
-    unmapped_items = db.query(InvoiceItem).filter(InvoiceItem.item_id.is_(None)).all()
+    unmapped_items = db.query(MartBillItem).filter(MartBillItem.item_id.is_(None)).all()
     uoms = {u.id: u.code for u in db.query(UOM).all()}
     results = []
 
@@ -148,7 +149,7 @@ def create_or_update_master_item(
             else:
                 # It's not an existing ItemAlias. Let's assume it's an InvoiceItem ID.
                 # We should create a new ItemAlias from it.
-                invoice_item = db.get(InvoiceItem, alias_data.id)
+                invoice_item = db.get(MartBillItem, alias_data.id)
                 if invoice_item:
                     # Link the original invoice item to the master item for consistency.
                     invoice_item.item_id = item.id

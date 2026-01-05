@@ -8,15 +8,15 @@ from datetime import datetime
 from typing import List, Optional
 
 from app.core.exceptions import AppException
-from app.db.models.invoice import Invoice
-from app.db.models.invoice_item import InvoiceItem
-from app.db.schemas.invoice_item import InvoiceItemUpdate
+from app.db.models.mart_bill import MartBill
+from app.db.models.mart_bill_item import MartBillItem
+from app.db.schemas.mart_bill_item import MartBillItemUpdate
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 
-def recalculate_invoice_total(db: Session, invoice_id: int) -> None:
+def recalculate_mart_bill_total(db: Session, invoice_id: int) -> None:
     """
     Recalculate and update the total_amount of an invoice after item changes.
 
@@ -25,11 +25,12 @@ def recalculate_invoice_total(db: Session, invoice_id: int) -> None:
         invoice_id (int): ID of the invoice to recalculate.
     """
     logger.info(f"Recalculating total for invoice_id={invoice_id}")
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    invoice = db.query(MartBill).filter(MartBill.id == invoice_id).first()
     if not invoice:
         logger.error(f"Invoice not found: id={invoice_id}")
         raise AppException("Invoice not found", status_code=404)
 
+    # We use .items because relationship is named 'items' in MartBill
     invoice.total_amount = sum(item.total for item in invoice.items)
     invoice.updated_at = datetime.utcnow()
     db.add(invoice)
@@ -37,7 +38,7 @@ def recalculate_invoice_total(db: Session, invoice_id: int) -> None:
     logger.debug(f"Updated invoice total to {invoice.total_amount}")
 
 
-def get_items_by_invoice(db: Session, invoice_id: int) -> List[InvoiceItem]:
+def get_items_by_mart_bill(db: Session, invoice_id: int) -> List[MartBillItem]:
     """
     Retrieve all line items for a given invoice.
 
@@ -46,31 +47,31 @@ def get_items_by_invoice(db: Session, invoice_id: int) -> List[InvoiceItem]:
         invoice_id (int): Invoice ID.
 
     Returns:
-        List[InvoiceItem]: List of items.
+        List[MartBillItem]: List of items.
     """
     logger.debug(f"Fetching items for invoice_id={invoice_id}")
-    return db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
+    return db.query(MartBillItem).filter(MartBillItem.invoice_id == invoice_id).all()
 
 
-def update_invoice_item(
-    db: Session, item_id: int, update_data: InvoiceItemUpdate
-) -> Optional[InvoiceItem]:
+def update_mart_bill_item(
+    db: Session, item_id: int, update_data: MartBillItemUpdate
+) -> Optional[MartBillItem]:
     """
     Update a specific invoice item and recalculate invoice total.
 
     Args:
         db (Session): Database session.
         item_id (int): Item ID.
-        update_data (InvoiceItemUpdate): Fields to update.
+        update_data (MartBillItemUpdate): Fields to update.
 
     Returns:
-        Optional[InvoiceItem]: Updated item, or None if not found.
+        Optional[MartBillItem]: Updated item, or None if not found.
 
     Raises:
         AppException: If item not found.
     """
     logger.info(f"Updating invoice item id={item_id}")
-    item = db.query(InvoiceItem).filter(InvoiceItem.id == item_id).first()
+    item = db.query(MartBillItem).filter(MartBillItem.id == item_id).first()
     if not item:
         logger.error(f"Invoice item not found: id={item_id}")
         raise AppException("Item not found", status_code=404)
@@ -80,12 +81,12 @@ def update_invoice_item(
     db.flush()
     db.refresh(item)
     logger.debug(f"Item id={item_id} updated, recalculating invoice total")
-    recalculate_invoice_total(db, item.invoice_id)
+    recalculate_mart_bill_total(db, item.invoice_id)
     db.commit()
     return item
 
 
-def delete_invoice_item(db: Session, item_id: int) -> bool:
+def delete_mart_bill_item(db: Session, item_id: int) -> bool:
     """
     Delete an invoice item and recalculate invoice total.
 
@@ -100,7 +101,7 @@ def delete_invoice_item(db: Session, item_id: int) -> bool:
         AppException: If item not found.
     """
     logger.info(f"Deleting invoice item id={item_id}")
-    item = db.query(InvoiceItem).filter(InvoiceItem.id == item_id).first()
+    item = db.query(MartBillItem).filter(MartBillItem.id == item_id).first()
     if not item:
         logger.error(f"Invoice item not found: id={item_id}")
         raise AppException("Item not found", status_code=404)
@@ -109,7 +110,7 @@ def delete_invoice_item(db: Session, item_id: int) -> bool:
     db.delete(item)
     db.flush()
     logger.debug(f"Item id={item_id} deleted, recalculating invoice total")
-    recalculate_invoice_total(db, invoice_id)
+    recalculate_mart_bill_total(db, invoice_id)
     db.commit()
     return True
 
@@ -122,12 +123,12 @@ def get_distinct_items_for_mart(db: Session, mart_name: str) -> list[dict]:
     logger.debug(f"Fetching distinct items for mart: {mart_name}")
     rows = (
         db.query(
-            InvoiceItem.item_id,
-            InvoiceItem.item_code,
-            InvoiceItem.item_name,
-            InvoiceItem.uom,
+            MartBillItem.item_id,
+            MartBillItem.item_code,
+            MartBillItem.item_name,
+            MartBillItem.uom,
         )
-        .filter(InvoiceItem.store_name == mart_name, InvoiceItem.item_id.isnot(None))
+        .filter(MartBillItem.store_name == mart_name, MartBillItem.item_id.isnot(None))
         .distinct()
         .all()
     )

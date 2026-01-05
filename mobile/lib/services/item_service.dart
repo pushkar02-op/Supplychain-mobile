@@ -1,8 +1,4 @@
-import 'dart:io';
-
-import 'package:dio/dio.dart';
 import '../core/dio_client.dart';
-import 'package:path_provider/path_provider.dart';
 
 class ItemService {
   static Future<Map<String, dynamic>?> saveAliasMapping(
@@ -27,8 +23,8 @@ class ItemService {
     }
   }
 
-  static Future<void> reprocessStock(int invoiceId) async {
-    await DioClient.instance.post('/invoices/$invoiceId/process-stock');
+  static Future<void> reprocessStock(int billId) async {
+    await DioClient.instance.post('/mart-bills/$billId/process-stock');
   }
 
   static Future<List<Map<String, dynamic>>> fetchItems() async {
@@ -49,17 +45,17 @@ class ItemService {
     await DioClient.instance.post('/item-management/', data: payload);
   }
 
-  static Future<List<Map<String, dynamic>>> fetchUnmappedAliases() async {
+  static Future<List<Map<String, dynamic>>> fetchUnmappedMartBillItems() async {
     final res = await DioClient.instance.get(
       '/item-management/unmapped-invoice-items',
     );
     return List<Map<String, dynamic>>.from(res.data);
   }
 
-  static Future<void> mapAlias(int invoiceItemId, int masterItemId) async {
+  static Future<void> mapAlias(int billItemId, int masterItemId) async {
     await DioClient.instance.post(
       '/item-management/map-invoice-item',
-      data: {'invoice_item_id': invoiceItemId, 'master_item_id': masterItemId},
+      data: {'invoice_item_id': billItemId, 'master_item_id': masterItemId},
     );
   }
 }

@@ -28,6 +28,7 @@ services:
       - ./backend/app:/app/app
       - ./backend/alembic.ini:/app/alembic.ini
       - ./backend/alembic:/app/alembic
+      - ./backend/invoices:/app/invoices
     depends_on:
       - db
     ports:

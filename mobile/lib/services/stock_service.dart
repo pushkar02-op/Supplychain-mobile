@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import '../core/dio_client.dart';
 
 class StockService {
@@ -85,8 +86,6 @@ class StockService {
         '/stock-entry/$stockEntryId',
         data: data,
       );
-      // print(data);
-      // print(resp.data);
       if (resp.statusCode == 200) return true;
       return resp.data['detail'] ?? 'Unknown error';
     } on DioError catch (e) {

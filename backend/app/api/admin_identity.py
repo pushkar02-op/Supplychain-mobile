@@ -1,11 +1,13 @@
 from typing import List
 
-from app.db.models.invoice_item import InvoiceItem
 from app.db.models.mart import Mart
 
 # from app.api import deps # Circular import fixed
+from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.mart_item_alias import MartItemAlias
-from app.db.schemas.invoice_item import UnresolvedInvoiceItemRead
+from app.db.schemas.mart_bill_item import (
+    UnresolvedMartBillItemRead as UnresolvedInvoiceItemRead,
+)
 from app.db.schemas.mart_item_alias import (
     MartItemAliasCreate,
     MartItemAliasRead,
@@ -27,7 +29,7 @@ def get_unresolved_invoice_items(
     """
     List all invoice items that haven't been mapped to a canonical Item.
     """
-    items = db.query(InvoiceItem).filter(InvoiceItem.item_id == None).all()
+    items = db.query(MartBillItem).filter(MartBillItem.item_id.is_(None)).all()
     return items
 
 
@@ -80,31 +82,12 @@ def resolve_invoice_items(
     """
     Trigger re-resolution for unresolved items of a specific Mart.
     """
-    unresolved = (
-        db.query(InvoiceItem)
-        .filter(
-            InvoiceItem.item_id == None,
-            InvoiceItem.store_name != None,  # Assuming store_name helps us find mart?
-            # Actually, InvoiceItem links to Invoice which links to Mart.
-        )
-        .join(InvoiceItem.invoice)
-        .filter(
-            # Check against the Mart ID in the request
-            # Wait, InvoiceItem.invoice is the relationship. Invoice needs to be imported or use string.
-            # InvoiceItem has invoice_id. Invoice has mart_id.
-            # Let's join Invoice.
-            # But wait, InvoiceItem.store_name is just text. Canonical mart is Invoice.mart_id.
-        )
-        .all()
-    )
-
-    # Correct query driven by Invoice.mart_id
-    from app.db.models.invoice import Invoice
+    from app.db.models.mart_bill import MartBill
 
     unresolved = (
-        db.query(InvoiceItem)
-        .join(Invoice)
-        .filter(Invoice.mart_id == request.mart_id, InvoiceItem.item_id == None)
+        db.query(MartBillItem)
+        .join(MartBill)
+        .filter(MartBill.mart_id == request.mart_id, MartBillItem.item_id.is_(None))
         .all()
     )
 

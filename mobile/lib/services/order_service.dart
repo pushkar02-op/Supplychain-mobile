@@ -11,13 +11,11 @@ class OrderService {
     final dateStr = date.toIso8601String().split('T').first;
     final params = {'order_date': dateStr};
     if (martName != null) params['mart_name'] = martName;
-    print('Fetching orders with params: $params');
 
     final resp = await DioClient.instance.get(
       '/orders/',
       queryParameters: params,
     );
-    print('Response data: ${resp.data}');
     if (resp.statusCode != 200) {
       throw Exception('Failed to fetch orders');
     }
@@ -100,7 +98,6 @@ class OrderService {
       '/invoice-items/distinct-items',
       queryParameters: {'mart_name': martName},
     );
-    print(resp.data);
     if (resp.statusCode != 200) {
       throw Exception('Failed to fetch items for mart');
     }

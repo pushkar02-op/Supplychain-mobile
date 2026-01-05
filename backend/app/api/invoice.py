@@ -9,13 +9,14 @@ from datetime import date
 from typing import List, Optional
 
 from app.core.exceptions import AppException
-from app.db.schemas.invoice import InvoiceRead, InvoiceUpdate
+from app.db.schemas.mart_bill import MartBillRead as InvoiceRead
+from app.db.schemas.mart_bill import MartBillUpdate as InvoiceUpdate
 from app.db.session import get_db
-from app.services.invoice import (
-    delete_invoice,
-    get_invoice_by_id,
-    save_and_process_invoice,
-    update_invoice,
+from app.services.mart_bill import (
+    delete_mart_bill,
+    get_mart_bill_by_id,
+    save_and_process_mart_bill,
+    update_mart_bill,
 )
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
@@ -54,7 +55,7 @@ async def upload_invoices(
                 {"filename": file.filename, "success": False, "error": "Not a PDF"}
             )
             continue
-        result = await save_and_process_invoice(file, db=db, created_by="system")
+        result = await save_and_process_mart_bill(file, db=db, created_by="system")
         results.append(result)
     return results
 
@@ -89,9 +90,9 @@ def read_invoices(
         JSONResponse: A response containing total, page, page_size, and results.
     """
     logger.info("Fetching invoices")
-    from app.services.invoice import get_invoices_paginated
+    from app.services.mart_bill import get_mart_bills_paginated
 
-    return get_invoices_paginated(
+    return get_mart_bills_paginated(
         db=db,
         invoice_date=invoice_date,
         mart_id=mart_id,
@@ -117,7 +118,7 @@ def read_invoice(invoice_id: int, db: Session = Depends(get_db)) -> InvoiceRead:
         AppException: If the invoice is not found (404).
     """
     logger.info(f"Fetching invoice id={invoice_id}")
-    invoice = get_invoice_by_id(db, invoice_id)
+    invoice = get_mart_bill_by_id(db, invoice_id)
     if not invoice:
         logger.error(f"Invoice not found: id={invoice_id}")
         raise AppException("Invoice not found", status_code=404)
@@ -143,7 +144,7 @@ def update_invoice_route(
         AppException: If the invoice is not found (404).
     """
     logger.info(f"Updating invoice id={invoice_id}")
-    updated = update_invoice(db, invoice_id, data)
+    updated = update_mart_bill(db, invoice_id, data)
     if not updated:
         logger.error(f"Invoice not found: id={invoice_id}")
         raise AppException("Invoice not found", status_code=404)
@@ -165,7 +166,7 @@ def delete_invoice_route(invoice_id: int, db: Session = Depends(get_db)) -> None
         AppException: If the invoice is not found (404).
     """
     logger.info(f"Deleting invoice id={invoice_id}")
-    if not delete_invoice(db, invoice_id):
+    if not delete_mart_bill(db, invoice_id):
         logger.error(f"Invoice not found: id={invoice_id}")
         raise AppException("Invoice not found", status_code=404)
     return None
@@ -193,7 +194,7 @@ def download_invoice_pdf(
         AppException: If invoice or file is not found (404).
     """
     logger.info(f"Downloading invoice PDF id={invoice_id}")
-    invoice = get_invoice_by_id(db, invoice_id)
+    invoice = get_mart_bill_by_id(db, invoice_id)
     if not invoice:
         logger.error(f"Invoice not found: id={invoice_id}")
         raise AppException("Invoice not found", status_code=404)

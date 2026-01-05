@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import '../core/dio_client.dart';
 import 'package:path_provider/path_provider.dart';
 
-class InvoiceService {
-  /// Fetch list of invoices, with optional filters
-  static Future<Map<String, dynamic>> fetchInvoices({
+import '../core/dio_client.dart';
+import '../models/mart_bill.dart';
+
+class MartBillService {
+  /// Fetch list of mart bills (was invoices), with optional filters
+  static Future<Map<String, dynamic>> fetchMartBills({
     DateTime? date,
     String? martName,
     String? search,
@@ -23,7 +25,7 @@ class InvoiceService {
     if (search != null && search.isNotEmpty) params['search'] = search;
 
     final resp = await DioClient.instance.get(
-      '/invoices/',
+      '/mart-bills/',
       queryParameters: params,
     );
     if (resp.statusCode == 200) {
@@ -35,11 +37,11 @@ class InvoiceService {
         'results': List<Map<String, dynamic>>.from(data['results']),
       };
     }
-    throw Exception('Failed to load invoices');
+    throw Exception('Failed to load mart bills');
   }
 
   /// Upload one or more PDF files
-  static Future<List<Map<String, dynamic>>> uploadInvoices(
+  static Future<List<Map<String, dynamic>>> uploadMartBills(
     List<String> paths,
   ) async {
     final formData = FormData();
@@ -52,7 +54,7 @@ class InvoiceService {
       );
     }
     final resp = await DioClient.instance.post(
-      '/invoices/upload',
+      '/mart-bills/upload',
       data: formData,
       options: Options(contentType: 'multipart/form-data'),
     );
@@ -65,26 +67,44 @@ class InvoiceService {
     );
   }
 
-  /// Fetch invoice-items for a given invoice
-  static Future<List<Map<String, dynamic>>> fetchInvoiceItems(
-    int invoiceId,
+  /// Replace PDF for an existing bill
+  static Future<void> replaceBillPdf(int billId, String path) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        path,
+        filename: path.split('/').last,
+      ),
+    });
+
+    final resp = await DioClient.instance.post(
+      '/mart-bills/$billId/replace-file',
+      data: formData,
+      options: Options(contentType: 'multipart/form-data'),
+    );
+
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'Replacement failed: ${resp.data['detail'] ?? resp.statusMessage}',
+      );
+    }
+  }
+
+  /// Fetch mart-bill-items for a given bill
+  static Future<List<Map<String, dynamic>>> fetchMartBillItems(
+    int billId,
   ) async {
-    final resp = await DioClient.instance.get('/invoice-items/$invoiceId');
+    final resp = await DioClient.instance.get('/mart-bill-items/$billId');
     if (resp.statusCode == 200) {
       return List<Map<String, dynamic>>.from(resp.data);
     }
     throw Exception('Failed to load items');
   }
 
-  /// Update invoice metadata (verify, remarks)
-  static Future<void> updateInvoice(
-    int invoiceId,
-    bool isVerified,
-    String remarks,
-  ) async {
+  /// Update mart bill metadata (remarks)
+  static Future<void> updateMartBill(int billId, String remarks) async {
     final resp = await DioClient.instance.put(
-      '/invoices/$invoiceId',
-      data: {'is_verified': isVerified, 'remarks': remarks},
+      '/mart-bills/$billId',
+      data: {'remarks': remarks},
     );
     if (resp.statusCode != 200) {
       throw Exception(
@@ -93,13 +113,33 @@ class InvoiceService {
     }
   }
 
-  /// Update a single invoice‐item
-  static Future<void> updateInvoiceItem(
+  /// Verify and lock a mart bill
+  static Future<void> verifyMartBill(int billId) async {
+    final resp = await DioClient.instance.post('/mart-bills/$billId/verify');
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'Verification failed: ${resp.data['detail'] ?? resp.statusMessage}',
+      );
+    }
+  }
+
+  /// Unlock a mart bill
+  static Future<void> unverifyMartBill(int billId) async {
+    final resp = await DioClient.instance.post('/mart-bills/$billId/unverify');
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'Unverification failed: ${resp.data['detail'] ?? resp.statusMessage}',
+      );
+    }
+  }
+
+  /// Update a single mart-bill-item
+  static Future<void> updateMartBillItem(
     int itemId,
     Map<String, dynamic> data,
   ) async {
     final resp = await DioClient.instance.put(
-      '/invoice-items/$itemId',
+      '/mart-bill-items/$itemId',
       data: data,
     );
     if (resp.statusCode != 200) {
@@ -109,17 +149,17 @@ class InvoiceService {
     }
   }
 
-  /// Delete an invoice
-  static Future<void> deleteInvoice(int invoiceId) async {
-    final resp = await DioClient.instance.delete('/invoices/$invoiceId');
+  /// Delete a mart bill
+  static Future<void> deleteMartBill(int billId) async {
+    final resp = await DioClient.instance.delete('/mart-bills/$billId');
     if (resp.statusCode != 204) {
       throw Exception('Delete failed');
     }
   }
 
-  /// Delete a single invoice‐item
-  static Future<void> deleteInvoiceItem(int itemId) async {
-    final resp = await DioClient.instance.delete('/invoice-items/$itemId');
+  /// Delete a single mart-bill-item
+  static Future<void> deleteMartBillItem(int itemId) async {
+    final resp = await DioClient.instance.delete('/mart-bill-items/$itemId');
     if (resp.statusCode != 204) {
       throw Exception('Delete item failed');
     }
@@ -138,16 +178,15 @@ class InvoiceService {
     throw Exception('Unexpected mart-names format');
   }
 
-  /// Downloads PDF for [invoiceId] into a temp file and returns its path.
-  static Future<String> downloadInvoicePdf(int invoiceId) async {
-    print(invoiceId);
+  /// Downloads PDF for [billId] into a temp file and returns its path.
+  static Future<String> downloadMartBillPdf(int billId) async {
     final dir = await getTemporaryDirectory();
-    final filePath = '${dir.path}/invoice_$invoiceId.pdf';
+    final filePath = '${dir.path}/mart_bill_$billId.pdf';
     final file = File(filePath);
     if (await file.exists()) await file.delete();
 
     final response = await DioClient.instance.download(
-      '/invoices/$invoiceId/download',
+      '/mart-bills/$billId/download',
       filePath,
       options: Options(responseType: ResponseType.bytes),
     );
@@ -156,8 +195,17 @@ class InvoiceService {
       return filePath;
     } else {
       throw Exception(
-        'Failed to download invoice: ${response.statusCode} ${response.statusMessage}',
+        'Failed to download mart bill: ${response.statusCode} ${response.statusMessage}',
       );
     }
+  }
+
+  /// Get Single MartBill by ID
+  static Future<MartBill> getMartBillById(int id) async {
+    final resp = await DioClient.instance.get('/mart-bills/$id');
+    if (resp.statusCode == 200) {
+      return MartBill.fromJson(resp.data);
+    }
+    throw Exception('Failed to load mart bill');
   }
 }

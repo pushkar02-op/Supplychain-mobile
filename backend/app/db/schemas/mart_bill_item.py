@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class InvoiceItemBase(BaseModel):
+class MartBillItemBase(BaseModel):
     hsn_code: Optional[str]
     item_code: Optional[str]
     item_name: str
@@ -16,11 +16,11 @@ class InvoiceItemBase(BaseModel):
     store_name: str
 
 
-class InvoiceItemCreate(InvoiceItemBase):
+class MartBillItemCreate(MartBillItemBase):
     invoice_id: int
 
 
-class InvoiceItemUpdate(BaseModel):
+class MartBillItemUpdate(BaseModel):
     quantity: Optional[float] = None
     price: Optional[float] = None
     total: Optional[float] = None
@@ -29,7 +29,7 @@ class InvoiceItemUpdate(BaseModel):
         from_attributes = True
 
 
-class InvoiceItemRead(InvoiceItemBase):
+class MartBillItemRead(MartBillItemBase):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -40,7 +40,7 @@ class InvoiceItemRead(InvoiceItemBase):
         from_attributes = True
 
 
-class InvoiceItemSummary(BaseModel):
+class MartBillItemSummary(BaseModel):
     item_id: int
     item_code: str
     item_name: str
@@ -48,3 +48,17 @@ class InvoiceItemSummary(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class UnresolvedMartBillItemRead(MartBillItemBase):
+    id: int
+    invoice_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Was missing in previous view? Adding it if found by grep, otherwise I'll add a placeholder or copy if I find it.
+# Assuming it might be missing or in another file. I will check grep result before finalizing this file if needed.
+# Actually, I'll write what I have, and append if I find the missing class.

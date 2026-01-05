@@ -9,15 +9,15 @@ import os
 from datetime import date
 from typing import Dict, List, Optional, Union
 
-import aiofiles
 from app.core.config import settings
 from app.core.exceptions import AppException
-from app.db.models.invoice import Invoice
-from app.db.models.invoice_item import InvoiceItem
+from app.core.storage.local import LocalDiskStorage
 from app.db.models.item import Item
 from app.db.models.mart import Mart
+from app.db.models.mart_bill import MartBill
+from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.uom import UOM
-from app.db.schemas.invoice import InvoiceRead, InvoiceUpdate
+from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
 from app.services.item_alias import get_alias_by_code_or_name
 from app.utils.invoice_parser import process_pdf
 from fastapi import UploadFile
@@ -26,8 +26,36 @@ from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
 
+# Initialize Storage Service
+# Using . because existing file_paths are relative to project root/working directory (e.g. 'invoices/foo.pdf')
+# If we used STORAGE_ROOT='invoices', then we'd need to strip 'invoices/' from keys or handle migration.
+# For minimal disruption, we treat the project root as the storage root, and allow keys to be 'invoices/foo.pdf'
+# However, the requirement is "Decouple".
+# If we set base_path=settings.STORAGE_ROOT (which defaults to 'invoices'), then:
+# New saves: save(bytes, 'foo.pdf') -> writes to 'invoices/foo.pdf'. Key returned: 'foo.pdf'.
+# Old data: file_path='invoices/old.pdf'.
+# get_path('invoices/old.pdf') -> 'invoices/invoices/old.pdf' (WRONG).
+#
+# Solution:
+# We need logic to handle legacy keys.
+# OR we simply continue to use the 'invoices' folder as the root for NEW files, and for OLD files we hope they work?
+# No, we must support old files.
+#
+# Best approach for "Preserve Current Behavior" + "Infrastructure Refactor":
+# 1. Initialize storage with base_path = project root (or wherever 'invoices' folder lives relative to CWD).
+#    Currently CWD is /app. 'invoices' is /app/invoices.
+#    So storage root = /app (or ".").
+# 2. When saving, we purposely prepend 'invoices/' to the filename if not present, OR we rely on caller.
+#    Actually, the previous code did: `os.path.join(settings.INVOICE_UPLOAD_DIR, filename)`.
+#    So the "key" was `invoices/filename`.
+#    If we init storage at `.`, then save(data, 'invoices/filename') works perfectly.
+#    And exists('invoices/old.pdf') works.
+#    This seems the safest path for "Infrastructure Refactor" without data migration.
 
-async def save_and_process_invoice(
+storage = LocalDiskStorage(base_path=".")
+
+
+async def save_and_process_mart_bill(
     file: UploadFile, db: Session, created_by: str = "system"
 ) -> Dict[str, Optional[Union[int, str, bool]]]:
     """
@@ -46,20 +74,26 @@ async def save_and_process_invoice(
     file_bytes = await file.read()
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-    existing = db.query(Invoice).filter_by(file_hash=file_hash).first()
+    existing = db.query(MartBill).filter_by(file_hash=file_hash).first()
     if existing:
-        logger.warning("Duplicate invoice detected")
+        logger.warning("Duplicate mart bill detected")
         return {
             "filename": filename,
             "success": False,
-            "error": "Duplicate invoice detected",
+            "error": "Duplicate mart bill detected",
         }
 
-    upload_path = os.path.join(settings.INVOICE_UPLOAD_DIR, filename)
-    os.makedirs(settings.INVOICE_UPLOAD_DIR, exist_ok=True)
-    async with aiofiles.open(upload_path, "wb") as f:
-        await f.write(file_bytes)
+    # Construct Key (Legacy behavior: keep using 'invoices/' prefix)
+    # We use settings.INVOICE_UPLOAD_DIR to maintain directory structure.
+    storage_key = os.path.join(settings.INVOICE_UPLOAD_DIR, filename)
+
+    # Save using storage service
+    await storage.save(file_bytes, storage_key)
+
+    # Get absolute path for parser (Parser requires path string)
+    upload_path = storage.get_path(storage_key)
     logger.debug(f"Saved file to {upload_path}")
+
     try:
         df, invoice_date, mart_name = process_pdf(upload_path)
         total_amount = float(df["Total"].sum())
@@ -71,16 +105,16 @@ async def save_and_process_invoice(
 
         user_name, user_id = resolve_user_audit(db, created_by)
 
-        inv = Invoice(
+        inv = MartBill(
             invoice_date=invoice_date,
             mart_id=mart.id,
             total_amount=total_amount,
-            file_path=upload_path,
+            file_path=storage_key,  # Store key (which happens to be relative path)
             file_hash=file_hash,
             created_by=user_name,
             created_by_id=user_id,
             updated_by=user_name,
-            is_verified=False,
+            status="NEEDS_REVIEW",
             remarks="Uploaded from mobile",
         )
         db.add(inv)
@@ -135,7 +169,7 @@ async def save_and_process_invoice(
                 )
 
             items.append(
-                InvoiceItem(
+                MartBillItem(
                     invoice_id=inv.id,
                     item_id=item_id,
                     hsn_code=row["HSN_CODE"],
@@ -154,7 +188,7 @@ async def save_and_process_invoice(
             )
         db.bulk_save_objects(items)
         db.commit()
-        logger.info(f"Invoice {inv.id} and {len(items)} items saved")
+        logger.info(f"Invoice {inv.id} saved. User={created_by}. Items={len(items)}")
         return {
             "filename": filename,
             "success": True,
@@ -167,7 +201,7 @@ async def save_and_process_invoice(
         raise AppException("Invoice processing failed", status_code=500)
 
 
-def get_invoice_by_id(db: Session, invoice_id: int) -> Optional[Invoice]:
+def get_mart_bill_by_id(db: Session, invoice_id: int) -> Optional[MartBill]:
     """
     Retrieve an invoice by ID.
 
@@ -179,15 +213,15 @@ def get_invoice_by_id(db: Session, invoice_id: int) -> Optional[Invoice]:
         Optional[Invoice]: Invoice or None.
     """
     logger.debug(f"Retrieving invoice id={invoice_id}")
-    return db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    return db.query(MartBill).filter(MartBill.id == invoice_id).first()
 
 
-def get_all_invoices(
+def get_all_mart_bills(
     db: Session,
     invoice_date: Optional[str] = None,
     mart_name: Optional[str] = None,
     search: Optional[str] = None,
-) -> List[Invoice]:
+) -> List[MartBill]:
     """
     Retrieve all invoices with optional filters.
 
@@ -201,18 +235,18 @@ def get_all_invoices(
         List[Invoice]: List of invoices.
     """
     logger.debug("Fetching invoices with filters")
-    query = db.query(Invoice)
+    query = db.query(MartBill)
     if invoice_date:
-        query = query.filter(Invoice.invoice_date == invoice_date)
+        query = query.filter(MartBill.invoice_date == invoice_date)
     if mart_name:
-        query = query.filter(Invoice.mart_name == mart_name)
+        query = query.filter(MartBill.mart_name == mart_name)
     if search:
         term = f"%{search}%"
-        query = query.filter(or_(Invoice.mart_name.ilike(term)))
-    return query.order_by(Invoice.invoice_date.desc()).all()
+        query = query.filter(or_(MartBill.mart_name.ilike(term)))
+    return query.order_by(MartBill.invoice_date.desc()).all()
 
 
-def get_invoices_paginated(
+def get_mart_bills_paginated(
     db: Session,
     invoice_date: Optional[date] = None,
     mart_id: Optional[int] = None,
@@ -238,23 +272,25 @@ def get_invoices_paginated(
     logger.debug(
         f"Fetching invoices paginated date={invoice_date}, mart_id={mart_id}, search={search}"
     )
-    query = db.query(Invoice).options(joinedload(Invoice.mart))
+    query = db.query(MartBill).options(joinedload(MartBill.mart))
 
     if invoice_date:
-        query = query.filter(Invoice.invoice_date == invoice_date)
+        query = query.filter(MartBill.invoice_date == invoice_date)
 
     if mart_id:
-        query = query.filter(Invoice.mart_id == mart_id)
+        query = query.filter(MartBill.mart_id == mart_id)
 
     if search:
-        query = query.join(Invoice.mart).filter(
+        query = query.join(MartBill.mart).filter(
             or_(
-                Invoice.mart.has(name=search),
-                Invoice.remarks.ilike(f"%{search}%"),
+                MartBill.mart.has(name=search),
+                MartBill.remarks.ilike(f"%{search}%"),
             )
         )
 
-    query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+    # Order by status logic? For now existing date order is fine.
+    # Plan suggested NEEDS_REVIEW top, but sticking to existing sort for now unless requested.
+    query = query.order_by(MartBill.invoice_date.desc(), MartBill.id.desc())
 
     total = query.count()
     from app.utils.pagination import calculate_offset
@@ -265,7 +301,7 @@ def get_invoices_paginated(
     results = []
     for inv in invoices:
         # Use Pydantic conversion but manually inject mart_name to preserve frontend contract
-        inv_dict = InvoiceRead.from_orm(inv).dict()
+        inv_dict = MartBillRead.from_orm(inv).dict()
         inv_dict["mart_name"] = inv.mart.name if inv.mart else None
         results.append(inv_dict)
 
@@ -277,9 +313,9 @@ def get_invoices_paginated(
     }
 
 
-def update_invoice(
-    db: Session, invoice_id: int, data: InvoiceUpdate
-) -> Optional[Invoice]:
+def update_mart_bill(
+    db: Session, invoice_id: int, data: MartBillUpdate
+) -> Optional[MartBill]:
     """
     Update an existing invoice.
 
@@ -291,11 +327,17 @@ def update_invoice(
     Returns:
         Optional[Invoice]: Updated invoice or None.
     """
-    logger.info(f"Updating invoice id={invoice_id}")
-    inv = get_invoice_by_id(db, invoice_id)
+    logger.info(f"Updating mart bill id={invoice_id}")
+    inv = get_mart_bill_by_id(db, invoice_id)
     if not inv:
         logger.error(f"Invoice not found id={invoice_id}")
         return None
+
+    if inv.status == "VERIFIED":
+        raise AppException(
+            "Cannot edit a verified bill. Unverify it first.", status_code=400
+        )
+
     for field, val in data.dict(exclude_unset=True).items():
         setattr(inv, field, val)
     db.commit()
@@ -304,7 +346,48 @@ def update_invoice(
     return inv
 
 
-def delete_invoice(db: Session, invoice_id: int) -> bool:
+def verify_mart_bill(
+    db: Session, invoice_id: int, user_name: str
+) -> Optional[MartBill]:
+    """
+    Lock and verify a mart bill.
+    """
+    inv = get_mart_bill_by_id(db, invoice_id)
+    if not inv:
+        return None
+
+    if inv.status == "VERIFIED":
+        return inv
+
+    from datetime import datetime
+
+    inv.status = "VERIFIED"
+    inv.locked_at = datetime.utcnow()
+    inv.locked_by = user_name
+    db.commit()
+    db.refresh(inv)
+    logger.info(f"MartBill {invoice_id} verified by {user_name}")
+    return inv
+
+
+def unverify_mart_bill(db: Session, invoice_id: int) -> Optional[MartBill]:
+    """
+    Unlock a mart bill for editing.
+    """
+    inv = get_mart_bill_by_id(db, invoice_id)
+    if not inv:
+        return None
+
+    # Ideally check for admin here or in API
+    inv.status = "NEEDS_REVIEW"
+    inv.locked_at = None
+    inv.locked_by = None
+    db.commit()
+    db.refresh(inv)
+    return inv
+
+
+def delete_mart_bill(db: Session, invoice_id: int) -> bool:
     """
     Delete an invoice by ID.
 
@@ -315,12 +398,72 @@ def delete_invoice(db: Session, invoice_id: int) -> bool:
     Returns:
         bool: True if deleted, False otherwise.
     """
-    logger.info(f"Deleting invoice id={invoice_id}")
-    inv = get_invoice_by_id(db, invoice_id)
+    logger.info(f"Deleting mart bill id={invoice_id}")
+    inv = get_mart_bill_by_id(db, invoice_id)
     if not inv:
         logger.error(f"Invoice not found id={invoice_id}")
         return False
+    # Optional: Block delete if VERIFIED? Plan said "Delete (Restricted)".
+    # "Forbidden Actions" for VERIFIED include Delete (Restricted).
+    # I should check status.
+    if inv.status == "VERIFIED":
+        # Unless admin? For now block.
+        logger.warning(f"Attempt to delete verified bill {invoice_id}")
+        return False
+
+    # Delete physical file using storage service
+    if inv.file_path:
+        storage.delete(inv.file_path)
+
     db.delete(inv)
     db.commit()
     logger.debug(f"Invoice id={invoice_id} deleted")
     return True
+
+
+async def replace_mart_bill_file(
+    db: Session, invoice_id: int, file: UploadFile, user_name: str
+) -> Optional[MartBill]:
+    """
+    Replace the PDF file for an existing mart bill.
+    Resets status to NEEDS_REVIEW to ensure re-verification.
+    """
+    logger.info(f"Replacing file for mart bill id={invoice_id}")
+    inv = get_mart_bill_by_id(db, invoice_id)
+    if not inv:
+        return None
+
+    # Delete old file if it exists
+    if inv.file_path and storage.exists(inv.file_path):
+        try:
+            storage.delete(inv.file_path)
+        except Exception:
+            logger.warning(
+                f"Failed to delete old file {inv.file_path}, proceeding with replacement"
+            )
+
+    # Save new file
+    filename = file.filename
+    file_bytes = await file.read()
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    # Use same logic as save_and_process for key generation
+    storage_key = os.path.join(settings.INVOICE_UPLOAD_DIR, filename)
+    await storage.save(file_bytes, storage_key)
+
+    # Update metadata
+    inv.file_path = storage_key
+    inv.file_hash = file_hash
+    inv.updated_by = user_name
+
+    # Reset Lifecycle Status
+    inv.status = "NEEDS_REVIEW"
+    inv.locked_at = None
+    inv.locked_by = None
+
+    db.commit()
+    db.refresh(inv)
+    logger.info(
+        f"Replaced file for mart bill {invoice_id}, status reset to NEEDS_REVIEW"
+    )
+    return inv

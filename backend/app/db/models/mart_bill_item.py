@@ -5,7 +5,7 @@ from .base_class import Base
 from .mixins import AuditMixin
 
 
-class InvoiceItem(Base, AuditMixin):
+class MartBillItem(Base, AuditMixin):
     __tablename__ = "invoice_item"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -23,5 +23,5 @@ class InvoiceItem(Base, AuditMixin):
     invoice_date = Column(DateTime, nullable=False)
     store_name = Column(String, nullable=False)
 
-    invoice = relationship("Invoice", back_populates="items")
+    bill = relationship("MartBill", back_populates="items")
     item = relationship("Item")

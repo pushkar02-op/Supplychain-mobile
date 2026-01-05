@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mobile/providers/auth_provider.dart';
-import '/core/dio_client.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -73,13 +72,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             _buildNavCard(
               context,
               icon: Icons.receipt_long,
-              label: 'Invoices',
-              subtitle: 'Upload and manage invoices',
-              route: '/invoices',
+              label: 'Mart Bills',
+              subtitle: 'Upload and manage mart bills',
+              route: '/mart-bills',
               color: Colors.purple,
             ),
             const SizedBox(height: 24),
-            
+
             // Reference Section
             Text(
               'Reference',
@@ -115,7 +114,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               route: '/rejection-list',
               color: Colors.red,
             ),
-            
+
             // Administration Section (Admin only)
             Consumer(
               builder: (context, ref, child) {
@@ -166,20 +165,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to logout?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Logout'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
     );
     if (confirmed == true) {
       await ref.read(authProvider.notifier).logout();
@@ -231,10 +231,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
                   ],
                 ),

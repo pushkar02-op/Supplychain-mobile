@@ -1,15 +1,18 @@
 """
-API endpoints for invoice item management.
-Provides retrieval, update, and deletion of invoice line items.
+API endpoints for Mart Bill Item management.
+This is the preferred endpoint for bill item management.
+Aliases logic from legacy /invoice-items.
 """
 
 import logging
 from typing import List
 
 from app.core.exceptions import AppException
-from app.db.schemas.mart_bill_item import MartBillItemRead as InvoiceItemRead
-from app.db.schemas.mart_bill_item import MartBillItemSummary as InvoiceItemSummary
-from app.db.schemas.mart_bill_item import MartBillItemUpdate as InvoiceItemUpdate
+from app.db.schemas.mart_bill_item import (
+    MartBillItemRead,
+    MartBillItemSummary,
+    MartBillItemUpdate,
+)
 from app.db.session import get_db
 from app.services.mart_bill_item import (
     delete_mart_bill_item,
@@ -21,16 +24,16 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/invoice-items", tags=["Invoice Items"])
+router = APIRouter(prefix="/mart-bill-items", tags=["Mart Bill Items"])
 
 
-@router.get("/distinct-items", response_model=list[InvoiceItemSummary])
+@router.get("/distinct-items", response_model=list[MartBillItemSummary])
 def distinct_items_for_mart(
     mart_name: str = Query(..., description="Mart name"),
     db: Session = Depends(get_db),
 ):
     """
-    Retrieve distinct invoice items for a given mart.
+    Retrieve distinct items for a given mart.
     Returns only item_id, item_code, item_name, uom.
 
     Args:
@@ -38,62 +41,66 @@ def distinct_items_for_mart(
         db (Session): Database session dependency.
 
     Returns:
-        List[InvoiceItemRead]: List of distinct invoice items.
+        List[MartBillItemRead]: List of distinct mart bill items.
     """
     logger.info(f"API: Fetching distinct items for mart: {mart_name}")
     return get_distinct_items_for_mart(db, mart_name)
 
 
 @router.get(
-    "/{invoice_id}", response_model=List[InvoiceItemRead], summary="List invoice items"
+    "/{bill_id}", response_model=List[MartBillItemRead], summary="List mart bill items"
 )
-def read_items(invoice_id: int, db: Session = Depends(get_db)) -> List[InvoiceItemRead]:
+def read_items(bill_id: int, db: Session = Depends(get_db)) -> List[MartBillItemRead]:
     """
-    Retrieve all items for a given invoice.
+    Retrieve all items for a given mart bill.
 
     Args:
-        invoice_id (int): Invoice ID.
+        bill_id (int): Bill ID.
         db (Session): Database session dependency.
 
     Returns:
-        List[InvoiceItemRead]: List of items.
+        List[MartBillItemRead]: List of items.
     """
-    logger.info(f"Fetching items for invoice_id={invoice_id}")
-    return get_items_by_mart_bill(db, invoice_id)
+    logger.info(f"Fetching items for bill_id={bill_id}")
+    return get_items_by_mart_bill(db, bill_id)
 
 
-@router.put("/{item_id}", response_model=InvoiceItemRead, summary="Update invoice item")
+@router.put(
+    "/{item_id}", response_model=MartBillItemRead, summary="Update mart bill item"
+)
 def update_item(
-    item_id: int, update_data: InvoiceItemUpdate, db: Session = Depends(get_db)
-) -> InvoiceItemRead:
+    item_id: int, update_data: MartBillItemUpdate, db: Session = Depends(get_db)
+) -> MartBillItemRead:
     """
-    Update a specific invoice item.
+    Update a specific mart bill item.
 
     Args:
         item_id (int): Item ID.
-        update_data (InvoiceItemUpdate): Update data.
+        update_data (MartBillItemUpdate): Update data.
         db (Session): Database session dependency.
 
     Returns:
-        InvoiceItemRead: The updated item.
+        MartBillItemRead: The updated item.
 
     Raises:
         AppException: If the item is not found (404).
     """
-    logger.info(f"Updating invoice item id={item_id}")
+    logger.info(f"Updating mart bill item id={item_id}")
     updated = update_mart_bill_item(db, item_id, update_data)
     if not updated:
-        logger.error(f"Invoice item not found: id={item_id}")
+        logger.error(f"Mart bill item not found: id={item_id}")
         raise AppException("Item not found", status_code=404)
     return updated
 
 
 @router.delete(
-    "/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete invoice item"
+    "/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete mart bill item",
 )
 def delete_item(item_id: int, db: Session = Depends(get_db)) -> None:
     """
-    Delete a specific invoice item.
+    Delete a specific mart bill item.
 
     Args:
         item_id (int): Item ID.
@@ -102,8 +109,8 @@ def delete_item(item_id: int, db: Session = Depends(get_db)) -> None:
     Raises:
         AppException: If the item is not found (404).
     """
-    logger.info(f"Deleting invoice item id={item_id}")
+    logger.info(f"Deleting mart bill item id={item_id}")
     if not delete_mart_bill_item(db, item_id):
-        logger.error(f"Invoice item not found: id={item_id}")
+        logger.error(f"Mart bill item not found: id={item_id}")
         raise AppException("Item not found", status_code=404)
     return None

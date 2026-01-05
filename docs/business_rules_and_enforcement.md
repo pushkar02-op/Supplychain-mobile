@@ -770,4 +770,56 @@ Any change violating this document MUST:
 
 ---
 
+
+---
+
+## 16. MART BILL & STORAGE RULES
+
+### MB-001 — Standardized Lifecycle
+Mart Bills follow a strict 3-state lifecycle to ensure data integrity.
+
+#### Lifecycle
+1. **NEEDS_REVIEW** (Default): Editable, Delete allowed.
+2. **VERIFIED**: Locked. No Edit, No Delete.
+3. **PROCESSING**: Transient state (parsing).
+
+#### Checklist
+- [ ] Uploads start as NEEDS_REVIEW
+- [ ] Verification locks the record (timestamp + user)
+- [ ] Edits rejected for VERIFIED bills
+
+#### Backend Mapping
+- `app/services/mart_bill.py`
+- `app/api/mart_bill.py`
+
+---
+
+### MB-002 — Storage Abstraction
+Filesystem operations must be decoupled from business logic via `StorageService`.
+
+#### Checklist
+- [ ] No direct `open()` or `os.remove()` in services
+- [ ] Keys are relative paths
+- [ ] Storage root is configurable via `STORAGE_ROOT`
+
+#### Backend Mapping
+- `app/core/storage/base.py`
+- `app/core/storage/local.py`
+
+---
+
+### MB-003 — File Recovery & Self-Healing
+Missing files must not crash the application. Users must be able to restore state.
+
+#### Checklist
+- [ ] Missing file returns specific error (e.g. 404 with code)
+- [ ] Re-upload allowed for missing files even if Locked (resets lock)
+- [ ] Re-upload resets status to NEEDS_REVIEW
+
+#### Backend Mapping
+- `app/services/mart_bill.py`: `replace_mart_bill_file`
+
+---
+
 **END OF DOCUMENT**
+

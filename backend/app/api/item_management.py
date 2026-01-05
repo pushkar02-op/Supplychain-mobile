@@ -4,7 +4,7 @@ from typing import List
 
 from app.core.auth import get_current_user
 from app.db.models import UOM, Item, ItemAlias, User
-from app.db.models.invoice_item import InvoiceItem
+from app.db.models.mart_bill_item import MartBillItem as InvoiceItem
 from app.db.schemas.item_management import (
     AliasMapInput,
     ItemManagementCreateUpdate,

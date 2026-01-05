@@ -9,8 +9,8 @@ from decimal import Decimal
 from typing import List, Optional
 
 from app.core.exceptions import AppException
-from app.db.models.invoice import Invoice
 from app.db.models.mart import Mart
+from app.db.models.mart_bill import MartBill
 from app.db.models.order import Order
 from app.db.schemas.order import OrderCreate, OrderUpdate
 from sqlalchemy.orm import Session
@@ -31,7 +31,7 @@ def get_distinct_mart_names(db: Session) -> List[dict]:
     logger.debug("Fetching distinct mart names from invoices")
     results = (
         db.query(Mart.id, Mart.name)
-        .join(Invoice, Invoice.mart_id == Mart.id)
+        .join(MartBill, MartBill.mart_id == Mart.id)
         .distinct()
         .all()
     )

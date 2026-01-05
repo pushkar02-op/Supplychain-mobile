@@ -89,7 +89,7 @@ terraform.rc
 /backend/v_log_*.txt
 /backend/log.txt
 /backend/v_log.txt
-
+/backend/invoices/*.pdf
 # --- Local debug / backup artifacts ---
 *.bak
 *.backup
@@ -106,3 +106,4 @@ mobile/test/integration/
 # --- Verification outputs ---
 verify_*.txt
 verification_*.txt
+
