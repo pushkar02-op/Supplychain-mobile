@@ -251,9 +251,9 @@ def get_mart_bills_paginated(
     invoice_date: Optional[date] = None,
     mart_id: Optional[int] = None,
     search: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 20,
-) -> Dict[str, Union[int, List[Dict]]]:
+    skip: int = 0,
+    limit: int = 20,
+) -> Dict[str, Union[int, List[Dict], bool]]:
     """
     Retrieve invoices with optional filters and pagination.
     Encapsulates logic previously in the API controller.
@@ -263,14 +263,14 @@ def get_mart_bills_paginated(
         invoice_date (Optional[date]): Filter by invoice date.
         mart_id (Optional[int]): Filter by mart id.
         search (Optional[str]): Search term.
-        page (int): Page number.
-        page_size (int): Page size.
+        skip (int): Items to skip.
+        limit (int): Items to return.
 
     Returns:
-        Dict: Response containing total, page, page_size, and list of invoice results.
+        Dict: Response containing total, skip, limit, has_more, and list of invoice items.
     """
     logger.debug(
-        f"Fetching invoices paginated date={invoice_date}, mart_id={mart_id}, search={search}"
+        f"Fetching invoices paginated date={invoice_date}, mart_id={mart_id}, search={search}, skip={skip}, limit={limit}"
     )
     query = db.query(MartBill).options(joinedload(MartBill.mart))
 
@@ -288,15 +288,11 @@ def get_mart_bills_paginated(
             )
         )
 
-    # Order by status logic? For now existing date order is fine.
-    # Plan suggested NEEDS_REVIEW top, but sticking to existing sort for now unless requested.
+    # Order by date desc, then ID desc
     query = query.order_by(MartBill.invoice_date.desc(), MartBill.id.desc())
 
     total = query.count()
-    from app.utils.pagination import calculate_offset
-
-    offset = calculate_offset(page, page_size)
-    invoices = query.offset(offset).limit(page_size).all()
+    invoices = query.offset(skip).limit(limit).all()
 
     results = []
     for inv in invoices:
@@ -305,11 +301,17 @@ def get_mart_bills_paginated(
         inv_dict["mart_name"] = inv.mart.name if inv.mart else None
         results.append(inv_dict)
 
+    # Calculate has_more
+    has_more = (skip + len(results)) < total
+
     return {
+        "items": results,
+        "results": results,  # Backward compatibility
         "total": total,
-        "page": page,
-        "page_size": page_size,
-        "results": results,
+        "skip": skip,
+        "next_skip": skip + limit,
+        "limit": limit,
+        "has_more": has_more,
     }
 
 

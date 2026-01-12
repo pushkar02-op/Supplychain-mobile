@@ -4,12 +4,22 @@ Handles inventory and P&L summary retrieval from materialized views.
 """
 
 import logging
+from decimal import Decimal
 from typing import List, Optional
 
+from app.db.models.batch import Batch
+from app.db.models.inventory_txn import InventoryTxn
 from app.db.models.views.inventory_summary import InventorySummary
 from app.db.models.views.pnl_summary import PnlSummary
-from app.db.schemas.inventory_summary import InventorySummaryRead
+from app.db.schemas.inventory_summary import (
+    InventorySummaryRead,
+    ReconciliationBatch,
+    ReconciliationDetail,
+    ReconciliationItem,
+    ReconciliationTxn,
+)
 from app.db.schemas.pnl_summary import PnlSummaryRead
+from app.services.item_conversion_map import get_conversion_factor
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -34,7 +44,349 @@ def get_inventory_report(
         q = q.filter(InventorySummary.item_id == item_id)
     results = q.all()
     logger.debug(f"Retrieved {len(results)} inventory records")
-    return [InventorySummaryRead.from_orm(r) for r in results]
+    results = q.all()
+    logger.debug(f"Retrieved {len(results)} inventory records")
+
+    # Fetch available quantities from Batch table
+
+    from app.db.models.batch import Batch
+    from sqlalchemy import func
+
+    batch_q = db.query(
+        Batch.item_id, Batch.unit, func.sum(Batch.quantity).label("total_qty")
+    ).group_by(Batch.item_id, Batch.unit)
+
+    if item_id:
+        batch_q = batch_q.filter(Batch.item_id == item_id)
+
+    batch_sums = batch_q.all()
+
+    # Map item_id -> available_stock (normalized to default UOM)
+    # Note: InventorySummary view already normalized to 'unit' (which is default UOM via join)
+    # We must normalize batch sums to the SAME unit used in InventorySummary
+
+    available_map = {}
+    for b_item_id, b_unit, b_qty in batch_sums:
+        # We need to normalize this b_qty to the item's default UOM
+        # But we don't have the target unit handy in this loop easily without join
+        # For performance, let's assume we can get target unit from the results list if present.
+        # OR better: iterate results, query batches for that item, normalize and sum.
+        # Given low volume, iterating results is safer for correctness.
+        pass
+
+    final_list = []
+
+    # Map item_id -> available_stock
+    item_available_map = {}
+    for r in results:
+        # Default to 0
+        item_available_map[r.item_id] = 0.0
+
+    # Batch Query for Available Stock
+    batches = (
+        db.query(Batch).filter(Batch.item_id.in_([r.item_id for r in results])).all()
+    )
+
+    # Pre-fetch conversion factors if possible, or query individually (caching helps)
+    # Optimizing: Group batches by item
+    batches_by_item = {}
+    for b in batches:
+        if b.item_id not in batches_by_item:
+            batches_by_item[b.item_id] = []
+        batches_by_item[b.item_id].append(b)
+
+    for r in results:
+        total_available = Decimal(0)
+        if r.item_id in batches_by_item:
+            for b in batches_by_item[r.item_id]:
+                try:
+                    factor = Decimal(
+                        str(get_conversion_factor(db, r.item_id, b.unit, r.unit))
+                    )
+                    total_available += b.quantity * factor
+                except Exception:
+                    pass
+        item_available_map[r.item_id] = float(total_available)
+
+    # Signal Calculation
+    # 1. Fetch OUT transactions for last 14 days
+    from datetime import datetime, timedelta
+
+    from app.db.models.inventory_txn import InventoryTxn
+
+    now = datetime.utcnow()
+    sev_days_ago = now - timedelta(days=7)
+    fourteen_days_ago = now - timedelta(days=14)
+
+    txns = (
+        db.query(
+            InventoryTxn.item_id,
+            InventoryTxn.created_at,
+            InventoryTxn.base_qty,
+            InventoryTxn.txn_type,
+        )
+        .filter(
+            InventoryTxn.item_id.in_([r.item_id for r in results]),
+            InventoryTxn.created_at >= fourteen_days_ago,
+            InventoryTxn.txn_type == "OUT",
+        )
+        .all()
+    )
+
+    # Aggregation
+    out_last_7d = {}
+    out_prev_7d = {}
+
+    for t in txns:
+        iid = t.item_id
+        qty = float(t.base_qty)
+        if t.created_at >= sev_days_ago:
+            out_last_7d[iid] = out_last_7d.get(iid, 0.0) + qty
+        else:
+            out_prev_7d[iid] = out_prev_7d.get(iid, 0.0) + qty
+
+    final_list = []
+    for r in results:
+        display_obj = InventorySummaryRead.from_orm(r)
+        avail = item_available_map.get(r.item_id, 0.0)
+        display_obj.available_stock = avail
+
+        # Signals
+        signals = []
+        l7 = out_last_7d.get(r.item_id, 0.0)
+        p7 = out_prev_7d.get(r.item_id, 0.0)
+
+        # Fast Depletion
+        # Last 7d OUT > Prev 7d OUT * 1.5
+        if l7 > (p7 * 1.5) and l7 > 0:
+            signals.append("FAST_DEPLETING")
+
+        # Low Stock
+        # Threshold: 20% of avg daily outflow * 7 days
+        # Avg daily outflow = L7 / 7
+        # Threshold = 1.4 * (L7 / 7) * 7 = 1.4 * L7? No, wait.
+        # Rule: Threshold default: 20% of average daily outflow * 7 days
+        # Avg Daily = L7 / 7.
+        # Threshold = 20% * (L7/7) * 7 = 0.20 * L7
+        # But if history < 7 days (L7 is 0 or low), fallback to static 10 units?
+        # User rule: "If historical data < 7 days -> fallback to static threshold (e.g. 10 units)"
+        # We assume history exists if L7 > 0.
+
+        threshold = 10.0  # Fallback
+        if l7 > 0:
+            # 20% of weekly usage
+            threshold = l7 * 0.2
+
+        if (
+            avail <= threshold and avail > 0
+        ):  # Don't mark zero as low, zero is empty/depleted (handled by red badge in Phase 1?)
+            # Actually, Phase 1 had "Critical" for negative.
+            # Low Stock is a warning before zero.
+            signals.append("LOW_STOCK")
+
+        if not signals and abs(avail - r.current_stock) < 0.001 and avail > 0:
+            signals.append("STABLE")
+
+        display_obj.signals = signals
+        final_list.append(display_obj)
+
+    return final_list
+
+
+def get_reconciliation_report(db: Session) -> List[ReconciliationItem]:
+    # 1. Reuse existing report to get Ledger + Available + Signals
+    #    (get_inventory_report already calculates available_stock)
+    report = get_inventory_report(db, None)
+
+    recon_items = []
+
+    # from app.db.schemas.inventory_summary import ReconciliationItem # Moved to top
+
+    for r in report:
+        delta = r.available_stock - r.current_stock
+
+        status = "HEALTHY"
+        severity = "NONE"
+
+        if abs(delta) > 0.001:  # Floating point tolerance
+            status = "DRIFT"
+
+            # Severity Logic
+            drift_pct = 0.0
+            if r.current_stock != 0:  # Avoid division by zero
+                drift_pct = abs(delta) / abs(r.current_stock)
+            elif (
+                r.current_stock == 0 and abs(delta) > 0.001
+            ):  # If ledger is 0 but there's a delta
+                drift_pct = 1.0  # 100% drift if ledger indicates 0 but we have stock (or vice versa)
+
+            if r.current_stock < 0 or drift_pct >= 0.2:
+                # Critical if Ledger < 0 OR Drift >= 20%
+                severity = "CRITICAL"
+            elif drift_pct > 0.05:  # Between 5% and 20%
+                severity = "MAJOR"
+            else:  # Less than or equal to 5%
+                severity = "MINOR"
+
+        recon_items.append(
+            ReconciliationItem(
+                item_id=r.item_id,
+                item_name=r.name,
+                available_stock=r.available_stock,
+                ledger_stock=r.current_stock,
+                delta=delta,
+                status=status,
+                severity=severity,
+            )
+        )
+
+    return recon_items
+
+
+def get_item_reconciliation(
+    db: Session, item_id: int
+) -> Optional[ReconciliationDetail]:
+    # 1. Get Basic Stats
+    # from app.db.schemas.inventory_summary import ReconciliationDetail, ReconciliationBatch, ReconciliationTxn # Moved to top
+
+    report_list = get_reconciliation_report(db)
+    target = next((x for x in report_list if x.item_id == item_id), None)
+
+    if not target:
+        return None
+
+    # 2. Get Item Summary (for full object)
+    summary_list = get_inventory_report(db, item_id)
+    if not summary_list:
+        return None
+    summary = summary_list[0]
+
+    # 3. Recent Transactions (Last 20)
+    txns = (
+        db.query(InventoryTxn)
+        .filter(InventoryTxn.item_id == item_id)
+        .order_by(InventoryTxn.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    recon_txns = []
+    for t in txns:
+        recon_txns.append(
+            ReconciliationTxn(
+                type=t.txn_type,
+                qty=t.base_qty,  # Show raw magnitude
+                ref=f"{t.ref_type}#{t.ref_id}" if t.ref_id else t.ref_type,
+                created_at=str(t.created_at),
+            )
+        )
+
+    # 4. Batch Snapshot
+    batches = db.query(Batch).filter(Batch.item_id == item_id).all()
+    recon_batches = []
+    for b in batches:
+        recon_batches.append(
+            ReconciliationBatch(
+                batch_id=b.id, qty=b.quantity, received_at=str(b.received_at)
+            )
+        )
+
+    return ReconciliationDetail(
+        item=summary,
+        available_stock=target.available_stock,
+        ledger_stock=target.ledger_stock,
+        delta=target.delta,
+        recent_transactions=recon_txns,
+        batch_snapshot=recon_batches,
+    )
+
+
+def get_item_signals(db: Session, item_id: int):
+    """
+    Retrieve signal breakdown for a specific item.
+    """
+    from datetime import datetime, timedelta
+
+    from app.db.models.batch import Batch
+    from app.db.models.inventory_txn import InventoryTxn
+    from app.db.models.views.inventory_summary import InventorySummary
+    from app.db.schemas.inventory_summary import InventorySignalResponse
+
+    # 1. Available Stock from Batches
+    batches = db.query(Batch).filter(Batch.item_id == item_id).all()
+    inv_summary = (
+        db.query(InventorySummary).filter(InventorySummary.item_id == item_id).first()
+    )
+
+    if not inv_summary:
+        return None  # Item not found
+
+    total_available = Decimal(0)
+    for b in batches:
+        try:
+            factor = Decimal(
+                str(get_conversion_factor(db, item_id, b.unit, inv_summary.unit))
+            )
+            total_available += b.quantity * factor
+        except Exception:
+            pass
+
+    available_stock = float(total_available)
+
+    # 2. Transaction Aggregation
+    now = datetime.utcnow()
+    sev_days_ago = now - timedelta(days=7)
+    fourteen_days_ago = now - timedelta(days=14)
+
+    txns = (
+        db.query(InventoryTxn.base_qty, InventoryTxn.created_at)
+        .filter(
+            InventoryTxn.item_id == item_id,
+            InventoryTxn.created_at >= fourteen_days_ago,
+            InventoryTxn.txn_type == "OUT",
+        )
+        .all()
+    )
+
+    out_last_7d = 0.0
+    out_prev_7d = 0.0
+
+    for qty, created_at in txns:
+        if created_at >= sev_days_ago:
+            out_last_7d += qty
+        else:
+            out_prev_7d += qty
+
+    # 3. Signals
+    signals = []
+
+    # Fast Depletion: Last 7d > Prev 7d * 1.5
+    if out_last_7d > (out_prev_7d * 1.5) and out_last_7d > 0:
+        signals.append("FAST_DEPLETING")
+
+    # Low Stock
+    threshold = 10.0
+    if out_last_7d > 0:
+        threshold = out_last_7d * 0.2
+
+    if available_stock <= threshold and available_stock > 0:
+        signals.append("LOW_STOCK")
+
+    if (
+        not signals
+        and abs(available_stock - inv_summary.current_stock) < 0.001
+        and available_stock > 0
+    ):
+        signals.append("STABLE")
+
+    avg_daily_outflow = out_last_7d / 7.0
+
+    return InventorySignalResponse(
+        available_stock=available_stock,
+        avg_daily_outflow=avg_daily_outflow,
+        out_last_7d=out_last_7d,
+        out_prev_7d=out_prev_7d,
+        signals=signals,
+    )
 
 
 def get_pnl_report(

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../repositories/admin_ledger_repository.dart';
 
 // Repository provider
@@ -7,9 +8,10 @@ final adminLedgerRepositoryProvider = Provider<AdminLedgerRepository>((ref) {
 });
 
 // Ledger Health Provider
-final ledgerHealthProvider = AsyncNotifierProvider<LedgerHealthNotifier, Map<String, dynamic>>(() {
-  return LedgerHealthNotifier();
-});
+final ledgerHealthProvider =
+    AsyncNotifierProvider<LedgerHealthNotifier, Map<String, dynamic>>(() {
+      return LedgerHealthNotifier();
+    });
 
 class LedgerHealthNotifier extends AsyncNotifier<Map<String, dynamic>> {
   @override
@@ -25,9 +27,10 @@ class LedgerHealthNotifier extends AsyncNotifier<Map<String, dynamic>> {
 }
 
 // Drift Report Provider
-final driftReportProvider = AsyncNotifierProvider<DriftReportNotifier, List<dynamic>>(() {
-  return DriftReportNotifier();
-});
+final driftReportProvider =
+    AsyncNotifierProvider<DriftReportNotifier, List<dynamic>>(() {
+      return DriftReportNotifier();
+    });
 
 class DriftReportNotifier extends AsyncNotifier<List<dynamic>> {
   @override
@@ -35,9 +38,16 @@ class DriftReportNotifier extends AsyncNotifier<List<dynamic>> {
     final repo = ref.read(adminLedgerRepositoryProvider);
     return repo.fetchDriftReport();
   }
-  
+
   Future<void> refresh() async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => build());
   }
 }
+
+// Reconciliation Detail Provider
+final reconciliationDetailProvider = FutureProvider.family
+    .autoDispose<Map<String, dynamic>, int>((ref, itemId) async {
+      final repo = ref.read(adminLedgerRepositoryProvider);
+      return repo.fetchReconciliationDetail(itemId);
+    });

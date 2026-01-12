@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../providers/admin_ledger_provider.dart';
+import 'admin_reconciliation_detail_screen.dart';
 
 class AdminInventoryDriftScreen extends ConsumerWidget {
   const AdminInventoryDriftScreen({super.key});
@@ -26,7 +28,11 @@ class AdminInventoryDriftScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 64,
+                    color: Colors.green,
+                  ),
                   SizedBox(height: 16),
                   Text('No drift detected.'),
                 ],
@@ -57,79 +63,108 @@ class _DriftItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final drift = (item['drift'] as num?)?.toDouble() ?? 0.0;
-    final status = item['status'] as String? ?? 'unknown';
-    
-    final isNegative = status == 'negative';
-    final cardColor = isNegative ? Colors.orange.shade50 : Colors.red.shade50;
-    final borderColor = isNegative ? Colors.orange : Colors.red;
+    final delta = (item['delta'] as num?)?.toDouble() ?? 0.0;
+    final severity = item['severity'] as String? ?? 'NONE';
+    final itemName = item['item_name'] ?? 'Unknown';
+    final itemId = item['item_id'] as int;
+    final available = (item['available_stock'] as num?)?.toDouble() ?? 0.0;
+    final ledger = (item['ledger_stock'] as num?)?.toDouble() ?? 0.0;
+
+    // Severity Colors
+    Color color;
+    switch (severity) {
+      case 'CRITICAL':
+        color = Colors.red;
+        break;
+      case 'MAJOR':
+        color = Colors.orange;
+        break;
+      case 'MINOR':
+        color = Colors.amber;
+        break;
+      default:
+        color = Colors.green;
+    }
 
     return Card(
       elevation: 0,
-      color: cardColor,
+      color: color.withOpacity(0.05),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: borderColor.withOpacity(0.5)),
+        side: BorderSide(color: color.withOpacity(0.5)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    item['item_name'] ?? 'Unknown Item',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder:
+                  (_) => AdminReconciliationDetailScreen(
+                    itemId: itemId,
+                    itemName: itemName,
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: borderColor,
-                    borderRadius: BorderRadius.circular(4),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      itemName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    status.toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      severity,
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const Divider(),
-            _RowInfo('Batch ID', '#${item['batch_id']}'),
-            const SizedBox(height: 4),
-            _RowInfo('Cached Qty', '${item['batch_qty_raw']} ${item['batch_unit_raw']}'),
-            const SizedBox(height: 4),
-            _RowInfo(
-              'Base Qty',
-              '${(item['batch_qty_base'] as num).toStringAsFixed(3)} ${item['base_unit']}',
-              valueStyle: const TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 4),
-            _RowInfo(
-              'Ledger Qty',
-              '${(item['ledger_qty'] as num).toStringAsFixed(3)} ${item['base_unit']}',
-              valueStyle: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('NET DRIFT:', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(
-                  drift > 0 ? '+${drift.toStringAsFixed(3)}' : drift.toStringAsFixed(3),
-                  style: TextStyle(
-                    color: borderColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                ],
+              ),
+              const Divider(),
+              _RowInfo('Available (Batch)', '$available'),
+              const SizedBox(height: 4),
+              _RowInfo('Ledger', '$ledger'),
+              const Divider(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'NET DRIFT:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  Text(
+                    delta > 0
+                        ? '+${delta.toStringAsFixed(3)}'
+                        : delta.toStringAsFixed(3),
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

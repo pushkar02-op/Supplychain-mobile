@@ -76,32 +76,49 @@ def read_mart_bills(
     ),
     mart_id: Optional[int] = Query(None, description="Filter by mart id"),
     search: Optional[str] = Query(None, description="Search term"),
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Page size"),
+    skip: int = Query(0, ge=0, description="Items to skip"),
+    limit: int = Query(20, ge=1, le=50, description="Items to return"),
+    # Legacy support
+    page: Optional[int] = Query(None, ge=1, description="Deprecated: Use skip/limit"),
+    page_size: Optional[int] = Query(
+        None, ge=1, le=100, description="Deprecated: Use skip/limit"
+    ),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
     """
     List mart bills with optional filters and pagination.
+    Supports both offset-based (skip/limit) and page-based (page/page_size) pagination.
 
     Args:
         invoice_date (Optional[date]): Filter by bill date.
         mart_id (Optional[int]): Filter by mart id.
         search (Optional[str]): Search term.
-        page (int): Page number.
-        page_size (int): Page size.
+        skip (int): Items to skip.
+        limit (int): Items to return.
+        page (Optional[int]): Legacy page number.
+        page_size (Optional[int]): Legacy page size.
         db (Session): Database session dependency.
 
     Returns:
-        JSONResponse: A response containing total, page, page_size, and results.
+        JSONResponse: A response containing total, skip, limit, has_more, and items (results).
     """
     logger.info("Fetching mart bills")
+
+    # Handle legacy pagination if provided
+    if page is not None:
+        effective_limit = page_size if page_size else limit
+        effective_skip = (page - 1) * effective_limit
+    else:
+        effective_skip = skip
+        effective_limit = limit
+
     return get_mart_bills_paginated(
         db=db,
         invoice_date=invoice_date,
         mart_id=mart_id,
         search=search,
-        page=page,
-        page_size=page_size,
+        skip=effective_skip,
+        limit=effective_limit,
     )
 
 

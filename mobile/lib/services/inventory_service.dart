@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import '../core/dio_client.dart';
 
 class InventoryService {
@@ -34,6 +33,24 @@ class InventoryService {
       return List<Map<String, dynamic>>.from(resp.data);
     }
     throw Exception('Failed to load transactions');
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchBatches(int itemId) async {
+    final resp = await DioClient.instance.get('/batch/by-item/$itemId');
+    if (resp.statusCode == 200) {
+      return List<Map<String, dynamic>>.from(resp.data);
+    }
+    throw Exception('Failed to load batches');
+  }
+
+  static Future<Map<String, dynamic>> fetchItemSignals(int itemId) async {
+    final resp = await DioClient.instance.get(
+      '/reports/inventory/$itemId/signals',
+    );
+    if (resp.statusCode == 200) {
+      return Map<String, dynamic>.from(resp.data);
+    }
+    throw Exception('Failed to load item signals');
   }
 
   static Future<List<Map<String, dynamic>>> fetchItemOptions() async {

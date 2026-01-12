@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
 import 'api_config.dart';
+import '../services/auth_service.dart';
 
 class DioClient {
   static final _storage = FlutterSecureStorage();
@@ -68,10 +69,16 @@ class DioClient {
                 return handler.next(error);
               }
 
+              // SAFETY GUARD: Skip interceptor retry for Multipart uploads
+              // These must be handled by the service layer to reconstruct the stream
+              if (error.requestOptions.extra['isMultipartUpload'] == true) {
+                return handler.next(error);
+              }
+
               // Attempt refresh
               if (!_isRefreshing) {
                 _isRefreshing = true;
-                final success = await _refreshToken();
+                final success = await AuthService.refreshToken();
                 _isRefreshing = false;
 
                 if (success) {
@@ -104,37 +111,6 @@ class DioClient {
     // Print the baseUrl after setting up Dio
     debugPrint('Dio baseUrl: ${ApiConfig.baseUrl}');
     debugPrint('Dio instance baseUrl: ${instance.options.baseUrl}');
-  }
-
-  static Future<bool> _refreshToken() async {
-    try {
-      final refreshToken = await _storage.read(key: 'refresh_token');
-      if (refreshToken == null) return false;
-
-      // Use a new Dio instance to avoid interceptors
-      final dio = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl));
-      final response = await dio.post(
-        '/refresh',
-        data: {'refresh_token': refreshToken},
-      );
-
-      if (response.statusCode == 200) {
-        await _storage.write(
-          key: 'access_token',
-          value: response.data['access_token'],
-        );
-        await _storage.write(
-          key: 'refresh_token',
-          value: response.data['refresh_token'],
-        );
-        debugPrint('Token refreshed successfully');
-        return true;
-      }
-      return false;
-    } catch (e) {
-      debugPrint('Token refresh failed: $e');
-      return false;
-    }
   }
 
   // Helper function to handle 401 errors (Unauthorized)

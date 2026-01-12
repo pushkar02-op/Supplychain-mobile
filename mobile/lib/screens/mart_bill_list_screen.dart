@@ -23,8 +23,8 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
   List<String> _pickedPaths = [];
   List<Map<String, dynamic>> _uploadResults = [];
   bool _showUploadSection = false;
-  int _page = 1;
-  int _pageSize = 20;
+  int _skip = 0;
+  final int _limit = 20;
   bool _hasMore = true;
   bool _isLoadingMore = false;
   int _totalBills = 0;
@@ -46,12 +46,15 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
   Future<void> _fetchMartBills({bool loadMore = false}) async {
     if (loadMore) {
       if (_isLoadingMore || !_hasMore) return;
-      setState(() => _isLoadingMore = true);
+      setState(() {
+        _isLoadingMore = true;
+        _error = null;
+      });
     } else {
       setState(() {
         _loading = true;
         _error = null;
-        _page = 1;
+        _skip = 0; // Reset
         _hasMore = true;
         _martBills.clear();
       });
@@ -61,19 +64,28 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
         date: _filterDate,
         martName: _filterMart,
         search: _search.isNotEmpty ? _search : null,
-        page: _page,
-        pageSize: _pageSize,
+        skip:
+            loadMore
+                ? _skip + _limit
+                : 0, // Calculate next skip if loading more
+        limit: _limit,
       );
-      final list = List<Map<String, dynamic>>.from(result['results']);
+
+      final list = List<Map<String, dynamic>>.from(result['items']);
+      final fetchedSkip = result['skip'] as int;
+      final fetchedTotal = result['total'] as int;
+      final fetchedHasMore = result['has_more'] as bool;
+
       setState(() {
         if (loadMore) {
           _martBills.addAll(list);
+          _skip = fetchedSkip; // Update current skip
         } else {
           _martBills = list;
+          _skip = 0;
         }
-        _totalBills = result['total'] ?? 0;
-        _hasMore = _martBills.length < _totalBills;
-        if (_hasMore) _page++;
+        _totalBills = fetchedTotal;
+        _hasMore = fetchedHasMore;
       });
     } catch (e) {
       setState(() => _error = e.toString());
@@ -424,65 +436,6 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                 rows:
                     items.map((it) {
                       return DataRow(
-                        onLongPress:
-                            isVerified
-                                ? null
-                                : () async {
-                                  final selected = await showMenu<String>(
-                                    context: context,
-                                    position: RelativeRect.fill,
-                                    items: [
-                                      const PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('Edit'),
-                                      ),
-                                      const PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Delete'),
-                                      ),
-                                    ],
-                                  );
-
-                                  if (selected == 'edit') {
-                                    await _showEditItemDialog(it);
-                                    setState(() {}); // refresh UI
-                                  } else if (selected == 'delete') {
-                                    final confirmed = await showDialog<bool>(
-                                      context: context,
-                                      builder:
-                                          (_) => AlertDialog(
-                                            title: const Text('Delete Item'),
-                                            content: const Text(
-                                              'Are you sure you want to delete this item?',
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed:
-                                                    () => Navigator.pop(
-                                                      context,
-                                                      false,
-                                                    ),
-                                                child: const Text('No'),
-                                              ),
-                                              TextButton(
-                                                onPressed:
-                                                    () => Navigator.pop(
-                                                      context,
-                                                      true,
-                                                    ),
-                                                child: const Text('Yes'),
-                                              ),
-                                            ],
-                                          ),
-                                    );
-                                    if (confirmed == true) {
-                                      await MartBillService.deleteMartBillItem(
-                                        it['id'],
-                                      );
-                                      setState(() {});
-                                    }
-                                  }
-                                },
                         cells: [
                           DataCell(Text(it['item_name'] ?? '')),
                           DataCell(Text(it['quantity'].toString())),
@@ -806,65 +759,79 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
               child:
                   _loading
                       ? const Center(child: CircularProgressIndicator())
-                      : NotificationListener<ScrollNotification>(
-                        onNotification: (scrollNotification) {
-                          if (scrollNotification.metrics.pixels >=
-                                  scrollNotification.metrics.maxScrollExtent -
-                                      100 &&
-                              !_isLoadingMore &&
-                              _hasMore) {
-                            _fetchMartBills(loadMore: true);
-                          }
-                          return false;
-                        },
-                        child:
-                            _martBills.isEmpty
-                                ? Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.receipt_long_outlined,
-                                      size: 64,
-                                      color: Colors.grey[400],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'No mart bills found',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    TextButton.icon(
-                                      onPressed: _pickFiles,
-                                      icon: const Icon(Icons.upload_file),
-                                      label: const Text(
-                                        'Upload your first bill',
-                                      ),
-                                    ),
-                                  ],
-                                )
-                                : ListView.builder(
-                                  padding: const EdgeInsets.only(
-                                    top: 12,
-                                    bottom: 24,
-                                  ),
-                                  itemCount:
-                                      _martBills.length + (_hasMore ? 1 : 0),
-                                  itemBuilder: (ctx, i) {
-                                    if (i == _martBills.length) {
-                                      return const Center(
-                                        child: Padding(
-                                          padding: EdgeInsets.all(12),
-                                          child: CircularProgressIndicator(),
+                      : _martBills.isEmpty
+                      ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.receipt_long_outlined,
+                            size: 64,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No mart bills found',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: _pickFiles,
+                            icon: const Icon(Icons.upload_file),
+                            label: const Text('Upload your first bill'),
+                          ),
+                        ],
+                      )
+                      : ListView.builder(
+                        padding: const EdgeInsets.only(top: 12, bottom: 24),
+                        itemCount: _martBills.length + (_hasMore ? 1 : 0),
+                        itemBuilder: (ctx, i) {
+                          if (i == _martBills.length) {
+                            return Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Center(
+                                child:
+                                    _isLoadingMore
+                                        ? const CircularProgressIndicator()
+                                        : _error != null
+                                        ? Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'Failed to load more items',
+                                              style: const TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            ElevatedButton.icon(
+                                              onPressed:
+                                                  () => _fetchMartBills(
+                                                    loadMore: true,
+                                                  ),
+                                              icon: const Icon(Icons.refresh),
+                                              label: const Text('Retry'),
+                                            ),
+                                          ],
+                                        )
+                                        : ElevatedButton.icon(
+                                          onPressed:
+                                              () => _fetchMartBills(
+                                                loadMore: true,
+                                              ),
+                                          icon: const Icon(
+                                            Icons.arrow_downward,
+                                          ),
+                                          label: const Text('Load More'),
                                         ),
-                                      );
-                                    }
-                                    final bill = _martBills[i];
-                                    return _buildBillCard(bill);
-                                  },
-                                ),
+                              ),
+                            );
+                          }
+                          final bill = _martBills[i];
+                          return _buildBillCard(bill);
+                        },
                       ),
             ),
           ],

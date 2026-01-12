@@ -5,17 +5,19 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/dio_client.dart';
 import '../models/mart_bill.dart';
+import 'auth_service.dart';
 
 class MartBillService {
   /// Fetch list of mart bills (was invoices), with optional filters
+  /// Fetch list of mart bills, with optional filters and pagination
   static Future<Map<String, dynamic>> fetchMartBills({
     DateTime? date,
     String? martName,
     String? search,
-    int page = 1,
-    int pageSize = 20,
+    int skip = 0,
+    int limit = 20,
   }) async {
-    final params = <String, dynamic>{'page': page, 'page_size': pageSize};
+    final params = <String, dynamic>{'skip': skip, 'limit': limit};
     if (date != null) {
       params['invoice_date'] = date.toIso8601String().split('T').first;
     }
@@ -30,11 +32,16 @@ class MartBillService {
     );
     if (resp.statusCode == 200) {
       final data = resp.data;
+      // Backend returns 'items', 'total', 'has_more', 'skip', 'limit'.
+      // 'results' included for legacy support.
       return {
         'total': data['total'],
-        'page': data['page'],
-        'page_size': data['page_size'],
-        'results': List<Map<String, dynamic>>.from(data['results']),
+        'skip': data['skip'],
+        'limit': data['limit'],
+        'has_more': data['has_more'] ?? false,
+        'items': List<Map<String, dynamic>>.from(
+          data['items'] ?? data['results'],
+        ),
       };
     }
     throw Exception('Failed to load mart bills');
@@ -69,23 +76,58 @@ class MartBillService {
 
   /// Replace PDF for an existing bill
   static Future<void> replaceBillPdf(int billId, String path) async {
-    final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(
-        path,
-        filename: path.split('/').last,
-      ),
-    });
+    // Helper to build form data (must be rebuilt on retry)
+    Future<FormData> buildFormData() async {
+      return FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          path,
+          filename: path.split('/').last,
+        ),
+      });
+    }
 
-    final resp = await DioClient.instance.post(
-      '/mart-bills/$billId/replace-file',
-      data: formData,
-      options: Options(contentType: 'multipart/form-data'),
-    );
-
-    if (resp.statusCode != 200) {
-      throw Exception(
-        'Replacement failed: ${resp.data['detail'] ?? resp.statusMessage}',
+    try {
+      final formData = await buildFormData();
+      final resp = await DioClient.instance.post(
+        '/mart-bills/$billId/replace-file',
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+          extra: {'isMultipartUpload': true}, // Bypass interceptor retry
+        ),
       );
+
+      if (resp.statusCode != 200) {
+        throw Exception(
+          'Replacement failed: ${resp.data['detail'] ?? resp.statusMessage}',
+        );
+      }
+    } on DioException catch (e) {
+      // Handle 401 Manually for Multipart
+      if (e.response?.statusCode == 401) {
+        // Attempt refresh
+        final success = await AuthService.refreshToken();
+        if (success) {
+          // Retry ONCE with fresh stream
+          final formData = await buildFormData();
+          final resp = await DioClient.instance.post(
+            '/mart-bills/$billId/replace-file',
+            data: formData,
+            options: Options(
+              contentType: 'multipart/form-data',
+              extra: {'isMultipartUpload': true},
+            ),
+          );
+          if (resp.statusCode != 200) {
+            throw Exception(
+              'Replacement failed: ${resp.data['detail'] ?? resp.statusMessage}',
+            );
+          }
+          return; // Success
+        }
+      }
+      // Rethrow if not 401 or refresh failed
+      throw Exception('Replacement failed: ${e.message}');
     }
   }
 

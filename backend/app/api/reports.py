@@ -6,15 +6,72 @@ Provides inventory and P&L summary reports.
 import logging
 from typing import List, Optional
 
-from app.db.schemas.inventory_summary import InventorySummaryRead
+from app.db.schemas.inventory_summary import (
+    InventorySignalResponse,
+    InventorySummaryRead,
+    ReconciliationDetail,
+    ReconciliationItem,
+)
 from app.db.schemas.pnl_summary import PnlSummaryRead
 from app.db.session import get_db
 from app.services.reports import get_inventory_report, get_pnl_report
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reports", tags=["Reports"])
+
+
+@router.get(
+    "/inventory/reconciliation",
+    response_model=List[ReconciliationItem],
+    summary="Inventory reconciliation report",
+)
+def read_reconciliation_report(db: Session = Depends(get_db)):
+    """
+    Get detailed reconciliation report showing drift between Batches (Available) and Ledger.
+    """
+    from app.services.reports import get_reconciliation_report
+
+    return get_reconciliation_report(db)
+
+
+@router.get(
+    "/inventory/{item_id}/reconciliation",
+    response_model=ReconciliationDetail,
+    summary="Item inventory reconciliation details",
+)
+def read_item_reconciliation(item_id: int, db: Session = Depends(get_db)):
+    """
+    Get drill-down reconciliation details for a specific item.
+    """
+    from app.services.reports import get_item_reconciliation
+
+    res = get_item_reconciliation(db, item_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return res
+
+
+@router.get(
+    "/inventory/{item_id}/signals",
+    response_model=InventorySignalResponse,
+    summary="Inventory signal details",
+)
+def read_inventory_signals(
+    item_id: int,
+    db: Session = Depends(get_db),
+) -> InventorySignalResponse:
+    """
+    Retrieve detailed inventory signals for an item.
+    """
+    from app.services.reports import get_item_signals
+    from fastapi import HTTPException
+
+    data = get_item_signals(db=db, item_id=item_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return data
 
 
 @router.get(
