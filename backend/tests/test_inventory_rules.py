@@ -41,7 +41,7 @@ def db_session():
     session.add_all([uom_kg, uom_g])
     session.flush()
 
-    item = Item(name="Rice", default_uom_code="kg", default_uom_id=uom_kg.id)
+    item = Item(name="Rice", default_uom_id=uom_kg.id)
     session.add(item)
     session.flush()
 
