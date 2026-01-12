@@ -35,7 +35,7 @@ def get_conversion_factor(
 
     conv = (
         db.query(ItemConversionMap)
-        .filter_by(item_id=item_id, source_unit=from_unit, target_unit=to_unit)
+        .filter_by(item_id=item_id, source_unit=u1, target_unit=u2)
         .first()
     )
     if conv:
@@ -44,7 +44,7 @@ def get_conversion_factor(
 
     conv_rev = (
         db.query(ItemConversionMap)
-        .filter_by(item_id=item_id, source_unit=to_unit, target_unit=from_unit)
+        .filter_by(item_id=item_id, source_unit=u2, target_unit=u1)
         .first()
     )
     if conv_rev and conv_rev.conversion_factor != 0:

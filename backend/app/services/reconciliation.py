@@ -56,7 +56,7 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
         logger.warning(
             f"Could not find conversion for batch {batch_id}, assuming factor 1.0"
         )
-        factor = 1.0
+        factor = Decimal("1.0")
 
     batch_qty_base = Decimal(batch.quantity) * factor
     drift = batch_qty_base - ledger_qty
