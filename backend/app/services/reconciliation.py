@@ -34,19 +34,13 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
     # Sum of IN - Sum of OUT
     # Note: We assume InventoryTxn base_qty is always positive and
     # txn_type indicates direction.
-    in_sum = (
-        db.query(func.sum(InventoryTxn.base_qty))
-        .filter(InventoryTxn.batch_id == batch_id, InventoryTxn.txn_type == "IN")
-        .scalar()
-        or 0.0
-    )
+    in_sum = db.query(func.sum(InventoryTxn.base_qty)).filter(
+        InventoryTxn.batch_id == batch_id, InventoryTxn.txn_type == "IN"
+    ).scalar() or Decimal("0.0")
 
-    out_sum = (
-        db.query(func.sum(InventoryTxn.base_qty))
-        .filter(InventoryTxn.batch_id == batch_id, InventoryTxn.txn_type == "OUT")
-        .scalar()
-        or 0.0
-    )
+    out_sum = db.query(func.sum(InventoryTxn.base_qty)).filter(
+        InventoryTxn.batch_id == batch_id, InventoryTxn.txn_type == "OUT"
+    ).scalar() or Decimal("0.0")
 
     ledger_qty = in_sum - out_sum
 
