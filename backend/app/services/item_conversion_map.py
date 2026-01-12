@@ -4,6 +4,7 @@ Handles CRUD operations on unit/item conversion mappings.
 """
 
 import logging
+from decimal import Decimal
 from typing import List, Optional
 
 from app.core.exceptions import UOMConfigurationError
@@ -15,9 +16,6 @@ from app.db.schemas.item_conversion_map import (
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
-
-
-from decimal import Decimal
 
 
 def get_conversion_factor(

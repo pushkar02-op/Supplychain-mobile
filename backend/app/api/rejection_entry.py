@@ -8,6 +8,7 @@ from datetime import date
 from typing import Annotated, List, Optional
 
 from app.core.auth import get_current_user
+from app.core.exceptions import AppException
 from app.db.models.user import User
 from app.db.schemas.rejection_entry import RejectionEntryCreate, RejectionEntryRead
 from app.db.session import get_db
