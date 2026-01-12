@@ -155,8 +155,9 @@ def get_orders(
     return q.order_by(Order.created_at.desc()).all()
 
 
-def _recalculate_order_status(order: Order) -> str:
+def recalculate_status_helper(order: Order) -> str:
     """Helper to determine status based on dispatched qty."""
+    print("DEBUG: recalculate_status_helper called")
     if not order:
         return "Pending"
     dispatched = Decimal(str(order.quantity_dispatched or 0))

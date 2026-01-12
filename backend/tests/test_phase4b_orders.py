@@ -141,14 +141,14 @@ def test_ord006_status_calculation():
     db.commit()
 
     # Update something innocuous to trigger recalculation
-    from app.services.order import _recalculate_order_status
+    from app.services.order import recalculate_status_helper
 
-    status = _recalculate_order_status(order)
+    status = recalculate_status_helper(order)
     assert status == "Partially Completed"
 
     # Complete dispatch
     order.quantity_dispatched = 100.0
-    status = _recalculate_order_status(order)
+    status = recalculate_status_helper(order)
     assert status == "Completed"
 
     print("PASS: ORD-006 Status Calculation")
