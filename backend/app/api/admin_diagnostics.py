@@ -1,10 +1,10 @@
 import logging
 
 from app.core.auth import get_current_user
+from app.db.models.item import Item
 from app.db.models.user import User
 from app.db.session import get_db
 from fastapi import APIRouter, Depends
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -25,11 +25,10 @@ def get_items_missing_default_uom(
 
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    result = db.execute(
-        text("SELECT id, name, item_code FROM item WHERE default_uom_id IS NULL")
-    )
-    items = [
-        {"id": row.id, "name": row.name, "item_code": row.item_code} for row in result
+    items = db.query(Item).filter(Item.default_uom_id.is_(None)).all()
+    result = [
+        {"id": item.id, "name": item.name, "item_code": item.item_code}
+        for item in items
     ]
 
-    return {"count": len(items), "items": items}
+    return {"count": len(result), "items": result}
