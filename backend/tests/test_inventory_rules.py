@@ -31,7 +31,7 @@ from app.core.exceptions import AppException
 @pytest.fixture(scope="function")
 def db_session():
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine, checkfirst=True)
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
 

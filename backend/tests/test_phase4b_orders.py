@@ -20,7 +20,7 @@ from app.db.base import Base
 def get_session():
     """In-memory SQLite for isolation."""
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine, checkfirst=True)
     Session = sessionmaker(bind=engine)
     return Session()
 

@@ -29,7 +29,7 @@ import traceback
 
 def get_session():
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine, checkfirst=True)
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
 
