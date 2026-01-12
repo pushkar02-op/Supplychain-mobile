@@ -53,6 +53,7 @@ jobs:
       - name: Run tests
         env:
           DATABASE_URL: postgresql://ci_user:ci_pass@127.0.0.1:5432/ci_db
+          PYTHONPATH: .
         working-directory: backend
         run: |
           export DATABASE_URL=postgresql://ci_user:ci_pass@127.0.0.1:5432/ci_db
