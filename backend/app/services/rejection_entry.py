@@ -54,12 +54,31 @@ def create_rejection_entry(
             return db.get(RejectionEntry, existing_record.result_entity_id)
 
     # Lock batch to prevent overselling during rejection
+    # Lock batch to prevent overselling during rejection
     batch = db.query(Batch).filter(Batch.id == entry.batch_id).with_for_update().first()
     if not batch:
         logger.error(f"Batch not found id={entry.batch_id}")
         raise AppException("Batch not found", status_code=404)
-    if batch.quantity < entry.quantity:
-        msg = f"Cannot reject {entry.quantity}. Only {batch.quantity} available"
+
+    # Validation Check (convert if units differ)
+    deduct_qty = Decimal(str(entry.quantity))
+    if entry.unit != batch.unit:
+        try:
+            factor_to_batch = get_conversion_factor(
+                db, batch.item_id, entry.unit, batch.unit
+            )
+            deduct_qty = deduct_qty * factor_to_batch
+        except Exception:
+            # If conversion fails, we can't reliably validate or deduct.
+            # Assuming same unit is safer OR fail?
+            # Fail is better for data integrity.
+            raise AppException(
+                f"Cannot convert rejection unit {entry.unit} to batch unit {batch.unit}",
+                status_code=400,
+            )
+
+    if batch.quantity < deduct_qty:
+        msg = f"Cannot reject {entry.quantity} {entry.unit}. Only {batch.quantity} {batch.unit} available"
         logger.error(msg)
         raise AppException(msg, status_code=400)
 
@@ -69,7 +88,7 @@ def create_rejection_entry(
 
     rej = RejectionEntry(
         **entry.dict(),
-        unit=batch.unit,
+        # unit=entry.unit, # entry.dict() includes unit
         item_id=batch.item_id,
         created_by=user_name,
         created_by_id=user_id,
@@ -78,7 +97,7 @@ def create_rejection_entry(
     try:
         db.add(rej)
         # Direct NUMERIC update (Stage 3: Cleanup)
-        batch.quantity -= Decimal(str(entry.quantity))
+        batch.quantity -= deduct_qty
         db.flush()
         db.refresh(rej)
         logger.debug(f"Created rejection id={rej.id}")
@@ -93,7 +112,7 @@ def create_rejection_entry(
                 )
             target_unit = item.default_uom_code
 
-            factor = get_conversion_factor(db, batch.item_id, batch.unit, target_unit)
+            factor = get_conversion_factor(db, batch.item_id, entry.unit, target_unit)
         except AppException as e:
             logger.error(f"Conversion lookup failed: {e}")
             raise
@@ -107,7 +126,7 @@ def create_rejection_entry(
                 batch_id=entry.batch_id,
                 txn_type="OUT",
                 raw_qty=entry.quantity,
-                raw_unit=batch.unit,
+                raw_unit=entry.unit,
                 base_qty=base_qty,
                 base_unit=target_unit,
                 ref_type="rejection_entry",
