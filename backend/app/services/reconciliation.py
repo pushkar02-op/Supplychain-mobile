@@ -61,14 +61,14 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
     batch_qty_base = Decimal(batch.quantity) * factor
     drift = batch_qty_base - ledger_qty
 
-    # Drift Detection Rule: abs(drift) > max(0.01, ledger_qty * 0.001)
-    tolerance = max(0.01, abs(ledger_qty) * 0.001)
+    # Drift Detection Rule: abs(drift) > max(Decimal("0.01"), ledger_qty * Decimal("0.001"))
+    tolerance = max(Decimal("0.01"), abs(ledger_qty) * Decimal("0.001"))
     is_drifted = abs(drift) > tolerance
 
     status = "healthy"
     if is_drifted:
         status = "drifted"
-    elif batch_qty_base < -0.01:  # Check for negative stock
+    elif batch_qty_base < Decimal("-0.01"):  # Check for negative stock
         status = "negative"
 
     return {
