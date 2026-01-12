@@ -4,6 +4,7 @@ Strictly read-only.
 """
 
 import logging
+from decimal import Decimal
 from typing import Dict, List
 
 from app.db.models.batch import Batch
@@ -63,7 +64,7 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
         )
         factor = 1.0
 
-    batch_qty_base = float(batch.quantity) * factor
+    batch_qty_base = Decimal(batch.quantity) * factor
     drift = batch_qty_base - ledger_qty
 
     # Drift Detection Rule: abs(drift) > max(0.01, ledger_qty * 0.001)

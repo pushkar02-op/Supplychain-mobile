@@ -72,17 +72,22 @@ def create_stock_entry(
         db.flush()
         logger.debug(f"Added to existing batch id={batch.id}")
     else:
-        # item = db.query(Item).filter(Item.id == entry.item_id).first()
-        # uom_code = None
-        # if item and item.default_uom_id:
+        from app.db.models.item import Item
+        from app.db.models.uom import UOM
 
-        # uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
-        # uom_code = uom.code if uom else None
-        # unit = uom_code if uom_code else entry.unit
+        # Canonicalization: Find target UOM
+        item = db.query(Item).filter(Item.id == entry.item_id).first()
+        uom_code = None
+        if item and item.default_uom_id:
+            uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
+            uom_code = uom.code if uom else None
+
+        unit = uom_code if uom_code else entry.unit
+
         batch = Batch(
             item_id=entry.item_id,
             quantity=Decimal(str(entry.quantity)),  # Direct NUMERIC (Stage 3)
-            unit=entry.unit,
+            unit=unit,
             received_at=entry.received_date,
             created_by=created_by,
             updated_by=created_by,
