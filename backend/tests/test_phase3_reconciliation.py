@@ -33,7 +33,7 @@ def test_healthy_batch():
     db.add(uom)
     db.flush()
 
-    item = Item(name="Rice", default_uom_id=uom.id, default_uom_code="kg")
+    item = Item(name="Rice", default_uom_id=uom.id)
     db.add(item)
     db.flush()
 
@@ -80,7 +80,7 @@ def test_drifted_batch():
     db.add(uom)
     db.flush()
 
-    item = Item(name="Wheat", default_uom_id=uom.id, default_uom_code="kg")
+    item = Item(name="Wheat", default_uom_id=uom.id)
     db.add(item)
     db.flush()
 
@@ -127,7 +127,7 @@ def test_ledger_health_report():
     db.add(uom)
     db.flush()
 
-    item = Item(name="Sugar", default_uom_id=uom.id, default_uom_code="kg")
+    item = Item(name="Sugar", default_uom_id=uom.id)
     db.add(item)
     db.flush()
 

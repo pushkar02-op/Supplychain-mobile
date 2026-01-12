@@ -47,7 +47,7 @@ def test_ord009_reject_zero_quantity():
 
     payload = OrderCreate(
         item_id=item.id,
-        mart_id=mart.id,
+        mart_name="TestMart",
         order_date=date.today(),
         quantity_ordered=0,  # Invalid
         unit="kg",
@@ -70,7 +70,7 @@ def test_ord004_block_update_after_dispatch():
     # Create order
     payload = OrderCreate(
         item_id=item.id,
-        mart_id=mart.id,
+        mart_name="TestMart",
         order_date=date.today(),
         quantity_ordered=100.0,
         unit="kg",
@@ -99,7 +99,7 @@ def test_ord008_block_delete_with_dispatch():
 
     payload = OrderCreate(
         item_id=item.id,
-        mart_id=mart.id,
+        mart_name="TestMart",
         order_date=date.today(),
         quantity_ordered=100.0,
         unit="kg",
@@ -126,7 +126,7 @@ def test_ord006_status_calculation():
 
     payload = OrderCreate(
         item_id=item.id,
-        mart_id=mart.id,
+        mart_name="TestMart",
         order_date=date.today(),
         quantity_ordered=100.0,
         unit="kg",
