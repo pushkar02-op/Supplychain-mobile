@@ -55,7 +55,7 @@ def db_session():
     )
     session.add(conv)
 
-    mart = Mart(name="TestMart", district="D1")
+    mart = Mart(name="TestMart", company_name="Test Co")
     session.add(mart)
     session.commit()
 
