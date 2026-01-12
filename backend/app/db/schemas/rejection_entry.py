@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class RejectionEntryBase(BaseModel):
     batch_id: int
     quantity: float
+    unit: str
     reason: Optional[str]
     rejection_date: date
     rejected_by: Optional[str]

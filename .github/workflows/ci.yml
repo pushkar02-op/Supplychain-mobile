@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -42,7 +44,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r app/requirements.txt
-          pip install pre-commit
+          pip install pre-commit black ruff
 
       - name: Run formatters & linters (check)
         working-directory: backend
@@ -53,6 +55,7 @@ jobs:
       - name: Run tests
         env:
           DATABASE_URL: postgresql://ci_user:ci_pass@127.0.0.1:5432/ci_db
+          PYTHONPATH: .
         working-directory: backend
         run: |
           export DATABASE_URL=postgresql://ci_user:ci_pass@127.0.0.1:5432/ci_db

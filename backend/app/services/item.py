@@ -174,7 +174,44 @@ def update_item(
         logger.error(f"Item not found id={item_id}")
         return None
 
-    for field, val in entry_update.dict(exclude_unset=True).items():
+    update_data = entry_update.dict(exclude_unset=True)
+
+    # Handle UOM Change (MD-002)
+    if "default_unit" in update_data:
+        new_unit = update_data.pop("default_unit")
+
+        # 1. Resolve UOM
+        from sqlalchemy import func
+
+        uom = (
+            db.query(UOM)
+            .filter(func.lower(UOM.code) == new_unit.strip().lower())
+            .first()
+        )
+        if not uom:
+            from app.core.exceptions import AppException
+
+            raise AppException(f"Invalid UOM code: {new_unit}", status_code=400)
+
+        # 2. Check if changing (idempotency)
+        if uom.id != item.default_uom_id:
+            # 3. Enforce MD-002: No change if inventory exists
+            from app.core.exceptions import AppException
+            from app.db.models.inventory_txn import InventoryTxn
+
+            has_history = (
+                db.query(InventoryTxn).filter(InventoryTxn.item_id == item.id).first()
+            )
+            if has_history:
+                raise AppException(
+                    "Cannot change default UOM after inventory transactions exist.",
+                    status_code=409,
+                    extra={"rule_id": "MD-002"},
+                )
+
+            item.default_uom_id = uom.id
+
+    for field, val in update_data.items():
         setattr(item, field, val)
 
     from app.utils.audit import resolve_user_audit

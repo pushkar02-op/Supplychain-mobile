@@ -16,11 +16,8 @@ class Batch(Base, AuditMixin):
     received_at = Column(Date, nullable=True)
     remarks = Column(String, nullable=True)
 
-    # Index for faster queries on item_id and received_at
-    __table_args__ = (
-        Index("ix_batch_item_id", "item_id"),
-        Index("ix_batch_received_at", "received_at"),
-    )
+    # Index for faster queries on received_at
+    __table_args__ = (Index("ix_batch_received_at", "received_at"),)
 
     item = relationship("Item")
 

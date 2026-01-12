@@ -20,7 +20,6 @@ from app.services.stock_entry import (
 )
 from app.services.dispatch_entry import (
     create_dispatch_entry,
-    delete_dispatch_entry,
     create_dispatch_from_order,
 )
 from app.services.rejection_entry import create_rejection_entry
@@ -30,7 +29,7 @@ import traceback
 
 def get_session():
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine, checkfirst=True)
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
 

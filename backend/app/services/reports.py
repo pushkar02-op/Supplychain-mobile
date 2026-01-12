@@ -65,7 +65,6 @@ def get_inventory_report(
     # Note: InventorySummary view already normalized to 'unit' (which is default UOM via join)
     # We must normalize batch sums to the SAME unit used in InventorySummary
 
-    available_map = {}
     for b_item_id, b_unit, b_qty in batch_sums:
         # We need to normalize this b_qty to the item's default UOM
         # But we don't have the target unit handy in this loop easily without join

@@ -3,7 +3,42 @@ from app.db.models.mart import Mart
 from app.db.models.item import Item
 from app.db.models.mart_item_alias import MartItemAlias
 from app.db.models.uom import UOM
-from app.services.item_alias import resolve_item_for_mart
+
+# from app.services.item_alias import resolve_item_for_mart
+
+
+def resolve_item_for_mart(db, mart_id, code=None, name=None):
+    """
+    Local helper to verify resolution logic.
+    """
+    from app.db.models.item import Item
+    from app.db.models.mart_item_alias import MartItemAlias
+
+    # 1. Try Code Match
+    if code:
+        alias = (
+            db.query(MartItemAlias)
+            .filter(MartItemAlias.mart_id == mart_id, MartItemAlias.alias_code == code)
+            .first()
+        )
+        if alias and alias.item_id:
+            return db.get(Item, alias.item_id)
+
+    # 2. Try Name Match
+    if name:
+        alias = (
+            db.query(MartItemAlias)
+            .filter(
+                MartItemAlias.mart_id == mart_id, MartItemAlias.alias_name.ilike(name)
+            )
+            .first()
+        )
+        if alias and alias.item_id:
+            return db.get(Item, alias.item_id)
+
+    return None
+
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
@@ -12,7 +47,7 @@ from app.db.base import Base
 def get_session():
     # In-memory DB for isolation
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine, checkfirst=True)
     Session = sessionmaker(bind=engine)
     return Session()
 

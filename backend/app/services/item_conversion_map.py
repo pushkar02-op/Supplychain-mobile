@@ -4,6 +4,7 @@ Handles CRUD operations on unit/item conversion mappings.
 """
 
 import logging
+from decimal import Decimal
 from typing import List, Optional
 
 from app.core.exceptions import UOMConfigurationError
@@ -15,9 +16,6 @@ from app.db.schemas.item_conversion_map import (
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
-
-
-from decimal import Decimal
 
 
 def get_conversion_factor(
@@ -37,7 +35,7 @@ def get_conversion_factor(
 
     conv = (
         db.query(ItemConversionMap)
-        .filter_by(item_id=item_id, source_unit=from_unit, target_unit=to_unit)
+        .filter_by(item_id=item_id, source_unit=u1, target_unit=u2)
         .first()
     )
     if conv:
@@ -46,7 +44,7 @@ def get_conversion_factor(
 
     conv_rev = (
         db.query(ItemConversionMap)
-        .filter_by(item_id=item_id, source_unit=to_unit, target_unit=from_unit)
+        .filter_by(item_id=item_id, source_unit=u2, target_unit=u1)
         .first()
     )
     if conv_rev and conv_rev.conversion_factor != 0:

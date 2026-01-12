@@ -72,24 +72,46 @@ def create_stock_entry(
         db.flush()
         logger.debug(f"Added to existing batch id={batch.id}")
     else:
-        # item = db.query(Item).filter(Item.id == entry.item_id).first()
-        # uom_code = None
-        # if item and item.default_uom_id:
+        from app.db.models.item import Item
+        from app.db.models.uom import UOM
+        from app.services.item_conversion_map import get_conversion_factor
 
-        # uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
-        # uom_code = uom.code if uom else None
-        # unit = uom_code if uom_code else entry.unit
+        # Canonicalization: Find target UOM
+        item = db.query(Item).filter(Item.id == entry.item_id).first()
+        uom_code = None
+        if item and item.default_uom_id:
+            uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
+            uom_code = uom.code if uom else None
+
+        target_unit = uom_code if uom_code else entry.unit
+
+        # Convert quantity if needed
+        qty_to_store = Decimal(str(entry.quantity))
+        if target_unit != entry.unit:
+            try:
+                factor = get_conversion_factor(
+                    db, entry.item_id, entry.unit, target_unit
+                )
+                qty_to_store = qty_to_store * factor
+                logger.info(
+                    f"Canonicalizing stock: {entry.quantity} {entry.unit} -> {qty_to_store} {target_unit}"
+                )
+            except Exception as e:
+                logger.warning(f"Could not convert for batch creation, using raw: {e}")
+
         batch = Batch(
             item_id=entry.item_id,
-            quantity=Decimal(str(entry.quantity)),  # Direct NUMERIC (Stage 3)
-            unit=entry.unit,
+            quantity=qty_to_store,
+            unit=target_unit,
             received_at=entry.received_date,
             created_by=created_by,
             updated_by=created_by,
         )
         db.add(batch)
         db.flush()
-        logger.debug(f"Created new batch id={batch.id}")
+        logger.debug(
+            f"Created new batch id={batch.id} (qty={batch.quantity} {batch.unit})"
+        )
 
     # 2) Persist StockEntry
     from app.utils.audit import resolve_user_audit

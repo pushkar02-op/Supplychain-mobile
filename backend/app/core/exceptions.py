@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 
 # Base AppException for domain-level errors
 class AppException(Exception):
-    def __init__(self, message: str, status_code: int = 400):
+    def __init__(self, message: str, status_code: int = 400, **kwargs):
         self.message = message
         self.status_code = status_code
+        self.extra = kwargs.get("extra")
 
 
 class UOMConfigurationError(AppException):
