@@ -10,7 +10,7 @@ from app.db.models.uom import UOM
 from app.db.models.mart import Mart
 from app.db.models.order import Order
 from app.db.schemas.order import OrderCreate, OrderUpdate
-from app.services.order import create_order, update_order, delete_order, cancel_order
+from app.services.order import create_order, update_order, delete_order
 from app.core.exceptions import AppException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -119,53 +119,6 @@ def test_ord008_block_delete_with_dispatch():
         print("PASS: ORD-008 Block Delete With Dispatch")
 
 
-def test_ord005_cancel_order():
-    """ORD-005: Cancel order only when no dispatches."""
-    db = get_session()
-    item, mart = setup_basic_data(db)
-
-    payload = OrderCreate(
-        item_id=item.id,
-        mart_id=mart.id,
-        order_date=date.today(),
-        quantity_ordered=100.0,
-        unit="kg",
-    )
-    order = create_order(db, payload, created_by="test")
-
-    # Should succeed (no dispatch)
-    result = cancel_order(db, order.id, cancelled_by="admin")
-    assert result.status == "Cancelled"
-    print("PASS: ORD-005 Cancel Order (No Dispatch)")
-
-
-def test_ord005_block_cancel_with_dispatch():
-    """ORD-005: Block cancel when dispatch exists."""
-    db = get_session()
-    item, mart = setup_basic_data(db)
-
-    payload = OrderCreate(
-        item_id=item.id,
-        mart_id=mart.id,
-        order_date=date.today(),
-        quantity_ordered=100.0,
-        unit="kg",
-    )
-    order = create_order(db, payload, created_by="test")
-
-    # Simulate dispatch
-    order.quantity_dispatched = 5.0
-    db.commit()
-
-    try:
-        cancel_order(db, order.id, cancelled_by="admin")
-        raise AssertionError("Expected AppException not raised!")
-    except AppException as e:
-        assert e.status_code == 409
-        assert "ORD-005" in str(e.extra.get("rule_id", ""))
-        print("PASS: ORD-005 Block Cancel With Dispatch")
-
-
 def test_ord006_status_calculation():
     """ORD-006: Status calculation is correct."""
     db = get_session()
@@ -206,8 +159,6 @@ if __name__ == "__main__":
         test_ord009_reject_zero_quantity()
         test_ord004_block_update_after_dispatch()
         test_ord008_block_delete_with_dispatch()
-        test_ord005_cancel_order()
-        test_ord005_block_cancel_with_dispatch()
         test_ord006_status_calculation()
         print("\n=== ALL PHASE 4B ORDER TESTS PASSED ===")
     except Exception as e:

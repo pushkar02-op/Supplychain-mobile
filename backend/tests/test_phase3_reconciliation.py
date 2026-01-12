@@ -8,8 +8,8 @@ from decimal import Decimal
 from app.db.models.item import Item
 from app.db.models.uom import UOM
 from app.db.models.mart import Mart
-from app.db.models.invoice import Invoice
-from app.db.models.invoice_item import InvoiceItem
+from app.db.models.mart_bill import MartBill
+from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.batch import Batch
 from app.db.models.stock_entry import StockEntry
 from app.db.models.reconciliation_mismatch import (
@@ -47,19 +47,19 @@ def test_mismatch_classification():
     db.add(mart)
     db.commit()
 
-    # Setup Invoice with resolved item
-    invoice = Invoice(
+    # Setup MartBill with resolved item
+    mart_bill = MartBill(
         invoice_date=datetime.utcnow().date(),
         file_path="test.pdf",
         file_hash="hash001",
         total_amount=1000.0,
         mart_id=mart.id,
     )
-    db.add(invoice)
+    db.add(mart_bill)
     db.flush()
 
-    inv_item = InvoiceItem(
-        invoice_id=invoice.id,
+    bill_item = MartBillItem(
+        mart_bill_id=mart_bill.id,
         item_id=item.id,  # Resolved
         item_name="Rice",
         item_code="RICE-001",
@@ -67,14 +67,14 @@ def test_mismatch_classification():
         uom="kg",
         price=10.0,
         total=1000.0,
-        invoice_date=invoice.invoice_date,
+        invoice_date=mart_bill.invoice_date,
         store_name="Test Store",
     )
-    db.add(inv_item)
+    db.add(bill_item)
     db.commit()
 
     # Run reconciliation (no stock entry = MISSING_ENTRY)
-    results = run_invoice_reconciliation(db, invoice.id)
+    results = run_invoice_reconciliation(db, mart_bill.id)
 
     assert len(results) == 1
     assert results[0]["type"] == MismatchType.MISSING_ENTRY.value
@@ -117,19 +117,19 @@ def test_quantity_mismatch():
     )
     db.add(stock)
 
-    # Create Invoice with DIFFERENT quantity
-    invoice = Invoice(
+    # Create MartBill with DIFFERENT quantity
+    mart_bill = MartBill(
         invoice_date=datetime.utcnow().date(),
         file_path="test2.pdf",
         file_hash="hash002",
         total_amount=600.0,
         mart_id=mart.id,
     )
-    db.add(invoice)
+    db.add(mart_bill)
     db.flush()
 
-    inv_item = InvoiceItem(
-        invoice_id=invoice.id,
+    bill_item = MartBillItem(
+        mart_bill_id=mart_bill.id,
         item_id=item.id,
         item_name="Wheat",
         item_code="WHEAT-001",
@@ -137,13 +137,13 @@ def test_quantity_mismatch():
         uom="kg",
         price=10.0,
         total=600.0,
-        invoice_date=invoice.invoice_date,
+        invoice_date=mart_bill.invoice_date,
         store_name="Store B",
     )
-    db.add(inv_item)
+    db.add(bill_item)
     db.commit()
 
-    results = run_invoice_reconciliation(db, invoice.id)
+    results = run_invoice_reconciliation(db, mart_bill.id)
 
     assert len(results) == 1
     assert results[0]["type"] == MismatchType.QUANTITY.value
@@ -165,18 +165,18 @@ def test_dispute_resolution():
     db.add(mart)
     db.commit()
 
-    invoice = Invoice(
+    mart_bill = MartBill(
         invoice_date=datetime.utcnow().date(),
         file_path="test3.pdf",
         file_hash="hash003",
         total_amount=100.0,
         mart_id=mart.id,
     )
-    db.add(invoice)
+    db.add(mart_bill)
     db.flush()
 
-    inv_item = InvoiceItem(
-        invoice_id=invoice.id,
+    bill_item = MartBillItem(
+        mart_bill_id=mart_bill.id,
         item_id=None,  # UNRESOLVED
         item_name="Unknown Sugar",
         item_code=None,
@@ -184,14 +184,14 @@ def test_dispute_resolution():
         uom="kg",
         price=10.0,
         total=100.0,
-        invoice_date=invoice.invoice_date,
+        invoice_date=mart_bill.invoice_date,
         store_name="Store C",
     )
-    db.add(inv_item)
+    db.add(bill_item)
     db.commit()
 
     # Run reconciliation (creates IDENTITY mismatch)
-    results = run_invoice_reconciliation(db, invoice.id)
+    results = run_invoice_reconciliation(db, mart_bill.id)
     assert results[0]["type"] == MismatchType.IDENTITY.value
 
     mismatch_id = results[0]["mismatch_id"]
