@@ -14,7 +14,8 @@ from app.db.schemas.mart_item_alias import (
     ResolutionRequest,
 )
 from app.db.session import get_db
-from app.services.item_alias import resolve_item_for_mart
+
+# from app.services.item_alias import resolve_item_for_mart
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -93,11 +94,30 @@ def resolve_invoice_items(
 
     resolved_count = 0
     for item in unresolved:
-        resolved = resolve_item_for_mart(
-            db, mart_id=request.mart_id, code=item.item_code, name=item.item_name
-        )
-        if resolved:
-            item.item_id = resolved.id
+        # Inline resolution logic (Code match > Name match)
+        alias = None
+        if item.item_code:
+            alias = (
+                db.query(MartItemAlias)
+                .filter(
+                    MartItemAlias.mart_id == request.mart_id,
+                    MartItemAlias.alias_code == item.item_code,
+                )
+                .first()
+            )
+
+        if not alias and item.item_name:
+            alias = (
+                db.query(MartItemAlias)
+                .filter(
+                    MartItemAlias.mart_id == request.mart_id,
+                    MartItemAlias.alias_name.ilike(item.item_name),
+                )
+                .first()
+            )
+
+        if alias and alias.item_id:
+            item.item_id = alias.item_id
             resolved_count += 1
 
     db.commit()
