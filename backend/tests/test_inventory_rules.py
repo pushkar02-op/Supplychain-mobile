@@ -36,8 +36,8 @@ def db_session():
     session = SessionLocal()
 
     # Pre-Seed Data
-    uom_kg = UOM(code="kg", name="Kilogram")
-    uom_g = UOM(code="g", name="Gram")
+    uom_kg = UOM(code="kg", description="Kilogram")
+    uom_g = UOM(code="g", description="Gram")
     session.add_all([uom_kg, uom_g])
     session.flush()
 
