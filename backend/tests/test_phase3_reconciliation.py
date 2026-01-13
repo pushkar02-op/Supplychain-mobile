@@ -5,15 +5,16 @@ Verifies ledger drift detection using check_batch_drift and get_ledger_health_re
 
 from datetime import datetime
 from decimal import Decimal
-from app.db.models.item import Item
-from app.db.models.uom import UOM
-from app.db.models.batch import Batch
-from app.db.models.inventory_txn import InventoryTxn
-from app.db.models.item_conversion_map import ItemConversionMap
-from app.services.reconciliation import check_batch_drift, get_ledger_health_report
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
 from app.db.base import Base
+from app.db.models.batch import Batch
+from app.db.models.inventory_txn import InventoryTxn
+from app.db.models.item import Item
+from app.db.models.uom import UOM
+from app.services.reconciliation import check_batch_drift, get_ledger_health_report
 
 
 def get_session():
@@ -196,7 +197,7 @@ if __name__ == "__main__":
         test_drifted_batch()
         test_ledger_health_report()
         print("\n=== ALL PHASE 3 TESTS PASSED ===")
-    except Exception as e:
+    except Exception:
         import traceback
 
         traceback.print_exc()

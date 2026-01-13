@@ -1,18 +1,18 @@
-import sys
 import os
-from sqlalchemy import text, select
+import sys
 from datetime import date
-import json
+
+from sqlalchemy import text
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
+from app.db.schemas.dispatch_entry import DispatchEntryCreate
+from app.db.schemas.stock_entry import StockEntryCreate
 from app.db.session import SessionLocal
-from app.services.stock_entry import create_stock_entry, delete_stock_entry
 from app.services.dispatch_entry import create_dispatch_entry
 from app.services.reconciliation import check_batch_drift
-from app.db.schemas.stock_entry import StockEntryCreate
-from app.db.schemas.dispatch_entry import DispatchEntryCreate
+from app.services.stock_entry import create_stock_entry, delete_stock_entry
 
 
 def verify():
@@ -44,7 +44,7 @@ def verify():
         db.execute(
             text(f"DELETE FROM item_conversion_map WHERE item_id IN {item_id_subquery}")
         )
-        db.execute(text(f"DELETE FROM item WHERE name = 'Phase C Item'"))
+        db.execute(text("DELETE FROM item WHERE name = 'Phase C Item'"))
         db.commit()
 
         # Ensure dependencies

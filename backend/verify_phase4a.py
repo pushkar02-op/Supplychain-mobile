@@ -1,9 +1,8 @@
-import urllib.request
-import urllib.error
-import urllib.parse
 import json
 import time
-import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
 BASE_URL = "http://localhost:8000/v1"
 
@@ -70,7 +69,7 @@ def run_verification():
 
     try:
         token = get_token()
-        log(f"[SETUP] Token acquired")
+        log("[SETUP] Token acquired")
 
         # Create test item
         item_name = f"FractionalItem_{int(time.time())}"

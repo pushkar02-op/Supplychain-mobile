@@ -3,17 +3,13 @@ Backfill script for `created_by_id`.
 Usage: python scripts/backfill_created_by.py [--dry-run]
 """
 
-import sys
-import os
 import argparse
 import logging
-import sys
 import os
-import argparse
-import logging
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+import sys
 from urllib.parse import urlparse
+
+from sqlalchemy.orm import Session
 
 # Configure logging
 logging.basicConfig(
@@ -39,20 +35,20 @@ except ImportError:
         sys.path.append(project_root)
 
 try:
-    from app.db.session import SessionLocal, settings
-    from app.db.models.user import User
     from app.db.models.batch import Batch
-    from app.db.models.stock_entry import StockEntry
-    from app.db.models.order import Order
+    from app.db.models.dispatch_entry import DispatchEntry
     from app.db.models.invoice import Invoice
     from app.db.models.invoice_item import InvoiceItem
-    from app.db.models.dispatch_entry import DispatchEntry
-    from app.db.models.rejection_entry import RejectionEntry
     from app.db.models.item import Item
     from app.db.models.item_alias import ItemAlias
-    from app.db.models.mart import Mart
-    from app.db.models.uom import UOM
     from app.db.models.item_conversion_map import ItemConversionMap
+    from app.db.models.mart import Mart
+    from app.db.models.order import Order
+    from app.db.models.rejection_entry import RejectionEntry
+    from app.db.models.stock_entry import StockEntry
+    from app.db.models.uom import UOM
+    from app.db.models.user import User
+    from app.db.session import SessionLocal, settings
 except ImportError as e:
     logger.error(f"Failed to import app modules: {e}")
     logger.error("Ensure you are running this script with access to the 'app' package.")
@@ -88,7 +84,7 @@ def print_banner(dry_run: bool):
         host = "UNKNOWN"
 
     print("=" * 60)
-    print(f" BACKFILL: Created_By_ID Population")
+    print(" BACKFILL: Created_By_ID Population")
     print(f" Mode: {'DRY RUN (Read-Only)' if dry_run else 'LIVE EXECUTION'}")
     print(f" Database: {host} ({masked_url})")
     print("=" * 60)
@@ -142,7 +138,7 @@ def process_table(db: Session, model, dry_run: bool):
 
     total_needing = query.count()
     if total_needing == 0:
-        logger.info(f"  - No rows to backfill.")
+        logger.info("  - No rows to backfill.")
         return
 
     logger.info(f"  - Needing backfill: {total_needing}")

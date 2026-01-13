@@ -1,6 +1,6 @@
-from app.db.session import SessionLocal
 from sqlalchemy import text
-import sys
+
+from app.db.session import SessionLocal
 
 
 def debug():

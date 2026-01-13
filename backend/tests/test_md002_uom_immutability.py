@@ -5,17 +5,18 @@ Verifies that default_uom_id cannot be changed after inventory transactions exis
 
 from datetime import datetime
 from decimal import Decimal
-from app.db.models.item import Item
-from app.db.models.uom import UOM
-from app.db.models.batch import Batch
-from app.db.models.inventory_txn import InventoryTxn
-from app.db.schemas.item import ItemUpdate
-from app.services.item import update_item
-from app.core.exceptions import AppException
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+from app.core.exceptions import AppException
 from app.db.base import Base
-import pytest
+from app.db.models.batch import Batch
+from app.db.models.inventory_txn import InventoryTxn
+from app.db.models.item import Item
+from app.db.models.uom import UOM
+from app.db.schemas.item import ItemUpdate
+from app.services.item import update_item
 
 
 def get_session():
@@ -170,7 +171,7 @@ if __name__ == "__main__":
         test_allow_uom_change_before_inventory()
         test_allow_non_uom_updates_after_inventory()
         print("\n=== ALL MD-002 TESTS PASSED ===")
-    except Exception as e:
+    except Exception:
         import traceback
 
         traceback.print_exc()

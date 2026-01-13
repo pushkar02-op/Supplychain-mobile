@@ -4,18 +4,15 @@ Phase 5A Verification Script
 Tests UOM safety enforcement and diagnostics
 """
 
-import urllib.request
-import urllib.error
-import json
-import time
-import sys
-
-
 import builtins
-
+import json
 
 # Set up file logging
 import os
+import sys
+import time
+import urllib.error
+import urllib.request
 
 log_path = os.path.abspath("verification_results.log")
 log_file = open(log_path, "w", encoding="utf-8")
@@ -133,7 +130,7 @@ def main():
     )
 
     if code == 409 and resp.get("error_code") == "UOM_CONFIG_ERROR":
-        print(f"✓ PASS: Request blocked with 409 UOMConfigurationError")
+        print("✓ PASS: Request blocked with 409 UOMConfigurationError")
         print(f"  Message: {resp.get('detail')}")
     else:
         print(f"✗ FAIL: Expected 409 UOM_CONFIG_ERROR, got {code}")
@@ -205,11 +202,11 @@ def main():
         )
 
         if code == 409 and resp.get("error_code") == "UOM_CONFIG_ERROR":
-            print(f"✓ PASS: Conversion failure blocked with 409 UOMConfigurationError")
+            print("✓ PASS: Conversion failure blocked with 409 UOMConfigurationError")
             print(f"  Message: {resp.get('detail')}")
         elif code == 400 and "Conversion" in str(resp):
             # Fallback if old error persists (shouldn't happen)
-            print(f"✗ FAIL: Got generic 400 instead of 409")
+            print("✗ FAIL: Got generic 400 instead of 409")
             print(resp)
         elif code == 200:
             print(

@@ -3,11 +3,11 @@
 Phase 3 Idempotency Verification Script (Clean Environment)
 """
 
-import urllib.request
-import urllib.error
-import urllib.parse
 import json
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
 BASE_URL = "http://localhost:8000/v1"
 
@@ -75,7 +75,7 @@ def run_verification():
         log("=" * 60)
 
         token = get_token()
-        log(f"[SETUP] Token acquired")
+        log("[SETUP] Token acquired")
 
         # Create test item
         item_name = f"VerifyItem_{int(time.time())}"

@@ -1,9 +1,9 @@
-import requests
-import uuid
-import time
-import sys
 import json
-from decimal import Decimal
+import sys
+import time
+import uuid
+
+import requests
 
 BASE_URL = "http://localhost:8000"
 ADMIN_EMAIL = "admin@example.com"

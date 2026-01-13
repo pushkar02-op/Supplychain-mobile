@@ -1,6 +1,7 @@
-import sys
-import os
 import json
+import os
+import sys
+
 from fastapi.openapi.utils import get_openapi
 
 # Add current directory to sys.path so we can import 'app'

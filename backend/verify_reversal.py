@@ -1,7 +1,7 @@
-import requests
-import sys
-import json
 import os
+import sys
+
+import requests
 
 # Add parent dir
 sys.path.append(os.getcwd())

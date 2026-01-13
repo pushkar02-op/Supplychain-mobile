@@ -1,6 +1,5 @@
-from app.db.session import SessionLocal
 from app.db.models.user import User
-import logging
+from app.db.session import SessionLocal
 
 try:
     db = SessionLocal()

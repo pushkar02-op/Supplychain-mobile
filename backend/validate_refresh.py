@@ -1,8 +1,8 @@
-import sys
-import uuid
 import json
-import urllib.request
+import sys
 import urllib.error
+import urllib.request
+import uuid
 
 API_URL = "http://localhost:8000"
 

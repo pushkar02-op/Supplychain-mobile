@@ -1,6 +1,5 @@
-import urllib.request
 import json
-import os
+import urllib.request
 
 BASE_URL = "http://localhost:8000/v1"
 
