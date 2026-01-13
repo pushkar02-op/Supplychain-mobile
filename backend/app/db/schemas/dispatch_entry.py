@@ -13,6 +13,7 @@ class DispatchEntryBase(BaseModel):
     quantity: float
     unit: str
     remarks: Optional[str] = None
+    order_id: Optional[int] = None
 
 
 class DispatchEntryCreate(DispatchEntryBase):
@@ -73,6 +74,7 @@ class DispatchEntryMultiCreate(BaseModel):
     dispatch_date: date
     unit: str
     remarks: Optional[str] = None
+    order_id: Optional[int] = None
     batches: list[BatchDispatchInput]
 
 

@@ -153,16 +153,22 @@ def create_reversal_entry(
     # Or just flush before creating txn.
 
     # Find relevant order to update status
-    order = db.scalar(
-        select(Order)
-        .where(
-            Order.item_id == dispatch.item_id,
-            Order.mart_id == dispatch.mart_id,
-            Order.quantity_dispatched > 0,
+    # INTENT INTEGRITY: Prefer explicit link, fallback to heuristic
+    order = None
+    if dispatch.order_id:
+        order = db.get(Order, dispatch.order_id)
+
+    if not order:
+        order = db.scalar(
+            select(Order)
+            .where(
+                Order.item_id == dispatch.item_id,
+                Order.mart_id == dispatch.mart_id,
+                Order.quantity_dispatched > 0,
+            )
+            .order_by(Order.order_date.desc())
+            .limit(1)
         )
-        .order_by(Order.order_date.desc())
-        .limit(1)
-    )
 
     if order:
         update_order_status_after_reversal(db, order, float(reversal_qty))
@@ -209,15 +215,22 @@ def create_dispatch_entry(
 
     # ====================================================================
     # ORD-007 ENFORCEMENT: Dispatch Must Respect Order Remaining Quantity
-    # This check MUST occur BEFORE any inventory mutation.
+    # INTENT INTEGRITY: Prefer explicit order_id, fallback to heuristic.
     # ====================================================================
-    order = db.scalar(
-        select(Order).where(
-            Order.item_id == entry.item_id,
-            Order.mart_id == mart.id,
-            Order.status.notin_(["Cancelled", "Completed"]),
+    order = None
+    if entry.order_id:
+        order = db.get(Order, entry.order_id)
+        if not order:
+            raise AppException(f"Order {entry.order_id} not found", status_code=404)
+    else:
+        # Heuristic Fallback (Legacy)
+        order = db.scalar(
+            select(Order).where(
+                Order.item_id == entry.item_id,
+                Order.mart_id == mart.id,
+                Order.status.notin_(["Cancelled", "Completed"]),
+            )
         )
-    )
     if order:
         existing_dispatched = Decimal(str(order.quantity_dispatched or 0))
         quantity_ordered = Decimal(str(order.quantity_ordered))
@@ -311,6 +324,7 @@ def create_dispatch_entry(
         created_by=user_name,
         created_by_id=user_id,
         updated_by=user_name,
+        order_id=order.id if order else None,
     )
     db.add(dispatch)
 
@@ -318,7 +332,13 @@ def create_dispatch_entry(
     batch.quantity -= canonical_qty
     batch.updated_at = datetime.utcnow()
 
-    _update_order_after_dispatch(db, entry.item_id, entry.mart_name, entry.quantity)
+    _update_order_after_dispatch(
+        db,
+        entry.item_id,
+        entry.mart_name,
+        entry.quantity,
+        order_id=order.id if order else None,
+    )
     db.flush()
     db.refresh(dispatch)
     logger.debug(f"Created/Updating dispatch record for item_id={entry.item_id}")
@@ -371,15 +391,25 @@ def create_dispatch_from_order(
         AppException: If no pending order or batch issues.
     """
     logger.info(f"Creating dispatches from order for item_id={entry.item_id}")
-    order = db.scalar(
-        select(Order)
-        .join(Mart)
-        .where(
-            Order.item_id == entry.item_id,
-            Mart.name == entry.mart_name,
-            Order.status != "Completed",
+    order = None
+    if entry.order_id:
+        order = db.get(Order, entry.order_id)
+        if not order:
+            raise AppException(f"Order {entry.order_id} not found", status_code=404)
+        if order.status == "Completed":
+            # Optional: Allow dispatch against completed if strictly specified? No, usually forbidden.
+            # But if user insists... No, logic below checks pending.
+            pass
+    else:
+        order = db.scalar(
+            select(Order)
+            .join(Mart)
+            .where(
+                Order.item_id == entry.item_id,
+                Mart.name == entry.mart_name,
+                Order.status != "Completed",
+            )
         )
-    )
     if not order:
         msg = f"No pending order for item {entry.item_id} at mart {entry.mart_name}"
         logger.error(msg)
@@ -466,6 +496,7 @@ def create_dispatch_from_order(
                 created_by=user_name,
                 created_by_id=user_id,
                 updated_by=user_name,
+                order_id=order.id,
             )
             db.add(disp)
             results.append(disp)
@@ -499,7 +530,9 @@ def create_dispatch_from_order(
             raise
 
     # 5) Finalize Order and Transactions
-    _update_order_after_dispatch(db, entry.item_id, entry.mart_name, total_req)
+    _update_order_after_dispatch(
+        db, entry.item_id, entry.mart_name, total_req, order_id=order.id
+    )
     db.flush()
     for d in results:
         db.refresh(d)
@@ -510,28 +543,39 @@ def create_dispatch_from_order(
 
 
 def _update_order_after_dispatch(
-    db: Session, item_id: int, mart_name: str, dispatched_quantity: float
+    db: Session,
+    item_id: int,
+    mart_name: str,
+    dispatched_quantity: float,
+    order_id: Optional[int] = None,
 ) -> None:
     """
     Update the corresponding order’s dispatched quantity and status.
+    Uses explicit order_id if provided, otherwise heuristically finds active order.
 
     Args:
         db (Session): Database session.
         item_id (int): Item ID.
         mart_name (str): Mart name.
         dispatched_quantity (float): Quantity dispatched in this operation.
+        order_id (Optional[int]): Explicit order ID.
     """
-    order = db.scalar(
-        select(Order)
-        .join(Mart)
-        .where(
-            Order.item_id == item_id,
-            Mart.name == mart_name,
-            Order.status != "Completed",
+    if order_id:
+        order = db.get(Order, order_id)
+    else:
+        order = db.scalar(
+            select(Order)
+            .join(Mart)
+            .where(
+                Order.item_id == item_id,
+                Mart.name == mart_name,
+                Order.status != "Completed",
+            )
         )
-    )
+
     if not order:
         return
+
     order.quantity_dispatched = (order.quantity_dispatched or 0) + dispatched_quantity
     order.status = (
         "Completed"
