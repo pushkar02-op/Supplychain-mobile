@@ -169,6 +169,7 @@ def test_rejection_entry_canonicalization(db_session):
         batch_id=batch.id,
         quantity=500,
         reason="Damaged",
+        # Calibrated to 'g' to test canonicalization against 'kg' batch
         unit="g",
         rejection_date=date.today(),
         rejected_by="tester",
