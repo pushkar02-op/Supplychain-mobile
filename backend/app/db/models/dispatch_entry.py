@@ -29,10 +29,12 @@ class DispatchEntry(Base, AuditMixin):
     quantity = Column(Float, nullable=False)
     unit = Column(String, nullable=False)
     remarks = Column(String, nullable=True)
+    order_id = Column(Integer, ForeignKey("order.id"), nullable=True)
 
     batch = relationship("Batch")
     item = relationship("Item")
     mart = relationship("Mart")
+    order = relationship("Order")
 
     @property
     def mart_name(self):
