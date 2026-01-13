@@ -75,7 +75,7 @@ def run_verification():
         log("=" * 60)
 
         token = get_token()
-        log(f"[SETUP] Token acquired")
+        log("[SETUP] Token acquired")
 
         # Create test item
         item_name = f"VerifyItem_{int(time.time())}"

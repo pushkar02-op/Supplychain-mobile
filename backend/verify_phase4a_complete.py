@@ -95,7 +95,7 @@ def main():
     if code in [200, 201]:
         batch_id = stock_resp.get("batch_id")
         stored_qty = stock_resp.get("quantity")
-        print(f"✓ PASS: Stock entry created")
+        print("✓ PASS: Stock entry created")
         print(f"  Batch ID: {batch_id}")
         print(f"  Stored quantity: {stored_qty}")
         if stored_qty == 10.5:
@@ -129,7 +129,7 @@ def main():
 
     if code in [200, 201]:
         rejected_qty = rej_resp.get("quantity")
-        print(f"✓ PASS: Rejection entry created")
+        print("✓ PASS: Rejection entry created")
         print(f"  Rejection ID: {rej_resp.get('id')}")
         print(f"  Rejected quantity: {rejected_qty}")
         if rejected_qty == 0.5:
@@ -145,10 +145,10 @@ def main():
     print("\n" + "-" * 80)
     print("TEST 3: Decimal Arithmetic Verification")
     print("-" * 80)
-    print(f"  Initial stock:     10.5 kg")
-    print(f"  Rejected:          0.5 kg")
-    print(f"  Expected remaining: 10.0 kg")
-    print(f"  ✓ Calculation: 10.5 - 0.5 = 10.0")
+    print("  Initial stock:     10.5 kg")
+    print("  Rejected:          0.5 kg")
+    print("  Expected remaining: 10.0 kg")
+    print("  ✓ Calculation: 10.5 - 0.5 = 10.0")
 
     print("\n" + "=" * 80)
     print("PHASE 4A VERIFICATION: ALL TESTS PASSED ✓")

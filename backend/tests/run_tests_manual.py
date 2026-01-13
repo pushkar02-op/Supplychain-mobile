@@ -19,7 +19,6 @@ from app.db.schemas.rejection_entry import RejectionEntryCreate
 from app.db.schemas.stock_entry import StockEntryCreate
 from app.services.dispatch_entry import (
     create_dispatch_entry,
-    create_dispatch_from_order,
 )
 from app.services.rejection_entry import create_rejection_entry
 from app.services.stock_entry import (

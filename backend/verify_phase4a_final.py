@@ -125,10 +125,10 @@ def main():
     # TEST 3: Verify remaining quantity
     print("\nTEST 3: Verify Batch Quantity Correctness")
     print("-" * 70)
-    print(f"  Initial: 10.5 kg")
-    print(f"  Rejected: 0.5 kg")
-    print(f"  Expected remaining: 10.0 kg")
-    print(f"  ✓ Arithmetic verified (10.5 - 0.5 = 10.0)")
+    print("  Initial: 10.5 kg")
+    print("  Rejected: 0.5 kg")
+    print("  Expected remaining: 10.0 kg")
+    print("  ✓ Arithmetic verified (10.5 - 0.5 = 10.0)")
 
     print("\n" + "=" * 70)
     print("PHASE 4A VERIFICATION: ALL TESTS PASSED ✓")

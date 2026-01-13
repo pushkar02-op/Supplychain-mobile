@@ -45,7 +45,7 @@ def verify():
         db.execute(
             text(f"DELETE FROM item_conversion_map WHERE item_id IN {item_id_subquery}")
         )
-        db.execute(text(f"DELETE FROM item WHERE name = 'Phase C Item'"))
+        db.execute(text("DELETE FROM item WHERE name = 'Phase C Item'"))
         db.commit()
 
         # Ensure dependencies

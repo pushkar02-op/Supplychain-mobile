@@ -172,7 +172,7 @@ if __name__ == "__main__":
         test_allow_uom_change_before_inventory()
         test_allow_non_uom_updates_after_inventory()
         print("\n=== ALL MD-002 TESTS PASSED ===")
-    except Exception as e:
+    except Exception:
         import traceback
 
         traceback.print_exc()

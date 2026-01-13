@@ -163,7 +163,7 @@ if __name__ == "__main__":
         test_ord008_block_delete_with_dispatch()
         test_ord006_status_calculation()
         print("\n=== ALL PHASE 4B ORDER TESTS PASSED ===")
-    except Exception as e:
+    except Exception:
         import traceback
 
         traceback.print_exc()

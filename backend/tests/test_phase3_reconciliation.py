@@ -198,7 +198,7 @@ if __name__ == "__main__":
         test_drifted_batch()
         test_ledger_health_report()
         print("\n=== ALL PHASE 3 TESTS PASSED ===")
-    except Exception as e:
+    except Exception:
         import traceback
 
         traceback.print_exc()

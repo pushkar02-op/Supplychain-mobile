@@ -253,7 +253,7 @@ if __name__ == "__main__":
         test_ord007_block_dispatch_completed_order()
         test_ord007_no_inventory_mutation_on_failure()
         print("\n=== ALL PHASE 4C ORD-007 TESTS PASSED ===")
-    except Exception as e:
+    except Exception:
         import traceback
 
         traceback.print_exc()

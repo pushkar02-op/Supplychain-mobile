@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from sqlalchemy.orm import Session
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -85,7 +87,7 @@ def print_banner(dry_run: bool):
         host = "UNKNOWN"
 
     print("=" * 60)
-    print(f" BACKFILL: Created_By_ID Population")
+    print(" BACKFILL: Created_By_ID Population")
     print(f" Mode: {'DRY RUN (Read-Only)' if dry_run else 'LIVE EXECUTION'}")
     print(f" Database: {host} ({masked_url})")
     print("=" * 60)
@@ -139,7 +141,7 @@ def process_table(db: Session, model, dry_run: bool):
 
     total_needing = query.count()
     if total_needing == 0:
-        logger.info(f"  - No rows to backfill.")
+        logger.info("  - No rows to backfill.")
         return
 
     logger.info(f"  - Needing backfill: {total_needing}")

@@ -70,7 +70,7 @@ def run_verification():
 
     try:
         token = get_token()
-        log(f"[SETUP] Token acquired")
+        log("[SETUP] Token acquired")
 
         # Create test item
         item_name = f"FractionalItem_{int(time.time())}"

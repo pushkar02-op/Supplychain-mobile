@@ -167,7 +167,7 @@ if __name__ == "__main__":
         test_mart_scoped_identity()
         test_resolution_precedence()
         print("ALL TESTS PASSED")
-    except Exception as e:
+    except Exception:
         import traceback
 
         traceback.print_exc()
