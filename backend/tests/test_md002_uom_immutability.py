@@ -6,6 +6,7 @@ Verifies that default_uom_id cannot be changed after inventory transactions exis
 from datetime import datetime
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 

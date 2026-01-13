@@ -12,8 +12,9 @@ from app.db.models.inventory_txn import InventoryTxn
 from app.db.models.item import Item
 from app.db.models.item_conversion_map import ItemConversionMap
 from app.db.models.mart import Mart
+from app.db.models.order import Order
 from app.db.models.uom import UOM
-from app.db.schemas.dispatch_entry import DispatchEntryCreate
+from app.db.schemas.dispatch_entry import DispatchEntryCreate, DispatchEntryMultiCreate
 from app.db.schemas.rejection_entry import RejectionEntryCreate
 from app.db.schemas.stock_entry import StockEntryCreate
 from app.services.dispatch_entry import (
@@ -22,6 +23,8 @@ from app.services.dispatch_entry import (
 from app.services.rejection_entry import create_rejection_entry
 from app.services.stock_entry import (
     create_stock_entry,
+    delete_stock_entry,
+    update_stock_entry,
 )
 
 

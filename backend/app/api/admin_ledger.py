@@ -1,5 +1,7 @@
 from typing import Dict, List
 
+from app.core.auth import get_current_active_admin
+from app.db.models.user import User
 from app.db.session import get_db
 from app.services.reconciliation import get_ledger_health_report
 from fastapi import APIRouter, Depends, Response
@@ -14,7 +16,11 @@ def set_no_cache(response: Response):
 
 
 @router.get("/health", summary="Get high-level ledger health summary")
-def get_health_summary(response: Response, db: Session = Depends(get_db)) -> Dict:
+def get_health_summary(
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_admin),
+) -> Dict:
     """
     Returns a summary of ledger health.
     Strictly read-only. Non-cacheable.
@@ -43,7 +49,9 @@ def get_health_summary(response: Response, db: Session = Depends(get_db)) -> Dic
     "/reconcile", summary="Get detailed drift report for all problematic batches"
 )
 def get_reconciliation_report(
-    response: Response, db: Session = Depends(get_db)
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_admin),
 ) -> List[Dict]:
     """
     Returns detailed drift records for any batch with health issues.

@@ -1,3 +1,5 @@
+import sys
+
 from sqlalchemy import text
 
 from app.db.session import SessionLocal
