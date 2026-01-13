@@ -17,9 +17,7 @@ from app.db.models.uom import UOM
 from app.db.schemas.dispatch_entry import DispatchEntryCreate, DispatchEntryMultiCreate
 from app.db.schemas.rejection_entry import RejectionEntryCreate
 from app.db.schemas.stock_entry import StockEntryCreate
-from app.services.dispatch_entry import (
-    create_dispatch_entry,
-)
+from app.services.dispatch_entry import create_dispatch_entry
 from app.services.rejection_entry import create_rejection_entry
 from app.services.stock_entry import (
     create_stock_entry,
