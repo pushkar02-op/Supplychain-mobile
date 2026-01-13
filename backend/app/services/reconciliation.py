@@ -1,17 +1,15 @@
-"""
-Service for ledger reconciliation and inventory drift detection.
-Strictly read-only.
-"""
-
 import logging
+from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from app.db.models.batch import Batch
-from app.db.models.inventory_txn import InventoryTxn
 from app.db.models.item import Item
+from app.db.models.reconciliation_record import DriftStatus, ReconciliationRecord
+from app.db.schemas.inventory_txn import InventoryTxnCreate
+from app.services.inventory_truth import calculate_ledger_balance
+from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -19,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def check_batch_drift(db: Session, batch_id: int) -> Dict:
     """
-    Compares Batch.quantity (cached) vs SUM(InventoryTxn.base_qty).
+    Compares Batch.quantity (cached) vs Ledger Sum (via inventory_truth).
     Strictly read-only.
     """
     batch = db.get(Batch, batch_id)
@@ -30,46 +28,27 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
     if not item:
         return {"error": "Item not found"}
 
-    # Source of truth: Ledger Sum
-    # Sum of IN - Sum of OUT
-    # Note: We assume InventoryTxn base_qty is always positive and
-    # txn_type indicates direction.
-    in_sum = db.query(func.sum(InventoryTxn.base_qty)).filter(
-        InventoryTxn.batch_id == batch_id, InventoryTxn.txn_type == "IN"
-    ).scalar() or Decimal("0.0")
+    # Source of truth: Ledger Sum (Centralized)
+    ledger_qty = calculate_ledger_balance(db, batch_id)
 
-    out_sum = db.query(func.sum(InventoryTxn.base_qty)).filter(
-        InventoryTxn.batch_id == batch_id, InventoryTxn.txn_type == "OUT"
-    ).scalar() or Decimal("0.0")
-
-    ledger_qty = in_sum - out_sum
-
-    # Batch (Cached) Qty
-    # We must convert batch.quantity (raw) to base unit for comparison
-    # if the Batch.unit is not the default_uom.
+    # Batch (Cached) Qty normalization
     current_unit = batch.unit
     target_unit = item.default_uom_code or current_unit
 
     try:
         factor = get_conversion_factor(db, batch.item_id, current_unit, target_unit)
     except Exception:
-        logger.warning(
-            f"Could not find conversion for batch {batch_id}, assuming factor 1.0"
-        )
+        logger.warning(f"Could not find conversion for batch {batch_id}, assuming 1.0")
         factor = Decimal("1.0")
 
     batch_qty_base = Decimal(batch.quantity) * factor
     drift = batch_qty_base - ledger_qty
 
-    # Drift Detection Rule: abs(drift) > max(Decimal("0.01"), ledger_qty * Decimal("0.001"))
-    tolerance = max(Decimal("0.01"), abs(ledger_qty) * Decimal("0.001"))
-    is_drifted = abs(drift) > tolerance
-
+    # Classification
+    is_drifted = drift != Decimal("0")
     status = "healthy"
     if is_drifted:
         status = "drifted"
-    elif batch_qty_base < Decimal("-0.01"):  # Check for negative stock
-        status = "negative"
 
     return {
         "batch_id": batch_id,
@@ -83,6 +62,89 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
         "status": status,
         "is_drifted": is_drifted,
     }
+
+
+def create_drift_record(db: Session, batch_id: int) -> Optional[ReconciliationRecord]:
+    """
+    Persists the current drift state as a ReconciliationRecord.
+    Reference Point for resolution.
+    """
+    drift_data = check_batch_drift(db, batch_id)
+    if drift_data.get("error"):
+        return None
+
+    if not drift_data["is_drifted"]:
+        return None
+
+    record = ReconciliationRecord(
+        batch_id=batch_id,
+        observed_ledger_qty=drift_data["ledger_qty"],
+        observed_state_qty=drift_data["batch_qty_base"],
+        drift_amount=drift_data["drift"],
+        status=DriftStatus.OPEN,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def resolve_drift(
+    db: Session,
+    record_id: int,
+    adjustment_qty: Decimal,
+    user_id: int,
+    apply_to_batch: bool = True,
+) -> Dict:
+    """
+    Resolves a drift record by creating an ADJUST transaction.
+    - Creates InventoryTxn (ADJUST).
+    - Updates Batch.quantity (State) IF apply_to_batch is True.
+    - Marks Record as RESOLVED.
+    """
+    record = db.get(ReconciliationRecord, record_id)
+    if not record:
+        return {"error": "Record not found"}
+
+    if record.status != DriftStatus.OPEN:
+        return {"error": "Record is not open"}
+
+    batch = db.get(Batch, record.batch_id)
+    if not batch:
+        return {"error": "Batch via record not found"}
+
+    item = db.get(Item, batch.item_id)
+
+    # 1. Create Txn (Ledger Adjustment)
+    txn_data = InventoryTxnCreate(
+        item_id=batch.item_id,
+        batch_id=batch.id,
+        txn_type="ADJUST",
+        raw_qty=adjustment_qty,
+        raw_unit=item.default_uom_code,
+        base_qty=adjustment_qty,
+        base_unit=item.default_uom_code,
+        remarks=f"Reconciliation Resolution for Record {record_id} (State Update: {apply_to_batch})",
+        ref_type="reconciliation_record",
+        ref_id=record.id,
+    )
+
+    txn = create_inventory_txn(db, txn_data)
+
+    # 2. Update State (Batch) optionally
+    if apply_to_batch:
+        batch.quantity += adjustment_qty
+        batch.updated_by = user_id
+        batch.updated_at = datetime.utcnow()
+
+    record.status = DriftStatus.RESOLVED
+    record.resolution_txn_id = txn.id
+    record.resolved_at = datetime.utcnow()
+    record.resolved_by = user_id
+
+    db.commit()
+    db.refresh(record)
+    return {"status": "success", "record": record}
 
 
 def get_ledger_health_report(db: Session) -> List[Dict]:
