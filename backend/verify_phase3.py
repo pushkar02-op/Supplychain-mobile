@@ -3,11 +3,11 @@
 Phase 3 Idempotency Verification Script (Clean Environment)
 """
 
-import urllib.request
-import urllib.error
-import urllib.parse
 import json
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
 BASE_URL = "http://localhost:8000/v1"
 

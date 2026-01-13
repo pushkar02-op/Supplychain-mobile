@@ -1,13 +1,13 @@
 import logging
-import sys
 import os
+import sys
 
 # Add parent dir to path to find 'app'
 sys.path.append(os.getcwd())
 
-from app.db.session import SessionLocal
-from app.db.models.user import User
 from app.core.security import get_password_hash
+from app.db.models.user import User
+from app.db.session import SessionLocal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -1,4 +1,5 @@
 from sqlalchemy import text
+
 from app.db.session import engine
 
 
@@ -18,7 +19,8 @@ def apply():
 
         print("Creating table...")
         conn.execute(
-            text("""
+            text(
+                """
         CREATE TABLE IF NOT EXISTS reconciliation_mismatch (
             id SERIAL PRIMARY KEY,
             invoice_item_id INTEGER NOT NULL REFERENCES invoice_item(id),
@@ -34,7 +36,8 @@ def apply():
             resolved_at TIMESTAMP WITHOUT TIME ZONE,
             resolved_by VARCHAR
         );
-        """)
+        """
+            )
         )
 
         print("Creating indices...")

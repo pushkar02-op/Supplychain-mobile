@@ -1,9 +1,10 @@
-import requests
-import uuid
-import time
-import sys
 import json
+import sys
+import time
+import uuid
 from decimal import Decimal
+
+import requests
 
 BASE_URL = "http://localhost:8000"
 ADMIN_EMAIL = "admin@example.com"
@@ -331,9 +332,7 @@ def run_flows():
         "mart_name": "KEOTA_CC_RRL",
         "dispatch_date": "2025-01-05",
         "unit": "kg",
-        "batches": [
-            {"batch_id": batch_id, "quantity": 5.0}  # BatchDispatchInput
-        ],
+        "batches": [{"batch_id": batch_id, "quantity": 5.0}],  # BatchDispatchInput
     }
     log(f"Sending Multi-Dispatch Payload: {json.dumps(multi_dispatch_payload)}", YELLOW)
     resp = manager.session.post(

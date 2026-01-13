@@ -4,10 +4,10 @@ Phase 4A Final Verification Script
 Tests fractional quantity support end-to-end
 """
 
-import urllib.request
-import urllib.error
 import json
 import time
+import urllib.error
+import urllib.request
 
 BASE_URL = "http://localhost:8000/v1"
 

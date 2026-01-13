@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
-from app.utils.audit import resolve_user_audit
+
 from app.db.models.user import User
+from app.utils.audit import resolve_user_audit
 
 
 def test_resolve_user_audit_with_user_object():

@@ -1,9 +1,9 @@
-import urllib.request
+import json
+import sys
+import time
 import urllib.error
 import urllib.parse
-import json
-import time
-import sys
+import urllib.request
 
 BASE_URL = "http://localhost:8000/v1"
 

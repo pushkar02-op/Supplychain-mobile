@@ -1,9 +1,9 @@
-import urllib.request
-import urllib.error
-import urllib.parse
 import json
 import ssl
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 from datetime import date
 

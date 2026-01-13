@@ -1,6 +1,7 @@
 import pytest
-from app.db.models.mart import Mart
+
 from app.db.models.item import Item
+from app.db.models.mart import Mart
 from app.db.models.mart_item_alias import MartItemAlias
 from app.db.models.uom import UOM
 
@@ -41,6 +42,7 @@ def resolve_item_for_mart(db, mart_id, code=None, name=None):
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
 from app.db.base import Base
 
 

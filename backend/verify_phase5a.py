@@ -4,18 +4,15 @@ Phase 5A Verification Script
 Tests UOM safety enforcement and diagnostics
 """
 
-import urllib.request
-import urllib.error
-import json
-import time
-import sys
-
-
 import builtins
-
+import json
 
 # Set up file logging
 import os
+import sys
+import time
+import urllib.error
+import urllib.request
 
 log_path = os.path.abspath("verification_results.log")
 log_file = open(log_path, "w", encoding="utf-8")
