@@ -26,33 +26,29 @@ def db_session():
     Base.metadata.create_all(bind=engine)
 
     # Cleanup
-    session.query(InventoryFlowDaily).delete()
-    session.query(InventoryDriftHistory).delete()
-    session.query(OrderFulfillmentMetrics).delete()
-    session.query(DomainEvent).delete()
-    session.query(Order).filter(Order.id > 10000).delete()
+    from sqlalchemy import text
 
-    # Deep cleanup dependencies
-    from app.db.models.item import Item
-    from app.db.models.mart import Mart
-    from app.db.models.uom import UOM
-    from app.db.models.inventory_transaction import InventoryTransaction
-    from app.db.models.batch import Batch
-
-    # Delete dependent data first
-    # Transactions referencing batches
     try:
-        session.query(InventoryTransaction).delete(synchronize_session=False)
-        session.query(Batch).delete(synchronize_session=False)
-        session.query(Item).filter(Item.id.in_([303, 304])).delete(
-            synchronize_session=False
-        )
-        session.query(Mart).filter(Mart.id.in_([5, 6])).delete(
-            synchronize_session=False
-        )
-        session.query(UOM).filter(UOM.code.in_(["kg", "kg_test_p8"])).delete(
-            synchronize_session=False
-        )
+        # 1. Projections (Safe to delete)
+        session.query(InventoryFlowDaily).delete()
+        session.query(InventoryDriftHistory).delete()
+        session.query(OrderFulfillmentMetrics).delete()
+
+        # 2. Domain Events
+        session.query(DomainEvent).delete()
+
+        # 3. Dependent Data (Raw SQL for speed/safety)
+        session.execute(text("DELETE FROM inventory_txn"))
+        session.execute(text("DELETE FROM batch WHERE item_id IN (303, 304)"))
+        # Handing Order dependencies if any exist from previous runs
+        session.execute(
+            text("DELETE FROM uom WHERE code IN ('kg', 'kg_test_p8')")
+        )  # Fails if items exist
+        session.execute(text("DELETE FROM item WHERE id IN (303, 304)"))
+        # Order cleanup including dependencies (if cascade not set) -- simplistic approach:
+        session.query(Order).filter(Order.id > 10000).delete()
+        session.execute(text("DELETE FROM mart WHERE id IN (5, 6)"))
+
         session.commit()
     except Exception as e:
         session.rollback()
