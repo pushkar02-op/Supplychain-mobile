@@ -8,6 +8,7 @@ from app.db.models.item import Item
 from app.db.models.reconciliation_record import DriftStatus, ReconciliationRecord
 from app.db.models.views.batch_ledger_balance import BatchLedgerBalance
 from app.db.schemas.inventory_txn import InventoryTxnCreate
+from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
 from sqlalchemy import select
@@ -32,11 +33,19 @@ def check_batch_drift(
         return {"error": "Item not found"}
 
     # Source of truth: Ledger Sum (via Read Model)
+    # If overridden (bulk fetch), use it.
+    # If not, try View.
+    # If View returns None (row missing), FALLBACK to slow compute (safe for SQLite/Missing View).
     if ledger_qty_override is not None:
         ledger_qty = ledger_qty_override
     else:
         ledger_balance = db.get(BatchLedgerBalance, batch_id)
-        ledger_qty = ledger_balance.ledger_qty if ledger_balance else Decimal("0.0")
+        if ledger_balance:
+            ledger_qty = ledger_balance.ledger_qty
+        else:
+            # Fallback: View might be unpopulated (SQLite) or Batch truly has no Txns.
+            # calculate_ledger_balance handles both safely.
+            ledger_qty = calculate_ledger_balance(db, batch_id)
 
     # Batch (Cached) Qty normalization
     current_unit = batch.unit
