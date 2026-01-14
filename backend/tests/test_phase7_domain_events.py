@@ -35,6 +35,56 @@ def db_session():
     engine = create_engine(DATABASE_URL)
     Session = sessionmaker(bind=engine)
     session = Session()
+
+    # Ensure schema exists (including ReconciliationRecord)
+    Base.metadata.create_all(bind=engine)
+
+    # Cleanup before test
+    from app.db.models.reconciliation_record import ReconciliationRecord
+    from app.db.models.dispatch_reversal import DispatchReversal
+    from app.db.models.dispatch_entry import DispatchEntry
+    from app.db.models.order import Order
+    from app.db.models.inventory_txn import InventoryTxn
+    from app.db.models.batch import Batch
+
+    target_mart_ids = session.query(Mart.id).filter(Mart.name == "Event Test Mart")
+
+    session.query(DomainEvent).delete()
+    session.query(ReconciliationRecord).delete()
+
+    # Delete DispatchReversals first (FK dependency)
+    # Using join or just delete all for test mart's dispatches?
+    # Simpler: Delete all reversals that point to dispatches of this mart.
+    # But for strictness:
+    target_dispatch_ids = session.query(DispatchEntry.id).filter(
+        DispatchEntry.mart_id.in_(target_mart_ids)
+    )
+    session.query(DispatchReversal).filter(
+        DispatchReversal.dispatch_entry_id.in_(target_dispatch_ids)
+    ).delete(synchronize_session=False)
+
+    # Delete DispatchEntries for Test Mart
+    session.query(DispatchEntry).filter(
+        DispatchEntry.mart_id.in_(target_mart_ids)
+    ).delete()
+
+    # Delete InventoryTxns for Test Item (via Batch)
+    target_item_ids = session.query(Item.id).filter(Item.name == "Event Test Item")
+    target_batch_ids = session.query(Batch.id).filter(
+        Batch.item_id.in_(target_item_ids)
+    )
+    session.query(InventoryTxn).filter(
+        InventoryTxn.batch_id.in_(target_batch_ids)
+    ).delete()
+
+    # Delete Batches
+    session.query(Batch).filter(Batch.item_id.in_(target_item_ids)).delete()
+
+    # Delete Orders
+    session.query(Order).filter(Order.mart_id.in_(target_mart_ids)).delete()
+
+    session.commit()
+
     yield session
     session.close()
 
@@ -57,7 +107,8 @@ def setup_base_data(db):
     # Ensure Mart
     mart = db.query(Mart).filter_by(name="Event Test Mart").first()
     if not mart:
-        mart = Mart(name="Event Test Mart")
+        print("DEBUG: Creating Event Test Mart with company_name")
+        mart = Mart(name="Event Test Mart", company_name="Event Test Company")
         db.add(mart)
         db.commit()
 
@@ -137,6 +188,17 @@ def test_dispatch_emits_event(db_session):
 
 
 def test_order_fulfillment_event(db_session):
+    # Cleanup previous dispatches to avoid collision
+    from app.db.models.dispatch_entry import DispatchEntry
+    from app.db.models.dispatch_reversal import DispatchReversal
+
+    # Naive cleanup: delete all reversals if any dispatches exist (safe for test DB?)
+    # Limit to "Event" logic if possible.
+    # But since we are cleaning up for collision avoidance:
+    db_session.query(DispatchReversal).delete()
+    db_session.query(DispatchEntry).delete()
+    db_session.commit()
+
     item, mart = setup_base_data(db_session)
 
     # 1. Create Order (Qty 10)

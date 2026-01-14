@@ -20,6 +20,7 @@ from .mart import Mart as Mart
 from .mart_bill import MartBill as MartBill
 from .mart_bill_item import MartBillItem as MartBillItem
 from .order import Order as Order
+from .reconciliation_record import ReconciliationRecord as ReconciliationRecord
 from .rejection_entry import RejectionEntry as RejectionEntry
 from .stock_entry import StockEntry as StockEntry
 from .uom import UOM as UOM
@@ -34,6 +35,7 @@ __all__ = [
     "DispatchEntry",
     "DispatchReversal",
     "MartBill",
+    "ReconciliationRecord",
     "RejectionEntry",
     "MartBillItem",
     "Order",

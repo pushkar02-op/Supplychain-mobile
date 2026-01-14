@@ -1,8 +1,7 @@
 from datetime import datetime
 
 from app.db.models.base_class import Base
-from sqlalchemy import Column, DateTime, Integer, String
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import JSON, Column, DateTime, Integer, String
 
 
 class DomainEvent(Base):
@@ -12,7 +11,7 @@ class DomainEvent(Base):
     event_type = Column(String, nullable=False, index=True)
     aggregate_type = Column(String, nullable=False)
     aggregate_id = Column(String, nullable=False)
-    payload = Column(JSONB, nullable=False)
+    payload = Column(JSON, nullable=False)
     occurred_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
