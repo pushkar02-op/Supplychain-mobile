@@ -10,6 +10,7 @@ from .auth import RefreshToken as RefreshToken
 from .batch import Batch as Batch
 from .dispatch_entry import DispatchEntry as DispatchEntry
 from .dispatch_reversal import DispatchReversal as DispatchReversal
+from .domain_event import DomainEvent as DomainEvent
 from .idempotency_record import IdempotencyRecord
 from .inventory_txn import InventoryTxn as InventoryTxn
 from .item import Item as Item
@@ -44,4 +45,5 @@ __all__ = [
     "Mart",
     "RefreshToken",
     "IdempotencyRecord",
+    "DomainEvent",
 ]

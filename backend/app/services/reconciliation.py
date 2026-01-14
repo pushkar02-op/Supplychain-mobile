@@ -4,9 +4,11 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 
 from app.db.models.batch import Batch
+from app.db.models.domain_event import DomainEvent
 from app.db.models.item import Item
 from app.db.models.reconciliation_record import DriftStatus, ReconciliationRecord
 from app.db.models.views.batch_ledger_balance import BatchLedgerBalance
+from app.db.schemas.domain_event import ReconciliationResolved
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
@@ -171,6 +173,22 @@ def resolve_drift(
     record.resolution_txn_id = txn.id
     record.resolved_at = datetime.utcnow()
     record.resolved_by = user_id
+
+    # EMIT DOMAIN EVENT (Outbox Pattern)
+    event_payload = ReconciliationResolved(
+        record_id=record.id,
+        batch_id=record.batch_id,
+        drift_resolved=float(adjustment_qty),
+        adjustment_txn_id=txn.id,
+    ).dict()
+
+    event = DomainEvent(
+        event_type="reconciliation.resolved",
+        aggregate_type="reconciliation_record",
+        aggregate_id=str(record.id),
+        payload=event_payload,
+    )
+    db.add(event)
 
     db.commit()
     db.refresh(record)
