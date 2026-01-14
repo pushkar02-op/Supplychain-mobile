@@ -34,7 +34,7 @@ def get_health_summary(
 
     all_batch_count = db.query(Batch).count()
     drifted_count = len([r for r in report if r.get("is_drifted")])
-    negative_count = len([r for r in report if r.get("status") == "negative"])
+    negative_count = len([r for r in report if r.get("state_qty", 0) < 0])
 
     return {
         "status": "warning" if drifted_count > 0 or negative_count > 0 else "healthy",

@@ -4,15 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../services/inventory_service.dart';
 import 'admin_inventory_drift_screen.dart';
+import 'admin_reconciliation_detail_screen.dart';
 
-class InventoryScreen extends StatefulWidget {
+class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
 
   @override
-  State<InventoryScreen> createState() => _InventoryScreenState();
+  ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends State<InventoryScreen> {
+class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   List<Map<String, dynamic>> _inventory = [];
   List<Map<String, dynamic>> _items = [];
   List<String> _units = [];
@@ -252,17 +253,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final itemId = item['item_id'] as int;
     final unit = item['unit'] as String?;
     final name = item['name'] as String;
-    final ledgerStock = (item['current_stock'] as num?)?.toDouble() ?? 0.0;
-    final availableStock = (item['available_stock'] as num?)?.toDouble() ?? 0.0;
+    final ledgerStock = (item['ledger_qty'] as num?)?.toDouble() ?? 0.0;
+    final availableStock = (item['state_qty'] as num?)?.toDouble() ?? 0.0;
+    final status = item['status'] as String? ?? 'HEALTHY';
+    final severity = item['severity'] as String? ?? 'NONE';
 
-    // Health Badge Logic
-    final diff = (ledgerStock - availableStock).abs();
-    final isHealthy = diff < 0.001;
-    final isCritical = ledgerStock < 0; // Negative ledger
+    // Health Badge Logic (Standardized via Backend)
+    String badgeLabel = status == 'HEALTHY' ? 'Healthy' : 'Drift';
+    Color badgeColor = status == 'HEALTHY' ? Colors.green : Colors.orange;
 
-    String badgeLabel = isHealthy ? 'Healthy' : 'Drift';
-    Color badgeColor = isHealthy ? Colors.green : Colors.orange;
-    if (isCritical) {
+    if (severity == 'CRITICAL') {
       badgeLabel = 'Critical';
       badgeColor = Colors.red;
     }
@@ -330,235 +330,304 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       ],
                     ),
                   ),
-                  // Stats
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
+                  // Content
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: EdgeInsets.zero,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildStatCard(
-                                'Available Stock',
-                                '$availableStock $unit',
-                                Colors.blue,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildStatCard(
-                                'Ledger Balance',
-                                '$ledgerStock $unit',
-                                isHealthy ? Colors.green : Colors.orange,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed:
-                                () => _showBatchBreakdown(
-                                  itemId,
-                                  name,
-                                  unit ?? '',
-                                ),
-                            icon: const Icon(Icons.layers_outlined, size: 18),
-                            label: const Text('View Batch Breakdown'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              side: BorderSide(
-                                color: Colors.blue.withOpacity(0.5),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Stock Trend Section
-                        FutureBuilder<Map<String, dynamic>>(
-                          future: InventoryService.fetchItemSignals(itemId),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData)
-                              return const SizedBox.shrink();
-                            final data = snapshot.data!;
-                            final signals =
-                                (data['signals'] as List<dynamic>?)
-                                    ?.map((e) => e.toString())
-                                    .toList() ??
-                                [];
-                            final l7 = (data['out_last_7d'] as num).toDouble();
-                            final p7 = (data['out_prev_7d'] as num).toDouble();
-
-                            String status = 'Normal';
-                            Color statusColor = Colors.grey;
-                            if (signals.contains('FAST_DEPLETING')) {
-                              status = 'Fast Depleting';
-                              statusColor = Colors.red;
-                            } else if (signals.contains('LOW_STOCK')) {
-                              status = 'Low Stock';
-                              statusColor = Colors.orange;
-                            } else if (signals.contains('STABLE')) {
-                              status = 'Stable';
-                              statusColor = Colors.green;
-                            }
-
-                            return Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey[200]!),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        // Stats
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.trending_up,
-                                        size: 16,
-                                        color: Colors.black54,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        'Stock Trend (Last 14 days)',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      'Available Stock',
+                                      '$availableStock $unit',
+                                      Colors.blue,
+                                    ),
                                   ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '7d OUT',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                          Text(
-                                            '$l7 $unit',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Prev 7d OUT',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                          Text(
-                                            '$p7 $unit',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            'Status',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: statusColor.withOpacity(
-                                                0.1,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              status,
-                                              style: TextStyle(
-                                                color: statusColor,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      'Ledger Balance',
+                                      '$ledgerStock $unit',
+                                      status == 'HEALTHY'
+                                          ? Colors.green
+                                          : Colors.orange,
+                                    ),
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed:
+                                      () => _showBatchBreakdown(
+                                        itemId,
+                                        name,
+                                        unit ?? '',
+                                      ),
+                                  icon: const Icon(
+                                    Icons.layers_outlined,
+                                    size: 18,
+                                  ),
+                                  label: const Text('View Batch Breakdown'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    side: BorderSide(
+                                      color: Colors.blue.withOpacity(0.5),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (status != 'HEALTHY' &&
+                                  (ref.read(authProvider).value?.isAdmin ??
+                                      false))
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(ctx);
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder:
+                                                (_) =>
+                                                    AdminReconciliationDetailScreen(
+                                                      itemId: itemId,
+                                                      itemName: name,
+                                                    ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(
+                                        Icons.rebase_edit,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Admin Reconciliation'),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: Colors.orange.shade800,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 16),
+                              // Stock Trend Section
+                              FutureBuilder<Map<String, dynamic>>(
+                                future: InventoryService.fetchItemSignals(
+                                  itemId,
+                                ),
+                                builder: (context, snapshot) {
+                                  if (!snapshot.hasData) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final data = snapshot.data!;
+                                  final signals =
+                                      (data['signals'] as List<dynamic>?)
+                                          ?.map((e) => e.toString())
+                                          .toList() ??
+                                      [];
+                                  final l7 =
+                                      (data['out_last_7d'] as num).toDouble();
+                                  final p7 =
+                                      (data['out_prev_7d'] as num).toDouble();
+
+                                  String trendStatus = 'Normal';
+                                  Color trendColor = Colors.grey;
+                                  if (signals.contains('FAST_DEPLETING')) {
+                                    trendStatus = 'Fast Depleting';
+                                    trendColor = Colors.red;
+                                  } else if (signals.contains('LOW_STOCK')) {
+                                    trendStatus = 'Low Stock';
+                                    trendColor = Colors.orange;
+                                  } else if (signals.contains('STABLE')) {
+                                    trendStatus = 'Stable';
+                                    trendColor = Colors.green;
+                                  }
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[50],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.grey[200]!,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.trending_up,
+                                              size: 16,
+                                              color: Colors.black54,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'Stock Trend (Last 14 days)',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  '7d OUT',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '$l7 $unit',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Prev 7d OUT',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '$p7 $unit',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.end,
+                                              children: [
+                                                Text(
+                                                  'Status',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: trendColor
+                                                        .withOpacity(0.1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    trendStatus,
+                                                    style: TextStyle(
+                                                      color: trendColor,
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: const Text(
+                            'Recent Transactions',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: InventoryService.fetchTransactions(
+                            itemId: itemId,
+                            unit: null,
+                          ),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const SizedBox(
+                                height: 100,
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            if (snapshot.hasError) {
+                              return Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Text('Error: ${snapshot.error}'),
+                              );
+                            }
+                            final txns = snapshot.data ?? [];
+                            if (txns.isEmpty) {
+                              return const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Center(
+                                  child: Text('No transactions found'),
+                                ),
+                              );
+                            }
+                            return ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: txns.length,
+                              separatorBuilder:
+                                  (_, __) => const Divider(height: 1),
+                              itemBuilder: (ctx, i) => _buildTxnRow(txns[i]),
                             );
                           },
                         ),
                       ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: const Text(
-                      'Recent Transactions',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: FutureBuilder<List<Map<String, dynamic>>>(
-                      future: InventoryService.fetchTransactions(
-                        itemId: itemId,
-                        unit: null,
-                      ),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return Center(
-                            child: Text('Error: ${snapshot.error}'),
-                          );
-                        }
-                        final txns = snapshot.data ?? [];
-                        if (txns.isEmpty) {
-                          return const Center(
-                            child: Text('No transactions found'),
-                          );
-                        }
-                        return ListView.separated(
-                          controller: scrollController,
-                          itemCount: txns.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (ctx, i) => _buildTxnRow(txns[i]),
-                        );
-                      },
                     ),
                   ),
                 ],
@@ -727,16 +796,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           final inv = _inventory[i];
                           // available_stock might be missing if backend not updated, handle gracefully
                           final ledgerStock =
-                              (inv['current_stock'] as num?)?.toDouble() ?? 0.0;
+                              (inv['ledger_qty'] as num?)?.toDouble() ?? 0.0;
                           final availableStock =
-                              (inv['available_stock'] as num?)?.toDouble() ??
-                              0.0;
+                              (inv['state_qty'] as num?)?.toDouble() ?? 0.0;
                           final unit = inv['unit'] ?? '';
+                          final status = inv['status'] as String? ?? 'HEALTHY';
+                          final severity = inv['severity'] as String? ?? 'NONE';
 
-                          // Phase 1 Badging (Drift/Critical)
-                          final diff = (ledgerStock - availableStock).abs();
-                          final isHealthy = diff < 0.001;
-                          final isCritical = ledgerStock < 0;
+                          final isHealthy = status == 'HEALTHY';
+                          final isCritical = severity == 'CRITICAL';
 
                           // Signals (Phase 3)
                           final signals =

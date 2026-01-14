@@ -63,12 +63,12 @@ class _DriftItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final delta = (item['delta'] as num?)?.toDouble() ?? 0.0;
+    final delta = (item['drift'] as num?)?.toDouble() ?? 0.0;
     final severity = item['severity'] as String? ?? 'NONE';
     final itemName = item['item_name'] ?? 'Unknown';
     final itemId = item['item_id'] as int;
-    final available = (item['available_stock'] as num?)?.toDouble() ?? 0.0;
-    final ledger = (item['ledger_stock'] as num?)?.toDouble() ?? 0.0;
+    final available = (item['state_qty'] as num?)?.toDouble() ?? 0.0;
+    final ledger = (item['ledger_qty'] as num?)?.toDouble() ?? 0.0;
 
     // Severity Colors
     Color color;

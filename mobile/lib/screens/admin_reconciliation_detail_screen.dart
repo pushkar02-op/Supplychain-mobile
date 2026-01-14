@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../providers/admin_ledger_provider.dart';
 
 class AdminReconciliationDetailScreen extends ConsumerWidget {
@@ -21,12 +22,30 @@ class AdminReconciliationDetailScreen extends ConsumerWidget {
       body: detailAsync.when(
         data: (data) {
           final item = data['item'] as Map<String, dynamic>;
-          final available = (data['available_stock'] as num).toDouble();
-          final ledger = (data['ledger_stock'] as num).toDouble();
-          final delta = (data['delta'] as num).toDouble();
+          final stateQty = (data['state_qty'] as num).toDouble();
+          final ledgerQty = (data['ledger_qty'] as num).toDouble();
+          final drift = (data['drift'] as num).toDouble();
+          final severity = data['severity'] as String? ?? 'NONE';
           final txns = data['recent_transactions'] as List<dynamic>;
           final batches = data['batch_snapshot'] as List<dynamic>;
           final unit = item['unit'] ?? '';
+
+          // Mapping severity to color
+          Color severityColor;
+          switch (severity) {
+            case 'CRITICAL':
+              severityColor = Colors.red;
+              break;
+            case 'MAJOR':
+              severityColor = Colors.orange;
+              break;
+            case 'MINOR':
+              severityColor = Colors.amber;
+              break;
+            case 'NONE':
+            default:
+              severityColor = Colors.green;
+          }
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -36,31 +55,24 @@ class AdminReconciliationDetailScreen extends ConsumerWidget {
                 // Summary Card
                 Card(
                   elevation: 0,
-                  color: Colors.blue.shade50,
+                  color: severityColor.withOpacity(0.05),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.blue.shade200),
+                    side: BorderSide(color: severityColor.withOpacity(0.5)),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        _buildRow('Available (Batches)', '$available $unit'),
+                        _buildRow('State (Batches)', '$stateQty $unit'),
                         const SizedBox(height: 8),
-                        _buildRow('Ledger (Transactions)', '$ledger $unit'),
+                        _buildRow('Ledger (Transactions)', '$ledgerQty $unit'),
                         const Divider(),
                         _buildRow(
                           'Net Drift',
-                          '${delta > 0 ? "+" : ""}$delta $unit',
+                          '${drift > 0 ? "+" : ""}$drift $unit',
                           isBold: true,
-                          color:
-                              delta == 0
-                                  ? Colors.green
-                                  : (delta.abs() /
-                                              (ledger == 0 ? 1 : ledger).abs() >
-                                          0.05
-                                      ? Colors.red
-                                      : Colors.orange),
+                          color: severityColor,
                         ),
                       ],
                     ),
