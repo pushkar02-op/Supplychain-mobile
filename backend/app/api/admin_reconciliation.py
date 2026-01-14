@@ -1,16 +1,18 @@
 from typing import List
 
 from app.core.auth import get_current_active_admin
-from app.db.models.reconciliation_record import ReconciliationRecord
 from app.db.models.user import User
 from app.db.schemas.reconciliation import (
     ReconciliationRecordRead,
     ReconciliationRecordResolve,
 )
 from app.db.session import get_db
-from app.services.reconciliation import create_drift_record, resolve_drift
+from app.services.reconciliation import (
+    create_drift_record,
+    get_all_reconciliation_records,
+    resolve_drift,
+)
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/admin/reconciliation", tags=["Admin Reconciliation"])
@@ -31,9 +33,7 @@ def list_reconciliation_records(
     List all reconciliation records (drift history).
     """
     set_no_cache(response)
-    records = db.scalars(
-        select(ReconciliationRecord).order_by(ReconciliationRecord.detected_at.desc())
-    ).all()
+    records = get_all_reconciliation_records(db)
     return records
 
 

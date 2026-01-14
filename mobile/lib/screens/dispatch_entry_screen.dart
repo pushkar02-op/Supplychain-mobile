@@ -43,6 +43,7 @@ class _CreateOrEditDispatchScreenState
   late String _dispatchDate;
   late double _alreadyDispatched;
   late double _orderQuantity;
+  int? _orderId;
 
   List<_BatchRow> _rows = [];
   bool _loading = true, _submitting = false;
@@ -60,6 +61,7 @@ class _CreateOrEditDispatchScreenState
     _dispatchDate =
         d['dispatch_date'] as String? ??
         DateFormat('yyyy-MM-dd').format(DateTime.now());
+    _orderId = d['order_id'] as int?;
     _remarksCtl.text = d['remarks'] ?? '';
     _loadBatches();
   }
@@ -158,6 +160,7 @@ class _CreateOrEditDispatchScreenState
       'mart_name': _martName,
       'dispatch_date': _dispatchDate,
       'unit': _unit,
+      'order_id': _orderId,
       'remarks': _remarksCtl.text.trim(),
       'batches':
           _rows

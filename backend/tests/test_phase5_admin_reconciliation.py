@@ -1,11 +1,30 @@
+import os
+import tempfile
 import pytest
+from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy.orm import Session
-from app.db.models.batch import Batch
-from app.db.models.item import Item
-from app.db.models.uom import UOM
-from app.db.models.inventory_txn import InventoryTxn
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.db.base import Base
+from app.db.session import get_db
+from app.core.auth import get_current_active_admin
+from app.db.models import (
+    User,
+    Item,
+    Batch,
+    StockEntry,
+    RejectionEntry,
+    DispatchEntry,
+    InventoryTxn,
+    UOM,
+    Mart,
+)
 from app.db.models.reconciliation_record import ReconciliationRecord, DriftStatus
+from app.db.models.mart_item_alias import MartItemAlias
+
 from app.services.reconciliation import (
     check_batch_drift,
     create_drift_record,
@@ -13,9 +32,65 @@ from app.services.reconciliation import (
 )
 
 
+@pytest.fixture(scope="function")
+def db_session():
+    # Use a temporary file for SQLite to ensure all connections see the same data
+    db_fd, db_path = tempfile.mkstemp()
+    db_url = f"sqlite:///{db_path}"
+    engine = create_engine(db_url, connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    SessionLocal = sessionmaker(bind=engine)
+    session = SessionLocal()
+
+    # We MUST ensure the DB URL in dependencies results in a connection to THIS file
+    # But since we override get_db to return this session, we don't need to change URL.
+
+    yield session
+
+    session.close()
+    os.close(db_fd)
+    if os.path.exists(db_path):
+        os.unlink(db_path)
+
+
+@pytest.fixture(scope="function")
+def client(db_session):
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+def admin_token_headers():
+    # Mocking admin token behavior
+    from app.db.models.user import User
+
+    mock_admin = User(
+        id=1,
+        username="admin",
+        full_name="Admin User",
+        hashed_password="pw",
+        is_active=True,
+        is_admin=True,
+    )
+
+    def override_get_admin():
+        return mock_admin
+
+    app.dependency_overrides[get_current_active_admin] = override_get_admin
+    return {"Authorization": "Bearer test-admin-token"}
+
+
 def test_severity_logic_standardization(db_session: Session):
     # Setup: Item and Batch
-    uom = UOM(name="Unit", code="UNT", is_base=True)
+    uom = UOM(description="Unit", code="UNT")
     db_session.add(uom)
     db_session.commit()
 
@@ -25,7 +100,10 @@ def test_severity_logic_standardization(db_session: Session):
 
     # Batch with 100 units (State)
     batch = Batch(
-        item_id=item.id, quantity=Decimal("100.0"), unit="UNT", received_at="2024-01-01"
+        item_id=item.id,
+        quantity=Decimal("100.0"),
+        unit="UNT",
+        received_at=date(2024, 1, 1),
     )
     db_session.add(batch)
     db_session.commit()
@@ -36,6 +114,8 @@ def test_severity_logic_standardization(db_session: Session):
             item_id=item.id,
             batch_id=batch.id,
             txn_type="IN",
+            raw_qty=Decimal("100.0"),
+            raw_unit="UNT",
             base_qty=Decimal("100.0"),
             base_unit="UNT",
         )
@@ -54,6 +134,8 @@ def test_severity_logic_standardization(db_session: Session):
             item_id=item.id,
             batch_id=batch.id,
             txn_type="IN",
+            raw_qty=Decimal("2.0"),
+            raw_unit="UNT",
             base_qty=Decimal("2.0"),
             base_unit="UNT",
         )
@@ -71,6 +153,8 @@ def test_severity_logic_standardization(db_session: Session):
             item_id=item.id,
             batch_id=batch.id,
             txn_type="IN",
+            raw_qty=Decimal("10.0"),
+            raw_unit="UNT",
             base_qty=Decimal("10.0"),
             base_unit="UNT",
         )
@@ -83,7 +167,7 @@ def test_severity_logic_standardization(db_session: Session):
 
 def test_drift_record_creation_and_resolution(db_session: Session):
     # Setup
-    uom = UOM(name="Unit", code="UNT", is_base=True)
+    uom = UOM(description="Unit", code="UNT")
     db_session.add(uom)
     db_session.commit()
     item = Item(name="Sync Item", item_code="SI1", default_uom_id=uom.id)
@@ -101,6 +185,8 @@ def test_drift_record_creation_and_resolution(db_session: Session):
             item_id=item.id,
             batch_id=batch.id,
             txn_type="IN",
+            raw_qty=Decimal("110.0"),
+            raw_unit="UNT",
             base_qty=Decimal("110.0"),
             base_unit="UNT",
         )

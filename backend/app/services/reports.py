@@ -331,26 +331,26 @@ def get_item_signals(db: Session, item_id: int):
         .all()
     )
 
-    out_last_7d = 0.0
-    out_prev_7d = 0.0
+    out_last_7d = Decimal("0.0")
+    out_prev_7d = Decimal("0.0")
 
     for qty, created_at in txns:
         if created_at >= sev_days_ago:
-            out_last_7d += qty
+            out_last_7d += Decimal(str(qty))
         else:
-            out_prev_7d += qty
+            out_prev_7d += Decimal(str(qty))
 
     # 3. Signals
     signals = []
 
     # Fast Depletion: Last 7d > Prev 7d * 1.5
-    if out_last_7d > (out_prev_7d * 1.5) and out_last_7d > 0:
+    if out_last_7d > (out_prev_7d * Decimal("1.5")) and out_last_7d > 0:
         signals.append("FAST_DEPLETING")
 
     # Low Stock
-    threshold = 10.0
+    threshold = Decimal("10.0")
     if out_last_7d > 0:
-        threshold = out_last_7d * 0.2
+        threshold = out_last_7d * Decimal("0.2")
 
     if available_stock <= threshold and available_stock > 0:
         signals.append("LOW_STOCK")
@@ -362,7 +362,7 @@ def get_item_signals(db: Session, item_id: int):
     ):
         signals.append("STABLE")
 
-    avg_daily_outflow = out_last_7d / 7.0
+    avg_daily_outflow = out_last_7d / Decimal("7.0")
 
     return InventorySignalResponse(
         available_stock=available_stock,

@@ -10,6 +10,7 @@ from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -173,3 +174,12 @@ def get_ledger_health_report(db: Session) -> List[Dict]:
         if metrics.get("is_drifted") or metrics.get("status") != "healthy":
             report.append(metrics)
     return report
+
+
+def get_all_reconciliation_records(db: Session) -> List[ReconciliationRecord]:
+    """
+    Returns all reconciliation records, ordered by detection time.
+    """
+    return db.scalars(
+        select(ReconciliationRecord).order_by(ReconciliationRecord.detected_at.desc())
+    ).all()
