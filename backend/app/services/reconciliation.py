@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from app.db.models.batch import Batch
 from app.db.models.item import Item
 from app.db.models.reconciliation_record import DriftStatus, ReconciliationRecord
+from app.db.models.views.batch_ledger_balance import BatchLedgerBalance
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
@@ -16,7 +17,9 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 
-def check_batch_drift(db: Session, batch_id: int) -> Dict:
+def check_batch_drift(
+    db: Session, batch_id: int, ledger_qty_override: Optional[Decimal] = None
+) -> Dict:
     """
     Compares Batch.quantity (cached) vs Ledger Sum (via inventory_truth).
     Strictly read-only.
@@ -29,8 +32,20 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
     if not item:
         return {"error": "Item not found"}
 
-    # Source of truth: Ledger Sum (Centralized)
-    ledger_qty = calculate_ledger_balance(db, batch_id)
+    # Source of truth: Ledger Sum (via Read Model)
+    # If overridden (bulk fetch), use it.
+    # If not, try View.
+    # If View returns None (row missing), FALLBACK to slow compute (safe for SQLite/Missing View).
+    if ledger_qty_override is not None:
+        ledger_qty = ledger_qty_override
+    else:
+        ledger_balance = db.get(BatchLedgerBalance, batch_id)
+        if ledger_balance:
+            ledger_qty = ledger_balance.ledger_qty
+        else:
+            # Fallback: View might be unpopulated (SQLite) or Batch truly has no Txns.
+            # calculate_ledger_balance handles both safely.
+            ledger_qty = calculate_ledger_balance(db, batch_id)
 
     # Batch (Cached) Qty normalization
     current_unit = batch.unit
@@ -165,14 +180,34 @@ def resolve_drift(
 def get_ledger_health_report(db: Session) -> List[Dict]:
     """
     Returns health report for all batches with non-zero drift or issues.
-    Strictly read-only.
+    Optimized to use Read Models (O(1) vs O(N)).
     """
+    # 1. Get all batches
+    # 2. Get all ledger balances (bulk)
+    # 3. Compute drift in memory (faster than N DB roundtrips)
+
     batches = db.query(Batch).all()
+    balances = db.query(BatchLedgerBalance).all()
+    balance_map = {b.batch_id: b.ledger_qty for b in balances}
+
     report = []
-    for b in batches:
-        metrics = check_batch_drift(db, b.id)
+
+    # Pre-fetch items helper
+    items = {i.id: i for i in db.query(Item).all()}
+
+    for batch in batches:
+        item = items.get(batch.item_id)
+        if not item:
+            continue
+
+        # If batch is missing from View map, pass None.
+        # This triggers fallback in check_batch_drift (crucial for SQLite/Tests).
+        ledger_qty = balance_map.get(batch.id)
+
+        metrics = check_batch_drift(db, batch.id, ledger_qty_override=ledger_qty)
         if metrics.get("is_drifted") or metrics.get("status") != "healthy":
             report.append(metrics)
+
     return report
 
 
