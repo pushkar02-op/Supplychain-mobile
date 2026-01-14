@@ -200,7 +200,9 @@ def get_ledger_health_report(db: Session) -> List[Dict]:
         if not item:
             continue
 
-        ledger_qty = balance_map.get(batch.id, Decimal("0.0"))
+        # If batch is missing from View map, pass None.
+        # This triggers fallback in check_batch_drift (crucial for SQLite/Tests).
+        ledger_qty = balance_map.get(batch.id)
 
         metrics = check_batch_drift(db, batch.id, ledger_qty_override=ledger_qty)
         if metrics.get("is_drifted") or metrics.get("status") != "healthy":
