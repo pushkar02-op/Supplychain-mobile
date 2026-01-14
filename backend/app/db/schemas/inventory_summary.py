@@ -5,8 +5,10 @@ class InventorySummaryRead(BaseModel):
     item_id: int
     name: str
     unit: str
-    current_stock: float
-    available_stock: float = 0.0
+    ledger_qty: float
+    state_qty: float = 0.0
+    status: str = "HEALTHY"
+    severity: str = "NONE"
     signals: list[str] = []
 
     class Config:
@@ -16,11 +18,11 @@ class InventorySummaryRead(BaseModel):
 class ReconciliationItem(BaseModel):
     item_id: int
     item_name: str
-    available_stock: float
-    ledger_stock: float
-    delta: float
+    state_qty: float
+    ledger_qty: float
+    drift: float
     status: str  # HEALTHY | DRIFT
-    severity: str  # MINOR | MAJOR | CRITICAL
+    severity: str  # NONE | MINOR | MAJOR | CRITICAL
 
 
 class ReconciliationBatch(BaseModel):
@@ -38,9 +40,10 @@ class ReconciliationTxn(BaseModel):
 
 class ReconciliationDetail(BaseModel):
     item: InventorySummaryRead
-    available_stock: float
-    ledger_stock: float
-    delta: float
+    state_qty: float
+    ledger_qty: float
+    drift: float
+    severity: str
     recent_transactions: list[ReconciliationTxn]
     batch_snapshot: list[ReconciliationBatch]
 

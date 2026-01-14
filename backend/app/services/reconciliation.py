@@ -10,6 +10,7 @@ from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -44,23 +45,37 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
     batch_qty_base = Decimal(batch.quantity) * factor
     drift = batch_qty_base - ledger_qty
 
-    # Classification
+    # Classification & Severity
     is_drifted = drift != Decimal("0")
     status = "healthy"
+    severity = "NONE"
+
     if is_drifted:
         status = "drifted"
+        # Avoid division by zero
+        denom = abs(ledger_qty) if ledger_qty != 0 else Decimal("1")
+        drift_ratio = abs(drift) / denom
+
+        if drift_ratio > Decimal("0.05"):
+            severity = "CRITICAL"
+        else:
+            severity = "MAJOR"
 
     return {
         "batch_id": batch_id,
+        "item_id": item.id,
         "item_name": item.name,
         "batch_qty_raw": batch.quantity,
         "batch_unit_raw": batch.unit,
-        "batch_qty_base": batch_qty_base,
-        "ledger_qty": ledger_qty,
-        "base_unit": target_unit,
+        # Standardized Truth Keys
+        "state_qty": batch_qty_base,  # Canonical State (Base Unit)
+        "ledger_qty": ledger_qty,  # Canonical Ledger (Base Unit)
         "drift": drift,
+        "base_unit": target_unit,
+        # Metadata
         "status": status,
         "is_drifted": is_drifted,
+        "severity": severity,
     }
 
 
@@ -79,7 +94,7 @@ def create_drift_record(db: Session, batch_id: int) -> Optional[ReconciliationRe
     record = ReconciliationRecord(
         batch_id=batch_id,
         observed_ledger_qty=drift_data["ledger_qty"],
-        observed_state_qty=drift_data["batch_qty_base"],
+        observed_state_qty=drift_data["state_qty"],
         drift_amount=drift_data["drift"],
         status=DriftStatus.OPEN,
     )
@@ -159,3 +174,12 @@ def get_ledger_health_report(db: Session) -> List[Dict]:
         if metrics.get("is_drifted") or metrics.get("status") != "healthy":
             report.append(metrics)
     return report
+
+
+def get_all_reconciliation_records(db: Session) -> List[ReconciliationRecord]:
+    """
+    Returns all reconciliation records, ordered by detection time.
+    """
+    return db.scalars(
+        select(ReconciliationRecord).order_by(ReconciliationRecord.detected_at.desc())
+    ).all()

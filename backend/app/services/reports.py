@@ -146,9 +146,25 @@ def get_inventory_report(
 
     final_list = []
     for r in results:
-        display_obj = InventorySummaryRead.from_orm(r)
+        # Create display object from view
+        # We handle mapping manually to satisfy the new truth model
         avail = item_available_map.get(r.item_id, 0.0)
-        display_obj.available_stock = avail
+        ledger = float(r.current_stock)
+
+        # Drift Calculation
+        delta = avail - ledger
+        status = "HEALTHY"
+        severity = "NONE"
+
+        if abs(delta) > 0.001:
+            status = "DRIFT"
+            # Severity Logic
+            denom = abs(ledger) if ledger != 0 else 1.0
+            drift_ratio = abs(delta) / denom
+            if ledger < 0 or drift_ratio > 0.05:
+                severity = "CRITICAL"
+            else:
+                severity = "MAJOR"
 
         # Signals
         signals = []
@@ -156,86 +172,56 @@ def get_inventory_report(
         p7 = out_prev_7d.get(r.item_id, 0.0)
 
         # Fast Depletion
-        # Last 7d OUT > Prev 7d OUT * 1.5
         if l7 > (p7 * 1.5) and l7 > 0:
             signals.append("FAST_DEPLETING")
 
         # Low Stock
-        # Threshold: 20% of avg daily outflow * 7 days
-        # Avg daily outflow = L7 / 7
-        # Threshold = 1.4 * (L7 / 7) * 7 = 1.4 * L7? No, wait.
-        # Rule: Threshold default: 20% of average daily outflow * 7 days
-        # Avg Daily = L7 / 7.
-        # Threshold = 20% * (L7/7) * 7 = 0.20 * L7
-        # But if history < 7 days (L7 is 0 or low), fallback to static 10 units?
-        # User rule: "If historical data < 7 days -> fallback to static threshold (e.g. 10 units)"
-        # We assume history exists if L7 > 0.
-
-        threshold = 10.0  # Fallback
+        threshold = 10.0
         if l7 > 0:
-            # 20% of weekly usage
             threshold = l7 * 0.2
 
-        if (
-            avail <= threshold and avail > 0
-        ):  # Don't mark zero as low, zero is empty/depleted (handled by red badge in Phase 1?)
-            # Actually, Phase 1 had "Critical" for negative.
-            # Low Stock is a warning before zero.
+        if avail <= threshold and avail > 0:
             signals.append("LOW_STOCK")
 
-        if not signals and abs(avail - r.current_stock) < 0.001 and avail > 0:
+        if not signals and abs(delta) < 0.001 and avail > 0:
             signals.append("STABLE")
 
-        display_obj.signals = signals
+        display_obj = InventorySummaryRead(
+            item_id=r.item_id,
+            name=r.name,
+            unit=r.unit,
+            ledger_qty=ledger,
+            state_qty=avail,
+            status=status,
+            severity=severity,
+            signals=signals,
+        )
         final_list.append(display_obj)
 
     return final_list
 
 
 def get_reconciliation_report(db: Session) -> List[ReconciliationItem]:
-    # 1. Reuse existing report to get Ledger + Available + Signals
-    #    (get_inventory_report already calculates available_stock)
-    report = get_inventory_report(db, None)
+    """
+    Get detailed reconciliation report using Phase 5 Reconciliation Service.
+    Standardized Logic.
+    """
+    from app.services.reconciliation import get_ledger_health_report
+
+    # get_ledger_health_report returns standardized dicts now
+    data = get_ledger_health_report(db)
 
     recon_items = []
-
-    # from app.db.schemas.inventory_summary import ReconciliationItem # Moved to top
-
-    for r in report:
-        delta = r.available_stock - r.current_stock
-
-        status = "HEALTHY"
-        severity = "NONE"
-
-        if abs(delta) > 0.001:  # Floating point tolerance
-            status = "DRIFT"
-
-            # Severity Logic
-            drift_pct = 0.0
-            if r.current_stock != 0:  # Avoid division by zero
-                drift_pct = abs(delta) / abs(r.current_stock)
-            elif (
-                r.current_stock == 0 and abs(delta) > 0.001
-            ):  # If ledger is 0 but there's a delta
-                drift_pct = 1.0  # 100% drift if ledger indicates 0 but we have stock (or vice versa)
-
-            if r.current_stock < 0 or drift_pct >= 0.2:
-                # Critical if Ledger < 0 OR Drift >= 20%
-                severity = "CRITICAL"
-            elif drift_pct > 0.05:  # Between 5% and 20%
-                severity = "MAJOR"
-            else:  # Less than or equal to 5%
-                severity = "MINOR"
-
+    for d in data:
         recon_items.append(
             ReconciliationItem(
-                item_id=r.item_id,
-                item_name=r.name,
-                available_stock=r.available_stock,
-                ledger_stock=r.current_stock,
-                delta=delta,
-                status=status,
-                severity=severity,
+                item_id=d["item_id"],
+                item_name=d["item_name"],
+                state_qty=d["state_qty"],
+                ledger_qty=d["ledger_qty"],
+                drift=d["drift"],
+                status=d["status"].upper(),
+                severity=d["severity"],
             )
         )
 
@@ -246,8 +232,6 @@ def get_item_reconciliation(
     db: Session, item_id: int
 ) -> Optional[ReconciliationDetail]:
     # 1. Get Basic Stats
-    # from app.db.schemas.inventory_summary import ReconciliationDetail, ReconciliationBatch, ReconciliationTxn # Moved to top
-
     report_list = get_reconciliation_report(db)
     target = next((x for x in report_list if x.item_id == item_id), None)
 
@@ -273,7 +257,7 @@ def get_item_reconciliation(
         recon_txns.append(
             ReconciliationTxn(
                 type=t.txn_type,
-                qty=t.base_qty,  # Show raw magnitude
+                qty=t.base_qty,
                 ref=f"{t.ref_type}#{t.ref_id}" if t.ref_id else t.ref_type,
                 created_at=str(t.created_at),
             )
@@ -291,9 +275,10 @@ def get_item_reconciliation(
 
     return ReconciliationDetail(
         item=summary,
-        available_stock=target.available_stock,
-        ledger_stock=target.ledger_stock,
-        delta=target.delta,
+        state_qty=target.state_qty,
+        ledger_qty=target.ledger_qty,
+        drift=target.drift,
+        severity=target.severity,
         recent_transactions=recon_txns,
         batch_snapshot=recon_batches,
     )
@@ -346,26 +331,26 @@ def get_item_signals(db: Session, item_id: int):
         .all()
     )
 
-    out_last_7d = 0.0
-    out_prev_7d = 0.0
+    out_last_7d = Decimal("0.0")
+    out_prev_7d = Decimal("0.0")
 
     for qty, created_at in txns:
         if created_at >= sev_days_ago:
-            out_last_7d += qty
+            out_last_7d += Decimal(str(qty))
         else:
-            out_prev_7d += qty
+            out_prev_7d += Decimal(str(qty))
 
     # 3. Signals
     signals = []
 
     # Fast Depletion: Last 7d > Prev 7d * 1.5
-    if out_last_7d > (out_prev_7d * 1.5) and out_last_7d > 0:
+    if out_last_7d > (out_prev_7d * Decimal("1.5")) and out_last_7d > 0:
         signals.append("FAST_DEPLETING")
 
     # Low Stock
-    threshold = 10.0
+    threshold = Decimal("10.0")
     if out_last_7d > 0:
-        threshold = out_last_7d * 0.2
+        threshold = out_last_7d * Decimal("0.2")
 
     if available_stock <= threshold and available_stock > 0:
         signals.append("LOW_STOCK")
@@ -377,7 +362,7 @@ def get_item_signals(db: Session, item_id: int):
     ):
         signals.append("STABLE")
 
-    avg_daily_outflow = out_last_7d / 7.0
+    avg_daily_outflow = out_last_7d / Decimal("7.0")
 
     return InventorySignalResponse(
         available_stock=available_stock,
