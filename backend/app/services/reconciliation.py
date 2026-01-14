@@ -6,8 +6,8 @@ from typing import Dict, List, Optional
 from app.db.models.batch import Batch
 from app.db.models.item import Item
 from app.db.models.reconciliation_record import DriftStatus, ReconciliationRecord
+from app.db.models.views.batch_ledger_balance import BatchLedgerBalance
 from app.db.schemas.inventory_txn import InventoryTxnCreate
-from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
 from sqlalchemy import select
@@ -29,8 +29,9 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
     if not item:
         return {"error": "Item not found"}
 
-    # Source of truth: Ledger Sum (Centralized)
-    ledger_qty = calculate_ledger_balance(db, batch_id)
+    # Source of truth: Ledger Sum (via Read Model)
+    ledger_balance = db.get(BatchLedgerBalance, batch_id)
+    ledger_qty = ledger_balance.ledger_qty if ledger_balance else Decimal("0.0")
 
     # Batch (Cached) Qty normalization
     current_unit = batch.unit
@@ -165,14 +166,32 @@ def resolve_drift(
 def get_ledger_health_report(db: Session) -> List[Dict]:
     """
     Returns health report for all batches with non-zero drift or issues.
-    Strictly read-only.
+    Optimized to use Read Models (O(1) vs O(N)).
     """
+    # 1. Get all batches
+    # 2. Get all ledger balances (bulk)
+    # 3. Compute drift in memory (faster than N DB roundtrips)
+
     batches = db.query(Batch).all()
+    balances = db.query(BatchLedgerBalance).all()
+    balance_map = {b.batch_id: b.ledger_qty for b in balances}
+
     report = []
-    for b in batches:
-        metrics = check_batch_drift(db, b.id)
+
+    # Pre-fetch items helper
+    items = {i.id: i for i in db.query(Item).all()}
+
+    for batch in batches:
+        item = items.get(batch.item_id)
+        if not item:
+            continue
+
+        ledger_qty = balance_map.get(batch.id, Decimal("0.0"))
+
+        metrics = check_batch_drift(db, batch.id)
         if metrics.get("is_drifted") or metrics.get("status") != "healthy":
             report.append(metrics)
+
     return report
 
 

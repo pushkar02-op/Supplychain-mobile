@@ -9,6 +9,7 @@ from typing import List, Optional
 
 from app.db.models.batch import Batch
 from app.db.models.inventory_txn import InventoryTxn
+from app.db.models.views.inventory_signal import InventorySignal
 from app.db.models.views.inventory_summary import InventorySummary
 from app.db.models.views.pnl_summary import PnlSummary
 from app.db.schemas.inventory_summary import (
@@ -107,42 +108,14 @@ def get_inventory_report(
                     pass
         item_available_map[r.item_id] = float(total_available)
 
-    # Signal Calculation
-    # 1. Fetch OUT transactions for last 14 days
-    from datetime import datetime, timedelta
-
-    from app.db.models.inventory_txn import InventoryTxn
-
-    now = datetime.utcnow()
-    sev_days_ago = now - timedelta(days=7)
-    fourteen_days_ago = now - timedelta(days=14)
-
-    txns = (
-        db.query(
-            InventoryTxn.item_id,
-            InventoryTxn.created_at,
-            InventoryTxn.base_qty,
-            InventoryTxn.txn_type,
-        )
-        .filter(
-            InventoryTxn.item_id.in_([r.item_id for r in results]),
-            InventoryTxn.created_at >= fourteen_days_ago,
-            InventoryTxn.txn_type == "OUT",
-        )
-        .all()
+    # Signal Calculation via Read Model
+    sig_q = db.query(InventorySignal).filter(
+        InventorySignal.item_id.in_([r.item_id for r in results])
     )
+    signals_data = sig_q.all()
 
-    # Aggregation
-    out_last_7d = {}
-    out_prev_7d = {}
-
-    for t in txns:
-        iid = t.item_id
-        qty = float(t.base_qty)
-        if t.created_at >= sev_days_ago:
-            out_last_7d[iid] = out_last_7d.get(iid, 0.0) + qty
-        else:
-            out_prev_7d[iid] = out_prev_7d.get(iid, 0.0) + qty
+    out_last_7d = {s.item_id: float(s.out_last_7d or 0) for s in signals_data}
+    out_prev_7d = {s.item_id: float(s.out_prev_7d or 0) for s in signals_data}
 
     final_list = []
     for r in results:
@@ -288,10 +261,8 @@ def get_item_signals(db: Session, item_id: int):
     """
     Retrieve signal breakdown for a specific item.
     """
-    from datetime import datetime, timedelta
 
     from app.db.models.batch import Batch
-    from app.db.models.inventory_txn import InventoryTxn
     from app.db.models.views.inventory_summary import InventorySummary
     from app.db.schemas.inventory_summary import InventorySignalResponse
 
@@ -316,29 +287,17 @@ def get_item_signals(db: Session, item_id: int):
 
     available_stock = float(total_available)
 
-    # 2. Transaction Aggregation
-    now = datetime.utcnow()
-    sev_days_ago = now - timedelta(days=7)
-    fourteen_days_ago = now - timedelta(days=14)
+    # 2. Transaction Aggregation via Read Model
+    from app.db.models.views.inventory_signal import InventorySignal
 
-    txns = (
-        db.query(InventoryTxn.base_qty, InventoryTxn.created_at)
-        .filter(
-            InventoryTxn.item_id == item_id,
-            InventoryTxn.created_at >= fourteen_days_ago,
-            InventoryTxn.txn_type == "OUT",
-        )
-        .all()
+    sig = db.get(InventorySignal, item_id)
+
+    out_last_7d = (
+        Decimal(str(sig.out_last_7d)) if sig and sig.out_last_7d else Decimal("0.0")
     )
-
-    out_last_7d = Decimal("0.0")
-    out_prev_7d = Decimal("0.0")
-
-    for qty, created_at in txns:
-        if created_at >= sev_days_ago:
-            out_last_7d += Decimal(str(qty))
-        else:
-            out_prev_7d += Decimal(str(qty))
+    out_prev_7d = (
+        Decimal(str(sig.out_prev_7d)) if sig and sig.out_prev_7d else Decimal("0.0")
+    )
 
     # 3. Signals
     signals = []
