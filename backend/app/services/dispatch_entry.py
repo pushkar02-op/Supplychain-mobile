@@ -12,6 +12,7 @@ from app.core.exceptions import AppException
 from app.db.models.batch import Batch
 from app.db.models.dispatch_entry import DispatchEntry
 from app.db.models.dispatch_reversal import DispatchReversal
+from app.db.models.domain_event import DomainEvent
 from app.db.models.mart import Mart
 from app.db.models.order import Order
 from app.db.schemas.dispatch_entry import (
@@ -19,6 +20,7 @@ from app.db.schemas.dispatch_entry import (
     DispatchEntryMultiCreate,
     DispatchReversalCreate,
 )
+from app.db.schemas.domain_event import DispatchCompleted, OrderFulfilled
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
@@ -367,6 +369,24 @@ def create_dispatch_entry(
 
     db.commit()
     logger.debug(f"Created dispatch id={dispatch.id}")
+
+    # EMIT DOMAIN EVENT (Outbox)
+    event_payload = DispatchCompleted(
+        dispatch_id=dispatch.id,
+        order_id=dispatch.order_id,
+        item_id=dispatch.item_id,
+        qty=dispatch.quantity,
+    ).dict()
+
+    event = DomainEvent(
+        event_type="dispatch.completed",
+        aggregate_type="dispatch_entry",
+        aggregate_id=str(dispatch.id),
+        payload=event_payload,
+    )
+    db.add(event)
+
+    db.commit()
     return dispatch
 
 
@@ -536,6 +556,23 @@ def create_dispatch_from_order(
     db.flush()
     for d in results:
         db.refresh(d)
+
+        # EMIT DOMAIN EVENT (Outbox)
+        event_payload = DispatchCompleted(
+            dispatch_id=d.id,
+            order_id=d.order_id,
+            item_id=d.item_id,
+            qty=d.quantity,
+        ).dict()
+
+        event = DomainEvent(
+            event_type="dispatch.completed",
+            aggregate_type="dispatch_entry",
+            aggregate_id=str(d.id),
+            payload=event_payload,
+        )
+        db.add(event)
+
     db.commit()
     logger.debug(f"Created/updated {len(results)} dispatch entries")
 
@@ -585,6 +622,23 @@ def _update_order_after_dispatch(
     order.updated_at = datetime.utcnow()
     db.add(order)
     db.flush()
+
+    if order.status == "Completed":
+        # EMIT DOMAIN EVENT (Outbox)
+        event_payload = OrderFulfilled(
+            order_id=order.id,
+            item_id=order.item_id,
+            mart_id=order.mart_id,
+            total_qty=order.quantity_ordered,
+        ).dict()
+
+        event = DomainEvent(
+            event_type="order.fulfilled",
+            aggregate_type="order",
+            aggregate_id=str(order.id),
+            payload=event_payload,
+        )
+        db.add(event)
 
 
 def get_dispatch_entry(db: Session, dispatch_id: int) -> Optional[DispatchEntry]:

@@ -10,6 +10,7 @@ from .auth import RefreshToken as RefreshToken
 from .batch import Batch as Batch
 from .dispatch_entry import DispatchEntry as DispatchEntry
 from .dispatch_reversal import DispatchReversal as DispatchReversal
+from .domain_event import DomainEvent as DomainEvent
 from .idempotency_record import IdempotencyRecord
 from .inventory_txn import InventoryTxn as InventoryTxn
 from .item import Item as Item
@@ -19,6 +20,7 @@ from .mart import Mart as Mart
 from .mart_bill import MartBill as MartBill
 from .mart_bill_item import MartBillItem as MartBillItem
 from .order import Order as Order
+from .reconciliation_record import ReconciliationRecord as ReconciliationRecord
 from .rejection_entry import RejectionEntry as RejectionEntry
 from .stock_entry import StockEntry as StockEntry
 from .uom import UOM as UOM
@@ -33,6 +35,7 @@ __all__ = [
     "DispatchEntry",
     "DispatchReversal",
     "MartBill",
+    "ReconciliationRecord",
     "RejectionEntry",
     "MartBillItem",
     "Order",
@@ -44,4 +47,5 @@ __all__ = [
     "Mart",
     "RefreshToken",
     "IdempotencyRecord",
+    "DomainEvent",
 ]
