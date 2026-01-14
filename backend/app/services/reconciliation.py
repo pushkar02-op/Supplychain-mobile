@@ -16,7 +16,9 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 
-def check_batch_drift(db: Session, batch_id: int) -> Dict:
+def check_batch_drift(
+    db: Session, batch_id: int, ledger_qty_override: Optional[Decimal] = None
+) -> Dict:
     """
     Compares Batch.quantity (cached) vs Ledger Sum (via inventory_truth).
     Strictly read-only.
@@ -30,8 +32,11 @@ def check_batch_drift(db: Session, batch_id: int) -> Dict:
         return {"error": "Item not found"}
 
     # Source of truth: Ledger Sum (via Read Model)
-    ledger_balance = db.get(BatchLedgerBalance, batch_id)
-    ledger_qty = ledger_balance.ledger_qty if ledger_balance else Decimal("0.0")
+    if ledger_qty_override is not None:
+        ledger_qty = ledger_qty_override
+    else:
+        ledger_balance = db.get(BatchLedgerBalance, batch_id)
+        ledger_qty = ledger_balance.ledger_qty if ledger_balance else Decimal("0.0")
 
     # Batch (Cached) Qty normalization
     current_unit = batch.unit
@@ -188,7 +193,7 @@ def get_ledger_health_report(db: Session) -> List[Dict]:
 
         ledger_qty = balance_map.get(batch.id, Decimal("0.0"))
 
-        metrics = check_batch_drift(db, batch.id)
+        metrics = check_batch_drift(db, batch.id, ledger_qty_override=ledger_qty)
         if metrics.get("is_drifted") or metrics.get("status") != "healthy":
             report.append(metrics)
 
