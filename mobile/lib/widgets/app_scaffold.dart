@@ -4,10 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/dispatch_list_screen.dart';
 import '../screens/more_hub_screen.dart';
 import '../screens/orders_screen.dart';
+import '../screens/overview_screen.dart';
 import '../screens/stock_list_screen.dart';
 
 /// Main application scaffold with bottom navigation.
-/// Hosts the primary tabs: Stock, Orders, Dispatch, More.
+/// Hosts the primary tabs: Overview, Stock, Orders, Dispatch, More.
 class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key});
 
@@ -20,6 +21,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
   // Preserve tab state using IndexedStack
   final List<Widget> _tabs = const [
+    OverviewScreen(),
     StockListScreen(),
     OrdersScreen(),
     DispatchListScreen(),
@@ -37,6 +39,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         selectedItemColor: Colors.green,
         unselectedItemColor: Colors.grey,
         items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_outlined),
+            activeIcon: Icon(Icons.dashboard),
+            label: 'Overview',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.inventory_2_outlined),
             activeIcon: Icon(Icons.inventory_2),
