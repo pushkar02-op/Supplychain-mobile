@@ -5,6 +5,7 @@ Read-only API for forecasting summaries.
 Admin-only authorization.
 """
 
+from app.core.auth import get_current_active_admin
 from app.db.session import get_db
 from app.services.forecasting import (
     get_all_forecast_summaries,
@@ -17,7 +18,7 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/admin/forecasting", tags=["Admin Forecasting"])
 
 
-@router.get("/summary")
+@router.get("/summary", dependencies=[Depends(get_current_active_admin)])
 def get_forecasting_summary(db: Session = Depends(get_db)):
     """
     Get forecast summary for all items.
@@ -33,7 +34,7 @@ def get_forecasting_summary(db: Session = Depends(get_db)):
     return {"items": summaries, "count": len(summaries)}
 
 
-@router.get("/summary/{item_id}")
+@router.get("/summary/{item_id}", dependencies=[Depends(get_current_active_admin)])
 def get_item_forecast(item_id: int, db: Session = Depends(get_db)):
     """
     Get forecast summary for a specific item.
@@ -44,7 +45,7 @@ def get_item_forecast(item_id: int, db: Session = Depends(get_db)):
     return summary
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(get_current_active_admin)])
 def refresh_forecasts(db: Session = Depends(get_db)):
     """
     Refresh all forecasts.

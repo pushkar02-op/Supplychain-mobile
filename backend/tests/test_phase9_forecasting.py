@@ -48,6 +48,7 @@ def db_session():
     Base.metadata.create_all(bind=engine)
 
     # Cleanup Phase 9 tables
+    session.rollback()
     session.query(ItemBurnRate).delete()
     session.query(StockDepletionForecast).delete()
     session.query(InventoryFlowDaily).delete()

@@ -90,24 +90,8 @@ def get_current_ledger_qty(db: Session, item_id: int) -> float:
 
     Source: batch_ledger_balance_view or direct calculation
     """
-    from sqlalchemy import text
-
-    # Try to use the view first
-    try:
-        result = db.execute(
-            text(
-                """
-            SELECT COALESCE(SUM(balance), 0) as total
-            FROM batch_ledger_balance_view
-            WHERE item_id = :item_id
-            """
-            ),
-            {"item_id": item_id},
-        ).fetchone()
-        if result:
-            return float(result[0] or 0)
-    except Exception:
-        logger.warning(f"batch_ledger_balance_view not available for item {item_id}")
+    # Note: batch_ledger_balance_view is batch-centric; for item aggregation
+    # we rely on the Batch table snapshot which is maintained by transaction services.
 
     # Fallback: Calculate from batches directly
     from app.db.models.batch import Batch
