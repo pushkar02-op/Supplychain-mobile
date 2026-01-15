@@ -1,41 +1,35 @@
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../services/auth_service.dart';
+import '../providers/auth_provider.dart';
 import '../services/dispatch_service.dart';
 import '../widgets/reversal_dialog.dart';
 import '../widgets/skeleton_loader.dart';
 
-class DispatchListScreen extends StatefulWidget {
+class DispatchListScreen extends ConsumerStatefulWidget {
   const DispatchListScreen({super.key});
 
   @override
-  State<DispatchListScreen> createState() => _DispatchListScreenState();
+  ConsumerState<DispatchListScreen> createState() => _DispatchListScreenState();
 }
 
-class _DispatchListScreenState extends State<DispatchListScreen> {
+class _DispatchListScreenState extends ConsumerState<DispatchListScreen> {
   DateTime _selectedDate = DateTime.now();
   String? _selectedMart;
   List<String> _marts = [];
   List<dynamic> _dispatches = [];
   bool _isLoading = false;
   String _error = '';
-  bool _isAdmin = false;
   bool _showHidden = false;
 
   @override
   void initState() {
     super.initState();
-    _checkRole();
     _loadMarts();
     _fetch();
-  }
-
-  Future<void> _checkRole() async {
-    final val = await AuthService.storage.read(key: 'is_admin');
-    setState(() => _isAdmin = val == 'true');
   }
 
   Future<void> _loadMarts() async {
@@ -113,16 +107,7 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Dispatch'),
-        actions: [
-          if (_isAdmin)
-            // Standard popup has no switch usually, better to put in body or leading
-            // Let's put a simple icon button or popup check?
-            // Or just put it in the filter row if space permits.
-            // Filter row is crowded.
-            // Let's add it as a small row below filters or inside a filter drawer.
-            // For simplicity, let's put it below the filters row.
-            const SizedBox(),
-        ],
+        actions: const [],
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
@@ -316,7 +301,8 @@ class _DispatchListScreenState extends State<DispatchListScreen> {
                                 '${d['dispatch_date']} @ ${d['mart_name']}',
                               ),
                               trailing:
-                                  _isAdmin
+                                  (ref.watch(authProvider).value?.isAdmin ??
+                                          false)
                                       ? PopupMenuButton<String>(
                                         onSelected: (v) async {
                                           if (v == 'reverse') {
