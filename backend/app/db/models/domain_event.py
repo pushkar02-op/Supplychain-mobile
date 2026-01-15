@@ -13,6 +13,7 @@ class DomainEvent(Base):
     aggregate_id = Column(String, nullable=False)
     payload = Column(JSON, nullable=False)
     occurred_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    processed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     def __repr__(self):

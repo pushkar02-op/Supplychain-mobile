@@ -231,7 +231,9 @@ def get_item_reconciliation(
             ReconciliationTxn(
                 type=t.txn_type,
                 qty=t.base_qty,
-                ref=f"{t.ref_type}#{t.ref_id}" if t.ref_id else t.ref_type,
+                ref=(
+                    f"{t.ref_type}#{t.ref_id}" if t.ref_id else (t.ref_type or "system")
+                ),
                 created_at=str(t.created_at),
             )
         )
