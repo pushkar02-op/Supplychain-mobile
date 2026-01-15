@@ -12,7 +12,7 @@ from app.db.models.order import Order
 from app.services.event_relay import process_pending_events
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def db_session():
     import os
 
@@ -157,7 +157,7 @@ def test_order_metrics_projection(db_session):
     mart_id = 6
     order_id = 10002
 
-    uom = db_session.get(UOM, uom_code)
+    uom = db_session.query(UOM).filter_by(code=uom_code).first()
     if not uom:
         uom = UOM(code=uom_code, description="Kg Test")
         db_session.add(uom)
