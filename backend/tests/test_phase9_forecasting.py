@@ -153,6 +153,9 @@ def test_depletion_forecast_normal(db_session):
         db_session.add(item)
         db_session.commit()
 
+    # Clean up existing batches
+    db_session.query(Batch).filter(Batch.item_id == 902).delete()
+
     # Add batch with 100 units
     batch = Batch(item_id=902, quantity=100.0, unit="kg", received_at=datetime.utcnow())
     db_session.add(batch)
@@ -203,6 +206,9 @@ def test_refresh_forecast_for_item(db_session):
         db_session.add(item)
         db_session.commit()
 
+    # Clean up existing batches
+    db_session.query(Batch).filter(Batch.item_id == 903).delete()
+
     # Add batch
     batch = Batch(item_id=903, quantity=50.0, unit="kg", received_at=datetime.utcnow())
     db_session.add(batch)
@@ -239,22 +245,33 @@ def test_refresh_forecast_for_item(db_session):
 
 def test_no_domain_table_mutations(db_session):
     """Forecasting should NOT mutate Item, Batch, InventoryTxn"""
-    # Get counts before
     from app.db.models.inventory_txn import InventoryTxn
 
+    # Setup: Create a valid item to avoid FK/Integrity errors
+    uom = db_session.query(UOM).filter_by(code="kg").first()
+    if not uom:
+        uom = UOM(code="kg", description="Kilogram")
+        db_session.add(uom)
+        db_session.commit()
+
+    item = db_session.query(Item).filter_by(name="Mutation Test Item").first()
+    if not item:
+        item = Item(name="Mutation Test Item", default_uom_id=uom.id)
+        db_session.add(item)
+        db_session.commit()
+    item_id = item.id
+
+    # Get counts before
     item_count_before = db_session.query(Item).count()
     txn_count_before = db_session.query(InventoryTxn).count()
 
-    # Run forecast refresh (on non-existent item to avoid setup)
-    try:
-        refresh_forecast_for_item(db_session, 9999)
-    except Exception:
-        pass  # May fail but should not mutate
+    # Run forecast refresh
+    refresh_forecast_for_item(db_session, item_id)
 
     # Get counts after
     item_count_after = db_session.query(Item).count()
     txn_count_after = db_session.query(InventoryTxn).count()
 
-    # Verify no mutations
+    # Verify no mutations to domain tables
     assert item_count_before == item_count_after
     assert txn_count_before == txn_count_after
