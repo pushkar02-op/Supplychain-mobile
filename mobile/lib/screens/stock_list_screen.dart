@@ -57,7 +57,7 @@ class StockListScreen extends ConsumerWidget {
                     itemCount: stocks.length,
                     itemBuilder: (context, index) {
                       final stock = stocks[index];
-                  return Card(
+                      return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         elevation: 2,
                         shadowColor: Colors.black12,
@@ -78,7 +78,9 @@ class StockListScreen extends ConsumerWidget {
                           child: ListTile(
                             title: Text(
                               '${stock['item']['name']}',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,7 +132,11 @@ class StockListScreen extends ConsumerWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                          Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.red[300],
+                          ),
                           const SizedBox(height: 12),
                           Text(
                             'Could not load stock entries',
@@ -170,6 +176,7 @@ class StockListScreen extends ConsumerWidget {
           foregroundColor: Colors.white,
           icon: const Icon(Icons.add),
           label: const Text('Add Stock'),
+          heroTag: 'stock-add-fab',
         ),
       ),
     );
@@ -184,10 +191,7 @@ class StockListScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Text(
             'No stock entries for this date',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
           ),
           const SizedBox(height: 8),
           Semantics(
@@ -244,4 +248,3 @@ class StockListScreen extends ConsumerWidget {
     }
   }
 }
-
