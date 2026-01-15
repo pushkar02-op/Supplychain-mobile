@@ -72,6 +72,11 @@ def create_raw_event(session, event_type, payload):
 
 
 def test_inventory_flow_projection(db_session):
+    # Clean slate: Remove any unprocessed events from other tests
+    db_session.query(DomainEvent).filter(DomainEvent.processed_at.is_(None)).delete()
+    db_session.query(InventoryFlowDaily).delete()
+    db_session.commit()
+
     # 1. Insert Event
     create_raw_event(
         db_session,
