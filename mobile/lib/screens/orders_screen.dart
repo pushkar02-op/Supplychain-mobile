@@ -287,6 +287,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
         backgroundColor: Colors.green,
         icon: const Icon(Icons.add),
         label: const Text('Add Order'),
+        heroTag: 'orders-add-fab',
       ),
     );
   }
