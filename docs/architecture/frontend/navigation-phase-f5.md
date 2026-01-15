@@ -17,21 +17,22 @@ Login → Dashboard (card grid) → Tap card → Screen
 ```
 Login → AppScaffold (with BottomNavigationBar)
               ↓
-        ┌─────┴─────┬──────────┬──────────┐
-        │           │          │          │
-      Stock      Orders    Dispatch     More
-        │           │          │          │
-  StockListScreen OrdersScreen DispatchList  MoreHubScreen
-                                              ↓
-                                     (Inventory, MartBills,
-                                      Items, AliasMapping,
-                                      Rejections, Admin...)
+    ┌─────────┼──────────┬──────────┬──────────┬──────────┐
+    │         │          │          │          │          │
+ Overview   Stock     Orders    Dispatch     More
+    │         │          │          │          │
+OverviewScreen  StockList  OrdersScreen  DispatchList  MoreHubScreen
+                                                         ↓
+                                                (Inventory, MartBills,
+                                                 Items, AliasMapping,
+                                                 Rejections, Admin...)
 ```
 
 ## Tab Responsibilities
 
 | Tab | Entry Screen | Purpose |
 |-----|-------------|---------|
+| Overview | `OverviewScreen` | Read-only daily snapshot (landing tab) |
 | Stock | `StockListScreen` | Daily stock entry management |
 | Orders | `OrdersScreen` | Order creation and dispatch flow |
 | Dispatch | `DispatchListScreen` | Dispatch tracking and reversal |
