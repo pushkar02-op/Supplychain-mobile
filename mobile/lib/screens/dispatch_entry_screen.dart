@@ -279,12 +279,12 @@ class _CreateOrEditDispatchScreenState
                       children: [
                         const TextSpan(text: 'Dispatching '),
                         TextSpan(
-                          text: '${widget.data!['item_name']}',
+                          text: widget.data!['item_name'] as String,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const TextSpan(text: ' to '),
                         TextSpan(
-                          text: '$_martName',
+                          text: _martName,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -307,14 +307,13 @@ class _CreateOrEditDispatchScreenState
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
               child: Column(
                 children: [
-                  const Text(
-                    'Remaining to Dispatch',
-                    style: TextStyle(
+                  Text(
+                    'Remaining to Dispatch'.toUpperCase(),
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: Colors.blueGrey,
                       letterSpacing: 0.5,
-                      uppercase: true,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -507,7 +506,7 @@ class _CreateOrEditDispatchScreenState
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     offset: const Offset(0, -4),
                     blurRadius: 8,
                   ),
