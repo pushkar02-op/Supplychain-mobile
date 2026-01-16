@@ -1,9 +1,11 @@
 // stock_entry_screen.dart
+import 'dart:async';
+
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../services/stock_service.dart';
-import 'package:dropdown_search/dropdown_search.dart';
-import 'dart:async';
 import '../widgets/form/custom_date_picker.dart';
 
 /// Screen mode for StockEntryScreen
@@ -107,9 +109,16 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   }
 
   void _submitReceive() async {
-    if (!_formKey.currentState!.validate() || _selectedItem == null) {
+    if (!_formKey.currentState!.validate() ||
+        _receivedDate == null ||
+        _selectedItem == null) {
       setState(() {
-        _error = _selectedItem == null ? 'Please select an item' : '';
+        _error =
+            _receivedDate == null
+                ? 'Please pick a date'
+                : _selectedItem == null
+                ? 'Please select an item'
+                : '';
       });
       return;
     }

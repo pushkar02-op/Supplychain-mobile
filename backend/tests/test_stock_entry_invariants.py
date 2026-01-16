@@ -14,6 +14,7 @@ from app.services.stock_entry import create_stock_entry, update_stock_entry
 from app.core.exceptions import AppException
 from app.services.inventory_truth import calculate_ledger_balance
 
+
 # Setup In-Memory DB
 @pytest.fixture(scope="function")
 def db_session():
@@ -25,7 +26,7 @@ def db_session():
     # Pre-Seed Data
     uom_kg = UOM(code="kg", description="Kilogram")
     uom_g = UOM(code="g", description="Gram")
-    uom_l = UOM(code="l", description="Liter") # Incompatible unit
+    uom_l = UOM(code="l", description="Liter")  # Incompatible unit
     session.add_all([uom_kg, uom_g, uom_l])
     session.flush()
 
@@ -47,13 +48,14 @@ def db_session():
     yield session
     session.close()
 
+
 def test_stock_entry_is_immutable(db_session):
     """
     Invariant: Updating a stock entry via update_stock_entry is FORBIDDEN.
     Should raise HTTP 409.
     """
     item = db_session.query(Item).first()
-    
+
     # 1. Create Initial Entry
     entry_data = StockEntryCreate(
         item_id=item.id,
@@ -62,47 +64,44 @@ def test_stock_entry_is_immutable(db_session):
         received_date=date.today(),
         price_per_unit=100.0,
         total_cost=1000.0,
-        source="Vendor A"
+        source="Vendor A",
     )
     stock_entry = create_stock_entry(db_session, entry_data, created_by=1)
-    
+
     # 2. Attempt Update
     update_data = StockEntryUpdate(quantity=20)
-    
+
     with pytest.raises(AppException) as excinfo:
-        update_stock_entry(
-            db_session, 
-            stock_entry.id, 
-            update_data, 
-            updated_by=1
-        )
-    
+        update_stock_entry(db_session, stock_entry.id, update_data, updated_by=1)
+
     assert excinfo.value.status_code == 409
     assert "immutable" in str(excinfo.value.detail).lower()
+
 
 def test_create_stock_entry_enforces_unit_compatibility(db_session):
     """
     Invariant: Creating stock entry with incompatible unit (not convertible to default)
     must fail validation.
     """
-    item = db_session.query(Item).first() # Default UOM is kg
-    
+    item = db_session.query(Item).first()  # Default UOM is kg
+
     # Try creating with 'Liter' which has no conversion map to 'kg'
     entry_data = StockEntryCreate(
         item_id=item.id,
         quantity=10,
-        unit="l", # Incompatible
+        unit="l",  # Incompatible
         received_date=date.today(),
         price_per_unit=100.0,
         total_cost=1000.0,
     )
-    
+
     with pytest.raises(AppException) as excinfo:
         create_stock_entry(db_session, entry_data, created_by=1)
-        
+
     # Should probably be 400 Bad Request or UOMConfigurationError (which is an AppException)
     # The key is it should fail, not silently accept raw unit.
-    assert excinfo.value.status_code in [400, 422] 
+    assert excinfo.value.status_code in [400, 422]
+
 
 def test_stock_adjustment_creates_txn_and_updates_batch(db_session):
     """
@@ -117,7 +116,7 @@ def test_stock_adjustment_creates_txn_and_updates_batch(db_session):
         pytest.fail("create_stock_adjustment not implemented yet")
 
     item = db_session.query(Item).first()
-    
+
     # 1. Create Initial Entry (10kg)
     entry_data = StockEntryCreate(
         item_id=item.id,
@@ -129,7 +128,7 @@ def test_stock_adjustment_creates_txn_and_updates_batch(db_session):
     )
     stock_entry = create_stock_entry(db_session, entry_data, created_by=1)
     batch_id = stock_entry.batch_id
-    
+
     # 2. Adjust: Add 5kg correction
     # Implies we found 5kg more
     new_balance = create_stock_adjustment(
@@ -138,13 +137,13 @@ def test_stock_adjustment_creates_txn_and_updates_batch(db_session):
         quantity_delta=Decimal("5.0"),
         unit="kg",
         reason="Found extra stock",
-        user_id=1
+        user_id=1,
     )
-    
+
     # 3. Assertions
     batch = db_session.query(Batch).get(batch_id)
-    assert batch.quantity == Decimal("15.000") # 10 + 5
-    
+    assert batch.quantity == Decimal("15.000")  # 10 + 5
+
     # Verify Ledger
     balance = calculate_ledger_balance(db_session, batch_id)
     assert balance == Decimal("15.000")

@@ -17,6 +17,7 @@ from app.api.mart_bill_item import router as mart_bill_item_router
 from app.api.order import router as order_router
 from app.api.rejection_entry import router as rejection_router
 from app.api.reports import router as reports_router
+from app.api.stock_adjustment import router as stock_adjustment_router
 from app.api.stock_entry import router as stock_entry_router
 from app.api.uom import router as uom_router
 from app.api.user import router as user_router
@@ -25,6 +26,7 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/v1")
 
 router.include_router(stock_entry_router)
+router.include_router(stock_adjustment_router)
 router.include_router(item_router)
 router.include_router(batch_router)
 router.include_router(auth_router)

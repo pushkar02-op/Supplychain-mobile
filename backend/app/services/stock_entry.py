@@ -87,7 +87,7 @@ def create_stock_entry(
 
         # Convert quantity if needed
         qty_to_store = Decimal(str(entry.quantity))
-        
+
         # Strict Unit Validation
         if target_unit != entry.unit:
             try:
@@ -102,7 +102,7 @@ def create_stock_entry(
                 logger.error(f"Invalid unit for stock entry: {e}")
                 raise AppException(
                     f"Invalid unit '{entry.unit}' for item. Must be convertible to '{target_unit}'",
-                    status_code=400
+                    status_code=400,
                 )
 
         batch = Batch(
@@ -227,7 +227,6 @@ def get_all_stock_entries(
     return q.offset(skip).limit(limit).all()
 
 
-
 def update_stock_entry(
     db: Session,
     stock_entry_id: int,
@@ -240,9 +239,9 @@ def update_stock_entry(
     """
     logger.warning(f"Blocked update attempt on stock_entry_id={stock_entry_id}")
     raise AppException(
-        "Stock entries are immutable. Use adjustment or reversal.",
-        status_code=409
+        "Stock entries are immutable. Use adjustment or reversal.", status_code=409
     )
+
 
 def create_stock_adjustment(
     db: Session,
@@ -251,46 +250,48 @@ def create_stock_adjustment(
     unit: str,
     reason: str,
     user_id: Optional[int] = None,
-) -> "InventoryTxn":
+):
     """
     Create a stock adjustment (correction/drift fix).
     Directly impacts Batch and creates an 'ADJUST' InventoryTxn.
     Does NOT modify the original StockEntry receipt.
     """
-    logger.info(f"Creating stock adjustment batch_id={batch_id} delta={quantity_delta} ({unit})")
-    
+    from datetime import datetime
+
+    from app.db.models.item import Item
+    from app.db.schemas.inventory_txn import InventoryTxnCreate
+    from app.services.inventory_txn import create_inventory_txn
+    from app.services.item_conversion_map import get_conversion_factor
+
+    logger.info(
+        f"Creating stock adjustment batch_id={batch_id} delta={quantity_delta} ({unit})"
+    )
+
     batch = db.query(Batch).filter(Batch.id == batch_id).with_for_update().first()
     if not batch:
         raise AppException("Batch not found", status_code=404)
-        
-    from app.services.inventory_txn import create_inventory_txn
-    from app.services.item_conversion_map import get_conversion_factor
-    from app.db.models.item import Item
-    from app.db.models.inventory_txn import InventoryTxn
-    from app.db.schemas.inventory_txn import InventoryTxnCreate
-    from app.core.exceptions import AppException, UOMConfigurationError
-    from decimal import Decimal
-    from datetime import datetime
-    
+
     item = db.get(Item, batch.item_id)
     if not item or not item.default_uom_code:
         raise UOMConfigurationError("Item or default UOM configuration missing")
-        
+
     target_unit = item.default_uom_code
-    
+
     # Calculate base qty
     try:
         factor = get_conversion_factor(db, item.id, unit, target_unit)
     except AppException:
-        raise AppException(f"Cannot convert adjustment unit {unit} to base {target_unit}")
-        
+        raise AppException(
+            f"Cannot convert adjustment unit {unit} to base {target_unit}"
+        )
+
     base_qty_delta = quantity_delta * factor
-    
+
     # 1. Update Batch (Cleanup Stage)
     batch.quantity += base_qty_delta
     batch.updated_by = user_id
     batch.updated_at = datetime.utcnow()
-    
+
     # 2. Create Audit Txn
     txn = create_inventory_txn(
         db,
@@ -303,13 +304,13 @@ def create_stock_adjustment(
             base_qty=abs(base_qty_delta),
             base_unit=target_unit,
             ref_type="manual_adjustment",
-            ref_id=batch.id, # Link to batch as this is direct adjustment
-            remarks=reason if reason else "Manual stock adjustment"
-        )
+            ref_id=batch.id,  # Link to batch as this is direct adjustment
+            remarks=reason if reason else "Manual stock adjustment",
+        ),
     )
-    
+
     db.flush()
-    db.commit() # Commit immediately as this is an atomic action
+    db.commit()  # Commit immediately as this is an atomic action
     return txn
 
 
