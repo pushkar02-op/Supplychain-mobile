@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
 import '../providers/stock_list_provider.dart';
-import '../services/stock_service.dart';
 import '../widgets/skeleton_loader.dart';
 
 class StockListScreen extends ConsumerWidget {
@@ -64,62 +64,48 @@ class StockListScreen extends ConsumerWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: InkWell(
-                          onTap: () async {
-                            final result = await context.push(
-                              '/stock-entry',
-                              extra: stock,
-                            );
-                            if (result == true) {
-                              ref.invalidate(stockListProvider);
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: ListTile(
-                            title: Text(
-                              '${stock['item']['name']}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
+                        child: ListTile(
+                          title: Text(
+                            '${stock['item']['name']}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text(
+                                'Qty: ${stock['quantity']} ${stock['unit']}',
                               ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Qty: ${stock['quantity']} ${stock['unit']}',
-                                ),
-                                Text(
-                                  'Price: ₹${stock['price_per_unit']}/${stock['unit']}',
-                                ),
-                              ],
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) async {
-                                if (value == 'edit') {
-                                  final result = await context.push(
-                                    '/stock-entry',
-                                    extra: stock,
-                                  );
-                                  if (result == true) {
-                                    ref.invalidate(stockListProvider);
-                                  }
-                                } else if (value == 'delete') {
-                                  _confirmDelete(context, ref, stock['id']);
+                              Text(
+                                'Price: ₹${stock['price_per_unit']}/${stock['unit']}',
+                              ),
+                            ],
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (value == 'correct') {
+                                final result = await context.push(
+                                  '/stock-entry',
+                                  extra: {'mode': 'correct', 'stock': stock},
+                                );
+                                if (result == true) {
+                                  ref.invalidate(stockListProvider);
                                 }
-                              },
-                              itemBuilder:
-                                  (context) => [
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edit'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Delete'),
-                                    ),
-                                  ],
-                            ),
+                              } else if (value == 'void') {
+                                _confirmVoid(context, ref, stock);
+                              }
+                            },
+                            itemBuilder:
+                                (context) => [
+                                  const PopupMenuItem(
+                                    value: 'correct',
+                                    child: Text('Correct / Adjust'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'void',
+                                    child: Text('Void Entry'),
+                                  ),
+                                ],
                           ),
                         ),
                       );
@@ -175,7 +161,7 @@ class StockListScreen extends ConsumerWidget {
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
           icon: const Icon(Icons.add),
-          label: const Text('Add Stock'),
+          label: const Text('Receive Stock'),
           heroTag: 'stock-add-fab',
         ),
       ),
@@ -219,17 +205,37 @@ class StockListScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDelete(
+  Future<void> _confirmVoid(
     BuildContext context,
     WidgetRef ref,
-    int stockId,
+    Map<String, dynamic> stock,
   ) async {
+    final itemName = stock['item']?['name'] ?? 'Unknown';
+    final qty = stock['quantity'];
+    final unit = stock['unit'];
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (_) => AlertDialog(
-            title: const Text('Delete Stock Entry'),
-            content: const Text('Are you sure you want to delete this entry?'),
+            title: const Text('Void Stock Entry'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('You are about to void this receipt:'),
+                const SizedBox(height: 8),
+                Text(
+                  '$itemName — $qty $unit',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'This will reverse the inventory addition. This action cannot be undone.',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+              ],
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -237,14 +243,15 @@ class StockListScreen extends ConsumerWidget {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete'),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Void Entry'),
               ),
             ],
           ),
     );
 
     if (confirmed == true) {
-      await ref.read(stockListProvider.notifier).deleteStock(stockId);
+      await ref.read(stockListProvider.notifier).deleteStock(stock['id']);
     }
   }
 }

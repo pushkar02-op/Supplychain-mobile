@@ -77,16 +77,28 @@ class StockService {
     }
   }
 
-  static Future<dynamic> updateStockEntry(
-    int stockEntryId,
-    Map<String, dynamic> data,
-  ) async {
+  /// Create a stock adjustment (correction)
+  /// - [batchId]: the batch to adjust
+  /// - [quantityDelta]: positive for additions, negative for reductions
+  /// - [unit]: unit of measurement
+  /// - [reason]: required reason for the adjustment
+  static Future<dynamic> createStockAdjustment({
+    required int batchId,
+    required double quantityDelta,
+    required String unit,
+    required String reason,
+  }) async {
     try {
-      final resp = await DioClient.instance.put(
-        '/stock-entry/$stockEntryId',
-        data: data,
+      final resp = await DioClient.instance.post(
+        '/stock-adjustment/',
+        data: {
+          'batch_id': batchId,
+          'quantity_delta': quantityDelta,
+          'unit': unit,
+          'reason': reason,
+        },
       );
-      if (resp.statusCode == 200) return true;
+      if (resp.statusCode == 200 || resp.statusCode == 201) return true;
       return resp.data['detail'] ?? 'Unknown error';
     } on DioError catch (e) {
       return e.response?.data['detail'] ?? 'Error: ${e.message}';
