@@ -74,7 +74,6 @@ def create_stock_entry(
     else:
         from app.db.models.item import Item
         from app.db.models.uom import UOM
-        from app.services.item_conversion_map import get_conversion_factor
 
         # Canonicalization: Find target UOM
         item = db.query(Item).filter(Item.id == entry.item_id).first()
@@ -261,7 +260,6 @@ def create_stock_adjustment(
     from app.db.models.item import Item
     from app.db.schemas.inventory_txn import InventoryTxnCreate
     from app.services.inventory_txn import create_inventory_txn
-    from app.services.item_conversion_map import get_conversion_factor
 
     logger.info(
         f"Creating stock adjustment batch_id={batch_id} delta={quantity_delta} ({unit})"
