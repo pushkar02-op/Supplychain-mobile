@@ -100,16 +100,20 @@ class _CreateOrEditDispatchScreenState
         toCover -= row.qty;
       }
 
-      setState(() {
-        _rows = filtered;
-        _loading = false;
-        _error = null;
-      });
+      if (mounted) {
+        setState(() {
+          _rows = filtered;
+          _loading = false;
+          _error = null;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _error = 'Failed to load batches: $e';
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load batches: $e';
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -135,8 +139,19 @@ class _CreateOrEditDispatchScreenState
         builder:
             (ctx) => AlertDialog(
               title: const Text('Over-dispatch Warning'),
-              content: Text(
-                'You are dispatching more (${_totalNow.toStringAsFixed(2)} $_unit) than remaining (${_remaining.toStringAsFixed(2)} $_unit).\nProceed?',
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'You are dispatching ${_totalNow.toStringAsFixed(2)} $_unit, but the order remaining is ${_remaining.toStringAsFixed(2)} $_unit.',
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'This will exceed the planned order quantity.',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
               actions: [
                 TextButton(
@@ -145,7 +160,10 @@ class _CreateOrEditDispatchScreenState
                 ),
                 ElevatedButton(
                   onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text('Proceed'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                  ),
+                  child: const Text('Proceed Anyway'),
                 ),
               ],
             ),
@@ -174,7 +192,6 @@ class _CreateOrEditDispatchScreenState
               .toList(),
     };
     try {
-      // Dispatch entries are immutable. Only creation is allowed.
       if (widget.data!['id'] != null) {
         throw Exception('Editing dispatch entries is not allowed.');
       }
@@ -185,11 +202,12 @@ class _CreateOrEditDispatchScreenState
       );
       context.pop(true);
     } catch (e) {
-      setState(() {
-        _error = _parseError(e);
-      });
-    } finally {
-      setState(() => _submitting = false);
+      if (mounted) {
+        setState(() {
+          _error = _parseError(e);
+          _submitting = false;
+        });
+      }
     }
   }
 
@@ -208,13 +226,18 @@ class _CreateOrEditDispatchScreenState
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
+        appBar: AppBar(title: const Text('Dispatching...')),
         body: Center(
           child:
               _error != null
                   ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                      Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadBatches,
@@ -227,216 +250,353 @@ class _CreateOrEditDispatchScreenState
       );
     }
 
+    final dateStr = DateFormat(
+      'EEEE, MMM d, yyyy',
+    ).format(DateTime.parse(_dispatchDate));
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.grey[50], // Light bg for better contrast
       appBar: AppBar(
-        title: Text(
-          widget.data!['id'] != null ? 'Edit Dispatch' : 'New Dispatch',
-        ),
+        title: const Text('New Dispatch'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              // read-only item
-              TextFormField(
-                initialValue: widget.data!['item_name'] as String? ?? '',
-                decoration: InputDecoration(
-                  labelText: 'Item',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: Tooltip(
-                    message: 'The item being dispatched.',
-                    child: const Icon(Icons.info_outline),
-                  ),
-                ),
-                enabled: false,
-              ),
-              const SizedBox(height: 12),
-              // read-only mart
-              TextFormField(
-                initialValue: _martName,
-                decoration: InputDecoration(
-                  labelText: 'Mart',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: Tooltip(
-                    message: 'The mart/store for this dispatch.',
-                    child: const Icon(Icons.info_outline),
-                  ),
-                ),
-                enabled: false,
-              ),
-              const SizedBox(height: 12),
-              // read-only date
-              TextFormField(
-                initialValue: _dispatchDate,
-                decoration: InputDecoration(
-                  labelText: 'Date',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: Tooltip(
-                    message: 'The date of dispatch.',
-                    child: const Icon(Icons.info_outline),
-                  ),
-                ),
-                enabled: false,
-              ),
-              const SizedBox(height: 12),
-
-              // summary
-              Row(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 1. Context Locking (Top Anchor)
+            Container(
+              width: double.infinity,
+              color: Colors.white,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Remaining to dispatch: ${_remaining.toStringAsFixed(2)} $_unit',
-                  ),
-                  const SizedBox(width: 4),
-                  Tooltip(
-                    message:
-                        'Order quantity minus already dispatched. You should not dispatch more than this unless intentionally over-dispatching.',
-                    child: const Icon(Icons.info_outline, size: 18),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Text(
-                    'Dispatching now: ${_totalNow.toStringAsFixed(2)} $_unit',
-                    style: TextStyle(
-                      color: _totalNow > _remaining ? Colors.red : null,
-                    ),
-                  ),
-                  if (_totalNow > _remaining)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 4),
-                      child: Tooltip(
-                        message:
-                            'You are dispatching more than the remaining order quantity.',
-                        child: Icon(Icons.warning, color: Colors.red, size: 18),
-                      ),
-                    ),
-                ],
-              ),
-              const Divider(height: 32),
-
-              // batch rows: whole row tappable
-              ..._rows.map((r) {
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      r.selected = !r.selected;
-                      if (!r.selected) {
-                        r.qty = 0;
-                      } else {
-                        final remaining = _remaining - _totalNowExcluding(r);
-                        r.qty = remaining.clamp(0, r.available);
-                      }
-                    });
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border(
-                        left: BorderSide(
-                          color:
-                              r.selected ? Colors.blue : Colors.grey.shade300,
-                          width: 6,
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(fontSize: 15, color: Colors.black),
+                      children: [
+                        const TextSpan(text: 'Dispatching '),
+                        TextSpan(
+                          text: '${widget.data!['item_name']}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.08),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                        const TextSpan(text: ' to '),
+                        TextSpan(
+                          text: '$_martName',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
-                    child: ListTile(
-                      title: Text(
-                        '${r.receivedAt} — ${r.available.toStringAsFixed(2)} ${r.unit}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      subtitle: Text(
-                        'Available: ${r.available.toStringAsFixed(2)} ${r.unit}',
-                        style: const TextStyle(color: Colors.black54),
-                      ),
-                      trailing: SizedBox(
-                        width: 80,
-                        child: TextFormField(
-                          enabled: r.selected,
-                          initialValue: r.qty.toStringAsFixed(2),
-                          decoration: const InputDecoration(
-                            labelText: 'Qty',
-                            isDense: true,
-                          ),
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          onChanged: (txt) {
-                            final v = double.tryParse(txt) ?? 0;
-                            setState(() {
-                              r.qty = v.clamp(0, r.available);
-                            });
-                          },
-                          validator: (txt) {
-                            if (!r.selected) return null;
-                            final v = double.tryParse(txt ?? '') ?? 0;
-                            if (v <= 0 || v > r.available) {
-                              return '0–${r.available}';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'For $dateStr',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+
+            // 2. Remaining Quantity (Primary Signal)
+            Container(
+              width: double.infinity,
+              color: Colors.blue[50],
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              child: Column(
+                children: [
+                  const Text(
+                    'Remaining to Dispatch',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.blueGrey,
+                      letterSpacing: 0.5,
+                      uppercase: true,
                     ),
                   ),
-                );
-              }),
-
-              const SizedBox(height: 24),
-              // remarks
-              TextFormField(
-                controller: _remarksCtl,
-                decoration: const InputDecoration(
-                  labelText: 'Remarks (optional)',
-                  border: OutlineInputBorder(),
-                  counterText: '',
-                ),
-                maxLines: 2,
-                maxLength: 200,
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  '${_remarksCtl.text.length}/200',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // save
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _canSave ? _save : null,
-                  child:
-                      _submitting
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Save Dispatch'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_remaining.toStringAsFixed(2)} $_unit',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[900],
+                    ),
                   ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+
+            // Scrollable Body
+            Expanded(
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // 3. Batch Selection
+                    const Text(
+                      'Select batches to dispatch from',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    if (_rows.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(
+                          child: Text(
+                            'No batches available for this item.',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    else
+                      ..._rows.map((r) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color:
+                                  r.selected
+                                      ? Colors.blue.shade200
+                                      : Colors.grey.shade200,
+                            ),
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                r.selected = !r.selected;
+                                if (!r.selected) {
+                                  r.qty = 0;
+                                } else {
+                                  final remaining =
+                                      _remaining - _totalNowExcluding(r);
+                                  r.qty = remaining.clamp(0, r.available);
+                                }
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
+                                  Checkbox(
+                                    value: r.selected,
+                                    onChanged: (v) {
+                                      setState(() {
+                                        r.selected = v == true;
+                                        if (!r.selected) {
+                                          r.qty = 0;
+                                        } else {
+                                          final remaining =
+                                              _remaining -
+                                              _totalNowExcluding(r);
+                                          r.qty = remaining.clamp(
+                                            0,
+                                            r.available,
+                                          );
+                                        }
+                                      });
+                                    },
+                                    activeColor: Colors.blue[800],
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Received ${r.receivedAt}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Available: ${r.available.toStringAsFixed(2)} ${r.unit}',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 90,
+                                    child: TextFormField(
+                                      enabled: r.selected,
+                                      initialValue: r.qty.toStringAsFixed(2),
+                                      key: ValueKey(
+                                        '${r.batchId}-${r.qty}',
+                                      ), // rebuild on value change logic
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      decoration: InputDecoration(
+                                        labelText: 'Qty',
+                                        isDense: true,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 10,
+                                            ),
+                                        border: const OutlineInputBorder(),
+                                        filled: true,
+                                        fillColor:
+                                            r.selected
+                                                ? Colors.white
+                                                : Colors.grey[100],
+                                      ),
+                                      textAlign: TextAlign.right,
+                                      onChanged: (val) {
+                                        final v = double.tryParse(val) ?? 0;
+                                        setState(() {
+                                          // clamp immediately for safety or validate on saved?
+                                          // UX says "clamped" -> we clamp the internal state but maybe logic needed here
+                                          // Let's just update state, clamp on submit or visual feedback
+                                          r.qty = v.clamp(0, r.available);
+                                        });
+                                      },
+                                      validator: (val) {
+                                        if (!r.selected) return null;
+                                        final v =
+                                            double.tryParse(val ?? '') ?? 0;
+                                        if (v <= 0 || v > r.available) {
+                                          return 'Inv';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _remarksCtl,
+                      decoration: const InputDecoration(
+                        labelText: 'Remarks (optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+
+            // 4. Dispatching Now (Live Summary) + Action
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    offset: const Offset(0, -4),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Dispatching Now',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color:
+                              _totalNow > _remaining
+                                  ? Colors.red[700]
+                                  : Colors.black54,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '${_totalNow.toStringAsFixed(2)} $_unit',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color:
+                              _totalNow > _remaining
+                                  ? Colors.red[700]
+                                  : Colors.blue[900],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_totalNow > _remaining)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber, color: Colors.red[700]),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Exceeds remaining quantity by ${(_totalNow - _remaining).toStringAsFixed(2)}',
+                              style: TextStyle(
+                                color: Colors.red[700],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _canSave ? _save : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            _totalNow > _remaining
+                                ? Colors.orange[800]
+                                : Colors.green[700],
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                      ),
+                      child:
+                          _submitting
+                              ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                              : Text(
+                                _totalNow > _remaining
+                                    ? 'Confirm Over-dispatch'
+                                    : 'Save Dispatch',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
