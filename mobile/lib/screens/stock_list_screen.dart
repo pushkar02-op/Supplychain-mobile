@@ -57,6 +57,12 @@ class StockListScreen extends ConsumerWidget {
                     itemCount: stocks.length,
                     itemBuilder: (context, index) {
                       final stock = stocks[index];
+                      final receivedQty = stock['quantity'];
+                      final currentQty = stock['batch_quantity'] ?? receivedQty;
+                      final unit = stock['unit'];
+                      final isAdjusted =
+                          (currentQty - receivedQty).abs() > 0.001;
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         elevation: 2,
@@ -65,19 +71,73 @@ class StockListScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: ListTile(
-                          title: Text(
-                            '${stock['item']['name']}',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${stock['item']['name']}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (isAdjusted)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Adjusted',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.orange.shade800,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(height: 4),
-                              Text(
-                                'Qty: ${stock['quantity']} ${stock['unit']}',
+                              Row(
+                                children: [
+                                  Text(
+                                    'Received: $receivedQty $unit',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Current: $currentQty $unit',
+                                    style: TextStyle(
+                                      color:
+                                          isAdjusted
+                                              ? Colors.orange.shade700
+                                              : Colors.grey[600],
+                                      fontSize: 12,
+                                      fontWeight:
+                                          isAdjusted
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
+                                    ),
+                                  ),
+                                ],
                               ),
                               Text(
-                                'Price: ₹${stock['price_per_unit']}/${stock['unit']}',
+                                '₹${stock['price_per_unit']}/$unit',
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 11,
+                                ),
                               ),
                             ],
                           ),

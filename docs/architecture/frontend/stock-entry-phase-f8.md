@@ -56,3 +56,12 @@
 | Void Receipt | `/stock-entry/{id}` | DELETE |
 | Create Adjustment | `/stock-adjustment/` | POST |
 | ~~Edit Receipt~~ | ~~`/stock-entry/{id}`~~ | ~~PUT~~ (Returns 409) |
+
+## Stock List Display
+
+Each stock entry now shows:
+- **Received**: Original receipt quantity (immutable)
+- **Current**: Batch balance (reflects adjustments)
+- **"Adjusted" Badge**: Shown only when Current ≠ Received
+
+This provides operational clarity while preserving audit integrity.
