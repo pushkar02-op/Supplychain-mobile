@@ -285,6 +285,13 @@ def create_stock_adjustment(
 
     base_qty_delta = quantity_delta * factor
 
+    # 0. Safety Check: Prevent negative stock
+    if (batch.quantity + base_qty_delta) < 0:
+        raise AppException(
+            f"Adjustment blocked: Resulting quantity cannot be negative (Current: {batch.quantity}, Adjustment: {base_qty_delta})",
+            status_code=400,
+        )
+
     # 1. Update Batch (Cleanup Stage)
     batch.quantity += base_qty_delta
     batch.updated_by = user_id
