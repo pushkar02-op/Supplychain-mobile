@@ -39,6 +39,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   // Correct mode fields
   String _adjustmentQty = '';
   String _adjustmentReason = '';
+  String? _selectedReason;
 
   // State
   bool _isLoading = false;
@@ -162,8 +163,8 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   void _submitCorrection() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_adjustmentReason.trim().isEmpty) {
-      setState(() => _error = 'Please provide a reason for this correction');
+    if (_selectedReason == null) {
+      setState(() => _error = 'Please select a reason for this correction');
       return;
     }
 
@@ -194,11 +195,24 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
       return;
     }
 
+    // Compose reason from dropdown + optional notes
+    final reasonLabels = {
+      'counting_error': 'Counting error',
+      'damaged_stock': 'Damaged stock',
+      'found_extra': 'Found extra stock',
+      'supplier_correction': 'Supplier correction',
+      'other': 'Other',
+    };
+    String finalReason = reasonLabels[_selectedReason] ?? _selectedReason ?? '';
+    if (_selectedReason == 'other' && _adjustmentReason.trim().isNotEmpty) {
+      finalReason = 'Other: ${_adjustmentReason.trim()}';
+    }
+
     final result = await StockService.createStockAdjustment(
       batchId: batchId,
       quantityDelta: adjustQty,
       unit: unit,
-      reason: _adjustmentReason.trim(),
+      reason: finalReason,
     );
 
     if (!mounted) return;
@@ -206,7 +220,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     if (result == true) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Adjustment recorded')));
+      ).showSnackBar(const SnackBar(content: Text('Stock corrected')));
       context.pop(true);
     } else {
       setState(() {
@@ -333,10 +347,16 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     }
 
     final itemName = stock['item']?['name'] ?? 'Unknown Item';
-    final originalQty = stock['quantity']?.toString() ?? '?';
+    final receivedQty = (stock['quantity'] as num?)?.toDouble() ?? 0;
+    final currentQty =
+        (stock['batch_quantity'] as num?)?.toDouble() ?? receivedQty;
     final unit = stock['unit'] ?? '';
-    final pricePerUnit = stock['price_per_unit']?.toString() ?? '?';
     final receivedDate = stock['received_date'] ?? '';
+
+    // Calculate preview
+    final adjustQty = double.tryParse(_adjustmentQty) ?? 0;
+    final finalQty = currentQty + adjustQty;
+    final adjustSign = adjustQty >= 0 ? '+' : '';
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -352,15 +372,27 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.blue.shade100),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'You are correcting a previous stock receipt.\nThe original receipt will not be changed.',
-                      style: TextStyle(color: Colors.blue[800], fontSize: 13),
-                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.edit_note, color: Colors.blue[700], size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Correct stock',
+                        style: TextStyle(
+                          color: Colors.blue[800],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Record a correction without rewriting history.\nAll corrections are recorded for audit.',
+                    style: TextStyle(color: Colors.blue[700], fontSize: 12),
                   ),
                 ],
               ),
@@ -375,7 +407,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Original Receipt',
+                      'Original receipt',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: Colors.grey[700],
@@ -384,9 +416,15 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                     ),
                     const Divider(),
                     _buildSummaryRow('Item', itemName),
-                    _buildSummaryRow('Received', receivedDate),
-                    _buildSummaryRow('Quantity', '$originalQty $unit'),
-                    _buildSummaryRow('Price', '₹$pricePerUnit / $unit'),
+                    _buildSummaryRow('Receipt date', receivedDate),
+                    _buildSummaryRow(
+                      'Received qty',
+                      '${receivedQty.toStringAsFixed(1)} $unit',
+                    ),
+                    _buildSummaryRow(
+                      'Current qty',
+                      '${currentQty.toStringAsFixed(1)} $unit',
+                    ),
                   ],
                 ),
               ),
@@ -395,7 +433,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
 
             // Correction Inputs
             Text(
-              'Correction',
+              'Correction details',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: Colors.grey[800],
@@ -406,16 +444,15 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
 
             TextFormField(
               decoration: InputDecoration(
-                label: _requiredLabel('Adjustment Quantity'),
-                helperText:
-                    'Use + for additions, - for reductions (e.g., +5 or -2)',
-                prefixText: unit.isNotEmpty ? '$unit ' : null,
+                label: _requiredLabel('Adjustment quantity'),
+                helperText: 'Use + to add, − to reduce (e.g., +5 or -2)',
+                suffixText: unit,
               ),
               keyboardType: const TextInputType.numberWithOptions(
                 signed: true,
                 decimal: true,
               ),
-              onChanged: (v) => _adjustmentQty = v.trim(),
+              onChanged: (v) => setState(() => _adjustmentQty = v.trim()),
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Enter adjustment quantity';
                 final parsed = double.tryParse(v);
@@ -426,19 +463,126 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
             ),
             const SizedBox(height: 16),
 
-            TextFormField(
-              decoration: InputDecoration(
-                label: _requiredLabel('Reason'),
-                helperText: 'Why is this correction needed?',
-              ),
-              maxLines: 2,
-              onChanged: (v) => _adjustmentReason = v,
-              validator:
-                  (v) =>
-                      v == null || v.trim().isEmpty
-                          ? 'Reason is required'
-                          : null,
+            // Reason Dropdown
+            DropdownButtonFormField<String>(
+              decoration: InputDecoration(label: _requiredLabel('Reason')),
+              value: _selectedReason,
+              items: const [
+                DropdownMenuItem(
+                  value: 'counting_error',
+                  child: Text('Counting error'),
+                ),
+                DropdownMenuItem(
+                  value: 'damaged_stock',
+                  child: Text('Damaged stock'),
+                ),
+                DropdownMenuItem(
+                  value: 'found_extra',
+                  child: Text('Found extra stock'),
+                ),
+                DropdownMenuItem(
+                  value: 'supplier_correction',
+                  child: Text('Supplier correction'),
+                ),
+                DropdownMenuItem(value: 'other', child: Text('Other')),
+              ],
+              onChanged: (v) => setState(() => _selectedReason = v),
+              validator: (v) => v == null ? 'Select a reason' : null,
             ),
+
+            // Notes field (shown for "Other" reason)
+            if (_selectedReason == 'other') ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                decoration: InputDecoration(
+                  label: _requiredLabel('Details'),
+                  helperText: 'Explain why this correction is needed',
+                ),
+                maxLines: 2,
+                onChanged: (v) => _adjustmentReason = v,
+                validator:
+                    (v) =>
+                        _selectedReason == 'other' &&
+                                (v == null || v.trim().isEmpty)
+                            ? 'Details required for "Other"'
+                            : null,
+              ),
+            ],
+            const SizedBox(height: 20),
+
+            // Preview Section
+            if (_adjustmentQty.isNotEmpty && adjustQty != 0)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: adjustQty > 0 ? Colors.green[50] : Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color:
+                        adjustQty > 0
+                            ? Colors.green.shade200
+                            : Colors.orange.shade200,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.preview,
+                          size: 18,
+                          color:
+                              adjustQty > 0
+                                  ? Colors.green[700]
+                                  : Colors.orange[700],
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Preview',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color:
+                                adjustQty > 0
+                                    ? Colors.green[700]
+                                    : Colors.orange[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                        children: [
+                          const TextSpan(
+                            text: 'This will adjust inventory by ',
+                          ),
+                          TextSpan(
+                            text:
+                                '$adjustSign${adjustQty.toStringAsFixed(1)} $unit',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  adjustQty > 0
+                                      ? Colors.green[700]
+                                      : Colors.orange[700],
+                            ),
+                          ),
+                          const TextSpan(text: '.\n'),
+                          const TextSpan(text: 'Final stock will become '),
+                          TextSpan(
+                            text: '${finalQty.toStringAsFixed(1)} $unit',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const TextSpan(text: '.'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 8),
 
             if (_error.isNotEmpty)
@@ -447,7 +591,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                 child: Text(_error, style: const TextStyle(color: Colors.red)),
               ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _isLoading ? null : _submitCorrection,
               child:
@@ -457,7 +601,13 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                      : const Text('Record Adjustment'),
+                      : const Text('Record correction'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This does not change the original receipt.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[500], fontSize: 11),
             ),
           ],
         ),

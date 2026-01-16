@@ -159,11 +159,11 @@ class StockListScreen extends ConsumerWidget {
                                 (context) => [
                                   const PopupMenuItem(
                                     value: 'correct',
-                                    child: Text('Correct / Adjust'),
+                                    child: Text('Correct stock'),
                                   ),
                                   const PopupMenuItem(
                                     value: 'void',
-                                    child: Text('Void Entry'),
+                                    child: Text('Void receipt'),
                                   ),
                                 ],
                           ),
