@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../services/order_service.dart';
-import '../widgets/form/custom_date_picker.dart';
 
 class OrderEntryScreen extends StatefulWidget {
   const OrderEntryScreen({super.key});
@@ -37,6 +36,8 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
   String? _submitError;
   bool _isDuplicate = false;
 
+  bool get _isEdit => _editingOrder != null;
+
   @override
   void initState() {
     super.initState();
@@ -60,7 +61,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     _quantity = _editingOrder!['quantity_ordered'].toString();
     _unit = _editingOrder!['unit'] as String;
     _selectedMartId = _editingOrder!['mart_id'];
-    _selectedMart = _editingOrder!['mart_name']; // Fix: Initialize mart name
+    _selectedMart = _editingOrder!['mart_name'];
 
     _selectedItem = {
       'id': _editingOrder!['item_id'],
@@ -68,12 +69,10 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       'uom': _unit,
     };
 
-    // ⚠️ Make sure the existing unit is in our options so the dropdown can display it
     if (!_unitOptions.contains(_unit)) {
       _unitOptions = List.from(_unitOptions)..add(_unit);
     }
 
-    // Load items for the pre-selected mart so search works immediately
     if (_selectedMart != null) {
       _loadItemsForMart(_selectedMart!, keepSelection: true);
     }
@@ -90,7 +89,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
         _unitOptions = [];
         _unit = '';
       }
-      _error = ''; // Clear component-level error
+      _error = '';
     });
     try {
       final items = await OrderService.fetchDistinctItemsForMart(martName);
@@ -99,7 +98,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
         _items = items;
       });
     } catch (e, st) {
-      print('Error loading items: $e\n$st');
+      debugPrint('Error loading items: $e\n$st');
       if (mounted) setState(() => _error = e.toString());
     }
   }
@@ -151,11 +150,10 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     };
 
     try {
-      dynamic result;
-      if (_editingOrder != null) {
-        result = await OrderService.updateOrder(_editingOrder!['id'], payload);
+      if (_isEdit) {
+        await OrderService.updateOrder(_editingOrder!['id'], payload);
       } else {
-        result = await OrderService.createOrder(
+        await OrderService.createOrder(
           itemId: payload['item_id'],
           martName: payload['mart_name'],
           orderDate: payload['order_date'],
@@ -170,15 +168,14 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              _editingOrder != null ? 'Order updated' : 'Order added',
-            ),
+            content: Text(_isEdit ? 'Order adjusted' : 'Order created'),
+            behavior: SnackBarBehavior.floating,
           ),
         );
         context.pop(true);
       }
     } on DioException catch (dioErr) {
-      print('Order create error: ${dioErr.response?.data}');
+      debugPrint('Order create error: ${dioErr.response?.data}');
       setState(() => _isLoading = false);
 
       final data = dioErr.response?.data['detail'];
@@ -209,117 +206,204 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
     }
   }
 
-  Widget _requiredLabel(String text) {
-    return RichText(
-      text: TextSpan(
-        text: text,
-        style: const TextStyle(color: Colors.black),
-        children: const [
-          TextSpan(text: ' *', style: TextStyle(color: Colors.red)),
-        ],
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, top: 8),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey[600],
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isToday = DateUtils.isSameDay(_orderDate, DateTime.now());
+    final dateStr = DateFormat('EEEE, MMM d').format(_orderDate);
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: Text(
-          _editingOrder != null ? 'EDIT ORDER ENTRY' : 'ADD ORDER ENTRY',
+          _isEdit ? 'Adjust Order' : 'Create Order',
+          style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
-        elevation: 1,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey[200], height: 1),
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child:
-            _error.isNotEmpty
-                ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 48,
-                        color: Colors.red[300],
+      body:
+          _error.isNotEmpty
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Could not load data: $_error',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _loadMarts,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+              : (_marts.isEmpty)
+              ? const Center(child: CircularProgressIndicator())
+              : Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    // --- Schedule Section ---
+                    _sectionHeader('Schedule'),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Could not load data: $_error',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: _loadMarts,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-                : (_marts.isEmpty)
-                ? const Center(child: CircularProgressIndicator())
-                : Form(
-                  key: _formKey,
-                  child: ListView(
-                    children: [
-                      // Date
-                      CustomDatePicker(
-                        selectedDate: _orderDate,
-                        onTap: _pickDate,
-                        enabled: _editingOrder == null,
-                        label: _requiredLabel('Date'),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Mart
-                      DropdownButtonFormField<int>(
-                        value: _selectedMartId,
-                        decoration: InputDecoration(
-                          label: _requiredLabel('Mart'),
-                        ),
-                        items:
-                            _marts
-                                .map<DropdownMenuItem<int>>(
-                                  (m) => DropdownMenuItem<int>(
-                                    // Explicit type here
-                                    value: m['id'], // mart ID as integer
-                                    child: Text(m['name']),
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: 20,
+                                color: Colors.green[700],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _isEdit
+                                      ? 'Scheduled for $dateStr'
+                                      : isToday
+                                      ? 'Scheduled for Today — $dateStr'
+                                      : 'Scheduled for $dateStr',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
                                   ),
-                                )
-                                .toList(),
-                        onChanged: (val) {
-                          print('Selected mart ID: $val');
-                          if (val != null) {
-                            final martName =
-                                _marts.firstWhere(
-                                  (m) => m['id'] == val,
-                                )['name'];
-                            setState(() {
-                              _selectedMartId = val;
-                              _selectedMart = martName;
-                            });
-                            _loadItemsForMart(martName);
-                          } else {
-                            setState(() => _selectedMartId = val);
-                          }
-                        },
-                        validator:
-                            (val) =>
-                                val == null ? 'Please select a mart' : null,
+                                ),
+                              ),
+                              if (!_isEdit)
+                                TextButton(
+                                  onPressed: _pickDate,
+                                  child: const Text('Change'),
+                                ),
+                            ],
+                          ),
+                          if (_isEdit)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8, left: 32),
+                              child: Text(
+                                '(cannot be changed)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[500],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            )
+                          else
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8, left: 32),
+                              child: Text(
+                                'Orders are scheduled per day.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
+                    ),
+                    const SizedBox(height: 24),
 
-                      // Item
+                    // --- Destination Section ---
+                    _sectionHeader('Destination'),
+                    DropdownButtonFormField<int>(
+                      value: _selectedMartId,
+                      decoration: InputDecoration(
+                        labelText: 'Mart',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      items:
+                          _marts
+                              .map(
+                                (m) => DropdownMenuItem<int>(
+                                  value: m['id'],
+                                  child: Text(m['name']),
+                                ),
+                              )
+                              .toList(),
+                      onChanged:
+                          _isEdit
+                              ? null // Read-only in edit
+                              : (val) {
+                                if (val != null) {
+                                  final martName =
+                                      _marts.firstWhere(
+                                        (m) => m['id'] == val,
+                                      )['name'];
+                                  setState(() {
+                                    _selectedMartId = val;
+                                    _selectedMart = martName;
+                                  });
+                                  _loadItemsForMart(martName);
+                                }
+                              },
+                      validator:
+                          (val) => val == null ? 'Please select a mart' : null,
+                      style: TextStyle(
+                        color: _isEdit ? Colors.grey[700] : Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // --- Item Section ---
+                    _sectionHeader('Item'),
+                    if (_isEdit)
+                      // Read-only Text Field for Item name in edit mode
+                      TextFormField(
+                        initialValue: _selectedItem?['item_name'],
+                        readOnly: true,
+                        decoration: InputDecoration(
+                          labelText: 'Item',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[100],
+                        ),
+                        style: TextStyle(color: Colors.grey[700]),
+                      )
+                    else
                       DropdownSearch<Map<String, dynamic>>(
                         asyncItems: (String filter) async {
-                          await Future.delayed(
-                            const Duration(milliseconds: 300),
-                          );
+                          // Local filtering for simplicity/perf as per prev implementation logic
                           if (_items.isEmpty) return [];
                           if (filter.isEmpty) {
                             return _items.cast<Map<String, dynamic>>();
@@ -338,7 +422,12 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                         itemAsString: (item) => item['item_name'] as String,
                         dropdownDecoratorProps: DropDownDecoratorProps(
                           dropdownSearchDecoration: InputDecoration(
-                            label: _requiredLabel('Select Item'),
+                            labelText: 'Select Item',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
                           ),
                         ),
                         popupProps: PopupProps.dialog(
@@ -362,130 +451,132 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                             (item) =>
                                 item == null ? 'Please select an item' : null,
                       ),
-                      if (_selectedMart != null && _items.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                      const SizedBox(height: 12),
-
-                      // Unit
-                      DropdownButtonFormField<String>(
-                        value: _unit.isNotEmpty ? _unit : null,
-                        decoration: InputDecoration(
-                          label: _requiredLabel('Unit'),
-                        ),
-                        items:
-                            _unitOptions
-                                .map(
-                                  (u) => DropdownMenuItem(
-                                    value: u,
-                                    child: Text(u),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (v) => setState(() => _unit = v!),
-                        validator:
-                            (v) => v == null || v.isEmpty ? 'Enter unit' : null,
+                    if (_selectedMart != null && _items.isEmpty && !_isEdit)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Center(child: CircularProgressIndicator()),
                       ),
-                      const SizedBox(height: 12),
-
-                      // Quantity
-                      TextFormField(
-                        initialValue: _quantity,
-                        decoration: InputDecoration(
-                          label: _requiredLabel('Quantity'),
-                          helperText: 'Enter quantity to order',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _unit.isNotEmpty ? _unit : null,
+                      decoration: InputDecoration(
+                        labelText: 'Unit',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        keyboardType: TextInputType.number,
-                        onSaved: (v) => _quantity = v!.trim(),
-                        validator:
-                            (v) =>
-                                v == null || v.isEmpty
-                                    ? 'Enter quantity'
-                                    : null,
+                        filled: true,
+                        fillColor:
+                            _isEdit ? Colors.grey[100] : Colors.white, // Locked
                       ),
-                      const SizedBox(height: 24),
+                      items:
+                          _unitOptions
+                              .map(
+                                (u) =>
+                                    DropdownMenuItem(value: u, child: Text(u)),
+                              )
+                              .toList(),
+                      onChanged: null, // Always locked per 1:1 rule + Edit rule
+                      validator:
+                          (v) => v == null || v.isEmpty ? 'Enter unit' : null,
+                    ),
+                    const SizedBox(height: 24),
 
-                      if (_submitError != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.shade200),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.error,
-                                    color: Colors.red.shade700,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      _submitError!,
-                                      style: TextStyle(
-                                        color: Colors.red.shade700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                    // --- Quantity Section ---
+                    _sectionHeader('Quantity'),
+                    TextFormField(
+                      initialValue: _quantity,
+                      decoration: InputDecoration(
+                        labelText: 'Quantity',
+                        helperText: 'Enter quantity to order',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      keyboardType: TextInputType.number,
+                      onSaved: (v) => _quantity = v!.trim(),
+                      validator:
+                          (v) =>
+                              v == null || v.isEmpty ? 'Enter quantity' : null,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // --- Error & Submit ---
+                    if (_submitError != null)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _submitError!,
+                              style: TextStyle(
+                                color: Colors.red.shade700,
+                                fontWeight: FontWeight.w500,
                               ),
-                              if (_isDuplicate) ...[
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton(
-                                    onPressed: () => context.push('/orders'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.red.shade700,
-                                      side: BorderSide(
-                                        color: Colors.red.shade300,
-                                      ),
+                            ),
+                            if (_isDuplicate) ...[
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton(
+                                  onPressed: () => context.pop(),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.red.shade700,
+                                    side: BorderSide(
+                                      color: Colors.red.shade300,
                                     ),
-                                    child: const Text('View existing orders'),
                                   ),
+                                  child: const Text('View existing orders'),
                                 ),
-                              ],
+                              ),
                             ],
-                          ),
+                          ],
                         ),
+                      ),
 
-                      ElevatedButton.icon(
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                         onPressed: _isLoading ? null : _submit,
-                        icon: const Icon(Icons.add),
-                        label:
+                        child:
                             _isLoading
                                 ? const CircularProgressIndicator(
                                   color: Colors.white,
                                 )
                                 : Text(
-                                  _editingOrder != null ? 'UPDATE' : 'SAVE',
+                                  _isEdit ? 'Adjust Order' : 'Create Order',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 48), // Bottom padding
+                  ],
                 ),
-      ),
+              ),
     );
   }
 }
