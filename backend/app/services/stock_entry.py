@@ -358,7 +358,10 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
 
     rejection_exists = (
         db.query(RejectionEntry)
-        .filter(RejectionEntry.batch_id == entry.batch_id)
+        .filter(
+            RejectionEntry.batch_id == entry.batch_id,
+            RejectionEntry.is_active,  # Only block if active rejections exist
+        )
         .first()
     )
     if rejection_exists:
@@ -367,7 +370,7 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         )
         raise AppException(
             f"Cannot delete stock entry. Batch {entry.batch_id} already has rejections recorded. "
-            "Deletion would orphan downstream transactions.",
+            "Deletion would orphan downstream transactions. Reverse rejections first.",
             status_code=400,
         )
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Column, Date, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 
 from .base_class import Base
@@ -18,3 +18,4 @@ class RejectionEntry(Base, AuditMixin):
     item = relationship("Item")
     batch = relationship("Batch")
     unit = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)

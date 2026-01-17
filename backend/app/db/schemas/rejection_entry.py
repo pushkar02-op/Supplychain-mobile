@@ -21,6 +21,7 @@ class RejectionEntryCreate(RejectionEntryBase):
 class RejectionEntryRead(RejectionEntryBase):
     id: int
     unit: str
+    is_active: bool
     created_at: datetime = Field(..., description="ISO 8601 format")
     updated_at: datetime = Field(..., description="ISO 8601 format")
     created_by: Optional[str]
@@ -32,3 +33,11 @@ class RejectionEntryRead(RejectionEntryBase):
         json_encoders = {
             datetime: lambda v: v.isoformat(),
         }
+
+
+class RejectionPagination(BaseModel):
+    items: list[RejectionEntryRead]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
