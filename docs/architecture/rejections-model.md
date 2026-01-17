@@ -79,3 +79,13 @@ Once a Rejection is reversed:
 ## 5. Non-Goals
 - **No Hard Deletes**: We never physically delete rows.
 - **No History Rewrite**: Reversal is a forward-moving transaction.
+
+## 6. Performance & Scalability (Phase R4)
+To ensure system stability as data grows, the Rejection Read API is **Paginated**.
+
+### Strategy
+- **Limit/Offset**: The API enforces a default `limit=50` and requires `skip` parameter for paging.
+- **Eager Loading**: `Batch` and `Item` relations are eagerly loaded to prevent N+1 query performance degradation.
+- **Frontend UX**: Uses "Load More" pattern (not infinite scroll) for operational clarity.
+
+See `docs/architecture/rejections-phase-r4.md` for detailed specifications.

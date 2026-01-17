@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
-import '../core/dio_client.dart';
 import 'package:uuid/uuid.dart';
+
+import '../core/dio_client.dart';
 
 class RejectionService {
   static Future<List<Map<String, dynamic>>> fetchItemsWithBatches() async {
@@ -40,9 +41,7 @@ class RejectionService {
       final resp = await DioClient.instance.post(
         '/rejection-entries/',
         data: data,
-        options: Options(
-          headers: {'Idempotency-Key': const Uuid().v4()},
-        ),
+        options: Options(headers: {'Idempotency-Key': const Uuid().v4()}),
       );
       if (resp.statusCode != 200 && resp.statusCode != 201) {
         throw Exception(
@@ -52,18 +51,24 @@ class RejectionService {
     } on DioException catch (e) {
       if (e.response?.statusCode == 409) {
         throw Exception(
-          'This item is not fully configured. Please contact an admin to set its default unit of measure.'
+          'This item is not fully configured. Please contact an admin to set its default unit of measure.',
         );
       }
-      throw Exception(e.response?.data['detail'] ?? e.message ?? 'Failed to create rejection entry');
+      throw Exception(
+        e.response?.data['detail'] ??
+            e.message ??
+            'Failed to create rejection entry',
+      );
     }
   }
 
-  static Future<List<Map<String, dynamic>>> fetchRejections({
+  static Future<Map<String, dynamic>> fetchRejections({
     String? date,
     List<int>? itemIds,
+    int skip = 0,
+    int limit = 50,
   }) async {
-    final params = <String, dynamic>{};
+    final params = <String, dynamic>{'skip': skip, 'limit': limit};
 
     if (date != null) params['rejection_date'] = date;
     if (itemIds != null && itemIds.isNotEmpty) {
@@ -76,6 +81,16 @@ class RejectionService {
       '/rejection-entries/list',
       queryParameters: params,
     );
-    return List<Map<String, dynamic>>.from(resp.data);
+
+    // Return full paginated response directly
+    return resp.data as Map<String, dynamic>;
+  }
+
+  /// Reverse a rejection entry (Voiding it)
+  static Future<void> reverseRejection(int id) async {
+    final resp = await DioClient.instance.delete('/rejection-entries/$id');
+    if (resp.statusCode != 200 && resp.statusCode != 204) {
+      throw Exception(resp.data['detail'] ?? 'Failed to reverse rejection');
+    }
   }
 }

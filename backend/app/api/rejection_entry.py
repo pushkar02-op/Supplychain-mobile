@@ -10,7 +10,11 @@ from typing import Annotated, List, Optional
 from app.core.auth import get_current_user
 from app.core.exceptions import AppException
 from app.db.models.user import User
-from app.db.schemas.rejection_entry import RejectionEntryCreate, RejectionEntryRead
+from app.db.schemas.rejection_entry import (
+    RejectionEntryCreate,
+    RejectionEntryRead,
+    RejectionPagination,
+)
 from app.db.session import get_db
 from app.services.rejection_entry import (
     create_rejection_entry,
@@ -66,26 +70,48 @@ def read_all(db: Session = Depends(get_db)) -> List[RejectionEntryRead]:
     return get_all_rejections(db)
 
 
-@router.get(
-    "/list", response_model=List[RejectionEntryRead], summary="Filter rejections"
-)
+@router.get("/list", response_model=RejectionPagination, summary="Filter rejections")
 def get_filtered_rejections(
     rejection_date: date = Query(..., description="Rejection date"),
     item_ids: Optional[List[int]] = Query(None, description="Filter by item IDs"),
+    skip: int = Query(0, ge=0, description="Pagination offset"),
+    limit: int = Query(50, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
-) -> List[RejectionEntryRead]:
+) -> RejectionPagination:
     """
-    Retrieve rejection entries filtered by date and item IDs.
+    Retrieve rejection entries filtered by date and item IDs with pagination.
 
     Args:
         rejection_date (date): Date to filter rejections.
         item_ids (Optional[List[int]]): List of item IDs to filter.
+        skip (int): Pagination offset.
+        limit (int): Pagination limit.
         db (Session): Database session dependency.
 
     Returns:
-        List[RejectionEntryRead]: List of filtered rejections.
+        RejectionPagination: Paginated list of filtered rejections.
     """
-    logger.info(f"Fetching rejections for date={rejection_date}, item_ids={item_ids}")
-    return get_rejections_by_date_and_items(
-        db=db, rejection_date=rejection_date, item_ids=item_ids
+    logger.info(
+        f"Fetching rejections for date={rejection_date}, item_ids={item_ids}, skip={skip}, limit={limit}"
     )
+    return get_rejections_by_date_and_items(
+        db=db, rejection_date=rejection_date, item_ids=item_ids, skip=skip, limit=limit
+    )
+
+
+@router.delete(
+    "/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Reverse rejection"
+)
+def reverse_rejection(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Reverse a rejection entry. See docs/architecture/rejections-model.md.
+    """
+    from app.services.rejection_entry import reverse_rejection_entry
+
+    logger.info(f"User {current_user.id} reversing rejection {id}")
+    reverse_rejection_entry(db, id, current_user.id)
+    return None
