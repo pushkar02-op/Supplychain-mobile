@@ -1,0 +1,63 @@
+# FACT REPORT: Rejections UX & Semantics (Phase R1)
+
+**Date**: 2026-01-17
+**Scope**: Backend (API, Services, Models) + Frontend (Screens, Services)
+**Status**: READ-ONLY Audit
+
+---
+
+## PART 1 — Business Meaning
+- **Definition**: A Rejection is the act of removing stock from a Batch because it is unfit for sale (Damaged, Expired, Spoilage) or an administrative correction (Inventory Count mismatch).
+- **Distinction**:
+    - vs **Dispatch**: Dispatch moves stock to a Mart (Sale/Transfer). Rejection moves stock to "Waste/Loss".
+    - vs **Adjustment**: In this system, "Rejections" implemented early act as negative adjustments. However, Phase B8 introduced `create_stock_adjustment` which is a more generic tool. Currently, "Rejection" is a specialized "Outflow".
+
+## PART 2 — Backend Semantics
+- **Models**:
+    - `RejectionEntry` (Table: `rejection_entries`): Records the event.
+    - `InventoryTxn` (Table: `inventory_txn`): Immutable ledger entry.
+    - `Batch` (Table: `batch`): Mutable operational state.
+- **Transaction Logic**:
+    - Service: `app/services/rejection_entry.py` -> `create_rejection_entry`
+    - Logic: `Batch.quantity -= qty` (Direct decrement).
+    - Txn Type: `OUT` (Ref Type: `rejection_entry`).
+    - **Effect**: Reduces `Batch.quantity` and `InventoryLedger` balance.
+
+## PART 3 — Mutability Rules (The Trap)
+- **Edit**: **No**. No `UPDATE` endpoint exists.
+- **Delete**: **No**. No `DELETE` endpoint exists in `app/api/rejection_entry.py`.
+- **Reverse**: **No**. Users cannot reverse a rejection.
+- **Guardrails**:
+    - Creation locks the batch row.
+    - Prevents overdraft (Cannot reject more than available batch qty).
+
+## PART 4 — Frontend UX
+- **Screens**: `RejectionListScreen.dart`, `RejectionEntryScreen.dart`.
+- **Capabilities**:
+    - **View**: List of rejections (filtered by Date/Item).
+    - **Create**: "New Reject" form.
+- **Missing Capabilities**:
+    - **Delete**: Users cannot delete a rejection from the UI.
+    - **Edit**: Users cannot edit a rejection.
+- **Visible Impact**: Rejection immediately reduces "Current Quantity" on the Stock List.
+
+## PART 5 — Ledger & Audit Integrity
+- **Orphans**: Rejections are tightly coupled to Batches (`ForeignKey`).
+- **Blocking Void (The Paradox)**:
+    - `delete_stock_entry` (Soft Delete) **BLOCKS** execution if the batch has any `rejection_entry` associated with it.
+    - **The Deadlock**: A user trying to fix a mistake (Void Receipt) receives the error: *"Items from this receipt have already been used..."*. The user is instructed to "reverse the actions first".
+    - **Reality**: The user **CANNOT** reverse the rejection actions because no such feature exists. **The user is trapped.**
+
+## PART 6 — Performance & Data Scope
+- **Pagination**: **MISSING**.
+    - `get_all_rejections` (Backend) performs `.all()` on the table.
+    - `RejectionListScreen` loads all rejections for a date (or all history if date logic flaws).
+- **Scale Risk**: High. As data grows, the Rejection List will become slow and eventually crash (OOM).
+
+## PART 7 — PROVABLE UX RISKS
+1.  **The Void Trap**: Users often reject items (e.g., "Found 2 broken") then realize the whole shipment was wrong. They try to Void the Receipt but are blocked. They cannot delete the rejection to unblock themselves.
+2.  **Unbounded Reads**: The Rejection List will degrade performance over time.
+3.  **Fragmented Logic**: We now have `RejectionEntry` AND `StockAdjustment` (Phase B8). Both adjust inventory down. This duality confuses users (When to use which?).
+
+---
+**Conclusion**: The Rejections module is an "MVP Artifact" that lacks the maturity of the recently refactored Stock/Dispatch modules. It requires a Refinement Phase (R2) to implement Soft Deletion (to fix the Void Trap) and Alignment (to merge/clarify vs Adjustments).
