@@ -14,6 +14,8 @@ The Orders screen displays orders scheduled for a **single operational date**. I
 - Incomplete orders remain on their original date
 - Date change requires explicit user action (calendar icon tap)
 
+> “Order creation and adjustment semantics are defined in `orders-entry-model.md`.”
+
 ## Order Card Content
 
 Each order card displays:
