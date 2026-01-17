@@ -333,7 +333,48 @@ class StockListScreen extends ConsumerWidget {
     );
 
     if (confirmed == true) {
-      await ref.read(stockListProvider.notifier).deleteStock(stock['id']);
+      try {
+        await ref.read(stockListProvider.notifier).deleteStock(stock['id']);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Stock entry voided successfully')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          // Extract message if it's a known format, otherwise show generic
+          String message = e.toString().replaceAll('Exception: ', '');
+          if (message.contains('Deletion would orphan')) {
+            await showDialog(
+              context: context,
+              builder:
+                  (ctx) => AlertDialog(
+                    title: const Text('Cannot void this receipt'),
+                    content: const Text(
+                      'Items from this receipt have already been used (for rejection, dispatch, or correction).\n\n'
+                      'To protect inventory accuracy, those actions must be reversed first before this receipt can be voided.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                        },
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      }
     }
   }
 }

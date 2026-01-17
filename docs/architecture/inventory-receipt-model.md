@@ -156,3 +156,12 @@ The Stock List (`StockListScreen`) must display:
     - `InventoryTxn(type=OUT)` created effectively reversing the input.
     - `Batch` quantity becomes 0.
     - Entry disappears from default list (or moves to specific "Voided" filter).
+
+### Scenario D: Blocking a Void (Inventory Integrity)
+- **Condition**: User tries to void a receipt, but items from that batch have already been:
+    1.  **Dispatched** to a Mart.
+    2.  **Rejected** (Damaged/Expired).
+    3.  **Adjusted** (Cycle Count).
+- **Result**: System **BLOCKS** the void action.
+- **Reason**: You cannot retroactively "un-receive" goods that have already been used. Voiding would orphan the downstream transactions (Dispatches would point to ghost inventory).
+- **Remedy**: The user must first reverse the downstream actions (e.g., Return the dispatch, delete the rejection) before the system allows the receipt to be voided.
