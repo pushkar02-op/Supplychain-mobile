@@ -75,7 +75,7 @@ def test_stock_entry_is_immutable(db_session):
         update_stock_entry(db_session, stock_entry.id, update_data, updated_by=1)
 
     assert excinfo.value.status_code == 409
-    assert "immutable" in str(excinfo.value.detail).lower()
+    assert "immutable" in str(excinfo.value.message).lower()
 
 
 def test_create_stock_entry_enforces_unit_compatibility(db_session):
