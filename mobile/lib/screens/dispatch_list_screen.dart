@@ -72,10 +72,23 @@ class _DispatchListScreenState extends ConsumerState<DispatchListScreen> {
     }
   }
 
-  Future<void> _handleReversal(int id, double currentQty) async {
+  Future<void> _handleReversal({
+    required int id,
+    required double currentQty,
+    required String itemName,
+    required String martName,
+    required String dispatchDate,
+  }) async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => ReversalDialog(dispatchId: id, maxQuantity: currentQty),
+      builder:
+          (_) => ReversalDialog(
+            dispatchId: id,
+            maxQuantity: currentQty,
+            itemName: itemName,
+            martName: martName,
+            dispatchDate: dispatchDate,
+          ),
     );
 
     if (result != null) {
@@ -456,8 +469,15 @@ class _DispatchListScreenState extends ConsumerState<DispatchListScreen> {
                                       onSelected: (v) {
                                         if (v == 'reverse') {
                                           _handleReversal(
-                                            d['id'],
-                                            (netQty as num).toDouble(),
+                                            id: d['id'],
+                                            currentQty:
+                                                (netQty as num).toDouble(),
+                                            itemName:
+                                                batch['item_name'] ??
+                                                'Unknown Item',
+                                            martName: d['mart_name'] ?? '',
+                                            dispatchDate:
+                                                d['dispatch_date'] ?? '',
                                           );
                                         }
                                       },
