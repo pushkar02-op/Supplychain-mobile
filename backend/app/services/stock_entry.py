@@ -304,9 +304,9 @@ def create_stock_adjustment(
             item_id=item.id,
             batch_id=batch.id,
             txn_type="ADJUST",
-            raw_qty=abs(quantity_delta),
+            raw_qty=quantity_delta,
             raw_unit=unit,
-            base_qty=abs(base_qty_delta),
+            base_qty=base_qty_delta,
             base_unit=target_unit,
             ref_type="manual_adjustment",
             ref_id=batch.id,  # Link to batch as this is direct adjustment
