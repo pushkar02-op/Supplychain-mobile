@@ -220,7 +220,7 @@ def get_all_stock_entries(
         List[StockEntry]: List of entries.
     """
     logger.debug(f"Fetching stock entries date={date}, skip={skip}, limit={limit}")
-    q = db.query(StockEntry)
+    q = db.query(StockEntry).filter(StockEntry.is_active)
     if date:
         q = q.filter(StockEntry.received_date == date)
     return q.offset(skip).limit(limit).all()
@@ -376,10 +376,12 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         batch.quantity -= Decimal(str(entry.quantity))
         batch.updated_at = datetime.utcnow()
         batch.updated_by = entry.updated_by
-        batch.updated_by = entry.updated_by
-    db.delete(entry)
+
+    # Soft Delete: Mark as inactive instead of deleting
+    entry.is_active = False
     db.flush()
-    logger.debug(f"Stock entry id={stock_entry_id} deleted")
+
+    logger.debug(f"Stock entry id={stock_entry_id} soft-deleted (voided)")
 
     from app.db.models.item import Item
 

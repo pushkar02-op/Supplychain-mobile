@@ -56,10 +56,28 @@ def get_stock_history(db: Session, stock_entry_id: int) -> StockHistoryResponse:
             )
         )
 
-    # 3. Check for Void (Reversal) - Heuristic for active entries
-    # If the entry exists, it's not voided in the hard-delete sense.
-    # But checking for any associated OUT txns (e.g. partial reversals?)
+    # 3. Check for Void (Soft Delete)
+    is_voided = not entry.is_active
+    voided_at = None
+
+    if is_voided:
+        # Find the voiding transaction (OUT type linked to this stock entry)
+        void_txn = (
+            db.query(InventoryTxn)
+            .filter(
+                InventoryTxn.txn_type == "OUT",
+                InventoryTxn.ref_type == "stock_entry",
+                InventoryTxn.ref_id == entry.id,
+            )
+            .order_by(InventoryTxn.created_at.desc())
+            .first()
+        )
+        if void_txn:
+            voided_at = void_txn.created_at
 
     return StockHistoryResponse(
-        receipt=receipt, adjustments=adjustments, is_voided=False, voided_at=None
+        receipt=receipt,
+        adjustments=adjustments,
+        is_voided=is_voided,
+        voided_at=voided_at,
     )

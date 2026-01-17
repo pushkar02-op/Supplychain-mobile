@@ -121,3 +121,36 @@ def test_get_stock_history_not_found(db_session):
     with pytest.raises(AppException) as e:
         get_stock_history(db_session, 99999)
     assert e.value.status_code == 404
+
+
+def test_soft_delete_and_void_history(db_session):
+    from app.services.stock_entry import delete_stock_entry
+    
+    # 1. Create Stock Entry
+    entry = create_stock_entry(
+        db_session,
+        StockEntryCreate(
+            item_id=1,
+            received_date="2025-01-01",
+            quantity=10.0,
+            unit="kg",
+            price_per_unit=5.0,
+            total_cost=50.0,
+        ),
+        created_by=1,
+    )
+    
+    # 2. Soft Delete (Void)
+    success = delete_stock_entry(db_session, entry.id)
+    assert success is True
+    
+    # 3. Verify entry still exists but is inactive
+    assert entry.is_active is False
+    
+    # 4. Get History
+    history = get_stock_history(db_session, entry.id)
+    
+    # 5. Assert Void Status
+    assert history.is_voided is True
+    assert history.voided_at is not None
+    assert history.receipt.quantity == 10.0  # Original data preserved
