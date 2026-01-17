@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../core/dio_client.dart';
+import '../models/stock_history.dart';
 
 class StockService {
   /// Fetch all items for the dropdown
@@ -102,6 +103,20 @@ class StockService {
       return resp.data['detail'] ?? 'Unknown error';
     } on DioError catch (e) {
       return e.response?.data['detail'] ?? 'Error: ${e.message}';
+    }
+  }
+
+  /// Get history for a stock entry
+  static Future<StockHistoryResponse> getStockHistory(int stockEntryId) async {
+    try {
+      final resp = await DioClient.instance.get(
+        '/stock-entry/$stockEntryId/history',
+      );
+      return StockHistoryResponse.fromJson(resp.data);
+    } on DioError catch (e) {
+      throw Exception(
+        'Failed to load history: ${e.response?.statusMessage ?? e.message}',
+      );
     }
   }
 }

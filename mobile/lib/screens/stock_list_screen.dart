@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../providers/stock_list_provider.dart';
 import '../widgets/skeleton_loader.dart';
+import '../widgets/stock_history_sheet.dart';
 
 class StockListScreen extends ConsumerWidget {
   const StockListScreen({super.key});
@@ -143,7 +144,24 @@ class StockListScreen extends ConsumerWidget {
                           ),
                           trailing: PopupMenuButton<String>(
                             onSelected: (value) async {
-                              if (value == 'correct') {
+                              if (value == 'history') {
+                                final receivedQty = stock['quantity'] as num?;
+                                final currentQty =
+                                    (stock['batch_quantity'] as num?)
+                                        ?.toDouble() ??
+                                    receivedQty?.toDouble() ??
+                                    0.0;
+                                final unit = stock['unit'] ?? '';
+                                final qtyLabel =
+                                    'Current: ${currentQty.toStringAsFixed(1)} $unit';
+
+                                StockHistorySheet.show(
+                                  context,
+                                  stockEntryId: stock['id'],
+                                  itemName: stock['item']['name'],
+                                  currentQtyLabel: qtyLabel,
+                                );
+                              } else if (value == 'correct') {
                                 final result = await context.push(
                                   '/stock-entry',
                                   extra: {'mode': 'correct', 'stock': stock},
@@ -157,6 +175,10 @@ class StockListScreen extends ConsumerWidget {
                             },
                             itemBuilder:
                                 (context) => [
+                                  const PopupMenuItem(
+                                    value: 'history',
+                                    child: Text('View history'),
+                                  ),
                                   const PopupMenuItem(
                                     value: 'correct',
                                     child: Text('Correct stock'),
