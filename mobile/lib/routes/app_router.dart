@@ -24,6 +24,7 @@ import '../screens/order_entry_screen.dart';
 import '../screens/orders_screen.dart';
 import '../screens/stock_entry_screen.dart';
 import '../screens/stock_list_screen.dart';
+import '../widgets/app_scaffold.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
@@ -55,13 +56,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
       if (isLoggedIn && isLoggingIn) {
-        debugPrint('[ROUTER] Logged in, redirecting to /dashboard');
-        return '/dashboard';
+        debugPrint('[ROUTER] Logged in, redirecting to /main');
+        return '/main';
+      }
+      // Legacy dashboard route redirects to main
+      if (isLoggedIn && state.uri.path == '/dashboard') {
+        debugPrint('[ROUTER] Redirecting /dashboard to /main');
+        return '/main';
       }
 
       // Admin Guard
       if (isRestricted && !isAdmin) {
-        return '/dashboard';
+        return '/main';
       }
 
       debugPrint('[ROUTER] No redirect needed.');
@@ -69,6 +75,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(path: '/main', builder: (context, state) => const AppScaffold()),
       GoRoute(
         path: '/dashboard',
         builder: (context, state) => const DashboardScreen(),

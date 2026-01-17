@@ -22,6 +22,9 @@ class StockEntryCreate(StockEntryBase):
 class StockEntryRead(StockEntryBase):
     id: int
     batch_id: int
+    batch_quantity: Optional[float] = (
+        None  # Current batch balance (may differ from receipt qty)
+    )
     item: ItemRead
     created_at: Optional[datetime]
     updated_at: Optional[datetime]

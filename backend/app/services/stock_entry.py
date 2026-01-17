@@ -74,7 +74,6 @@ def create_stock_entry(
     else:
         from app.db.models.item import Item
         from app.db.models.uom import UOM
-        from app.services.item_conversion_map import get_conversion_factor
 
         # Canonicalization: Find target UOM
         item = db.query(Item).filter(Item.id == entry.item_id).first()
@@ -87,6 +86,8 @@ def create_stock_entry(
 
         # Convert quantity if needed
         qty_to_store = Decimal(str(entry.quantity))
+
+        # Strict Unit Validation
         if target_unit != entry.unit:
             try:
                 factor = get_conversion_factor(
@@ -97,7 +98,11 @@ def create_stock_entry(
                     f"Canonicalizing stock: {entry.quantity} {entry.unit} -> {qty_to_store} {target_unit}"
                 )
             except Exception as e:
-                logger.warning(f"Could not convert for batch creation, using raw: {e}")
+                logger.error(f"Invalid unit for stock entry: {e}")
+                raise AppException(
+                    f"Invalid unit '{entry.unit}' for item. Must be convertible to '{target_unit}'",
+                    status_code=400,
+                )
 
         batch = Batch(
             item_id=entry.item_id,
@@ -215,7 +220,7 @@ def get_all_stock_entries(
         List[StockEntry]: List of entries.
     """
     logger.debug(f"Fetching stock entries date={date}, skip={skip}, limit={limit}")
-    q = db.query(StockEntry)
+    q = db.query(StockEntry).filter(StockEntry.is_active)
     if date:
         q = q.filter(StockEntry.received_date == date)
     return q.offset(skip).limit(limit).all()
@@ -228,86 +233,90 @@ def update_stock_entry(
     updated_by: Optional[int] = None,
 ) -> Optional[StockEntry]:
     """
-    Update a stock entry, adjusting batch allocations if needed.
-
-    Args:
-        db (Session): Database session.
-        stock_entry_id (int): Stock entry ID.
-        entry_update (StockEntryUpdate): Fields to update.
-        updated_by (Optional[int]): Updater ID.
-
-    Returns:
-        Optional[StockEntry]: Updated entry or None.
+    Update a stock entry.
+    BLOCKED: Stock entries are now immutable.
     """
-    logger.info(f"Updating stock entry id={stock_entry_id}")
-    entry = get_stock_entry(db, stock_entry_id)
-    if not entry:
-        logger.error(f"Stock entry not found id={stock_entry_id}")
-        return None
-
-    orig_qty = entry.quantity
-    # Lock the batch for update to ensure quantity consistency
-    orig_batch = (
-        db.query(Batch).filter(Batch.id == entry.batch_id).with_for_update().first()
+    logger.warning(f"Blocked update attempt on stock_entry_id={stock_entry_id}")
+    raise AppException(
+        "Stock entries are immutable. Use adjustment or reversal.", status_code=409
     )
-    data = entry_update.dict(exclude_unset=True)
-    new_qty = data.get("quantity", entry.quantity)
 
-    quantity_diff = new_qty - orig_qty
-    if orig_batch:
-        # Direct NUMERIC update (Stage 3: Cleanup)
-        orig_batch.quantity += Decimal(str(quantity_diff))
-        orig_batch.updated_by = updated_by
-        orig_batch.updated_at = datetime.utcnow()
 
-    for k, v in data.items():
-        setattr(entry, k, v)
-    entry.updated_by = updated_by
-    entry.updated_at = datetime.utcnow()
-    db.flush()
-    db.refresh(entry)
-    logger.debug(f"Stock entry id={stock_entry_id} updated")
+def create_stock_adjustment(
+    db: Session,
+    batch_id: int,
+    quantity_delta: Decimal,
+    unit: str,
+    reason: str,
+    user_id: Optional[int] = None,
+):
+    """
+    Create a stock adjustment (correction/drift fix).
+    Directly impacts Batch and creates an 'ADJUST' InventoryTxn.
+    Does NOT modify the original StockEntry receipt.
+    """
+    from datetime import datetime
 
-    if quantity_diff != 0:
-        txn_type = "IN" if quantity_diff > 0 else "OUT"
+    from app.db.models.item import Item
+    from app.db.schemas.inventory_txn import InventoryTxnCreate
+    from app.services.inventory_txn import create_inventory_txn
 
-        from app.db.models.item import Item
+    logger.info(
+        f"Creating stock adjustment batch_id={batch_id} delta={quantity_delta} ({unit})"
+    )
 
-        item = db.get(Item, entry.item_id)
-        if not item:
-            raise AppException("Item not found", status_code=404)
+    batch = db.query(Batch).filter(Batch.id == batch_id).with_for_update().first()
+    if not batch:
+        raise AppException("Batch not found", status_code=404)
 
-        if not item or not item.default_uom_code:
-            raise UOMConfigurationError(
-                f"Item id={item.id} has no default UOM configured."
-            )
-        target_unit = item.default_uom_code
+    item = db.get(Item, batch.item_id)
+    if not item or not item.default_uom_code:
+        raise UOMConfigurationError("Item or default UOM configuration missing")
 
-        try:
-            factor = get_conversion_factor(db, entry.item_id, entry.unit, target_unit)
-        except AppException as e:
-            logger.error(f"Conversion lookup failed: {e}")
-            raise
+    target_unit = item.default_uom_code
 
-        base_qty = Decimal(str(abs(quantity_diff))) * factor
-
-        create_inventory_txn(
-            db,
-            InventoryTxnCreate(
-                item_id=entry.item_id,
-                batch_id=entry.batch_id,
-                txn_type=txn_type,
-                raw_qty=abs(quantity_diff),
-                raw_unit=entry.unit,
-                base_qty=base_qty,
-                base_unit=target_unit,
-                ref_type="stock_entry",
-                ref_id=entry.id,
-                remarks=f"Stock {txn_type} from update adjustment",
-            ),
+    # Calculate base qty
+    try:
+        factor = get_conversion_factor(db, item.id, unit, target_unit)
+    except AppException:
+        raise AppException(
+            f"Cannot convert adjustment unit {unit} to base {target_unit}"
         )
-    db.commit()
-    return entry
+
+    base_qty_delta = quantity_delta * factor
+
+    # 0. Safety Check: Prevent negative stock
+    if (batch.quantity + base_qty_delta) < 0:
+        raise AppException(
+            f"Adjustment blocked: Resulting quantity cannot be negative (Current: {batch.quantity}, Adjustment: {base_qty_delta})",
+            status_code=400,
+        )
+
+    # 1. Update Batch (Cleanup Stage)
+    batch.quantity += base_qty_delta
+    batch.updated_by = user_id
+    batch.updated_at = datetime.utcnow()
+
+    # 2. Create Audit Txn
+    txn = create_inventory_txn(
+        db,
+        InventoryTxnCreate(
+            item_id=item.id,
+            batch_id=batch.id,
+            txn_type="ADJUST",
+            raw_qty=quantity_delta,
+            raw_unit=unit,
+            base_qty=base_qty_delta,
+            base_unit=target_unit,
+            ref_type="manual_adjustment",
+            ref_id=batch.id,  # Link to batch as this is direct adjustment
+            remarks=reason if reason else "Manual stock adjustment",
+        ),
+    )
+
+    db.flush()
+    db.commit()  # Commit immediately as this is an atomic action
+    return txn
 
 
 def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
@@ -349,7 +358,10 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
 
     rejection_exists = (
         db.query(RejectionEntry)
-        .filter(RejectionEntry.batch_id == entry.batch_id)
+        .filter(
+            RejectionEntry.batch_id == entry.batch_id,
+            RejectionEntry.is_active,  # Only block if active rejections exist
+        )
         .first()
     )
     if rejection_exists:
@@ -358,7 +370,7 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         )
         raise AppException(
             f"Cannot delete stock entry. Batch {entry.batch_id} already has rejections recorded. "
-            "Deletion would orphan downstream transactions.",
+            "Deletion would orphan downstream transactions. Reverse rejections first.",
             status_code=400,
         )
 
@@ -367,10 +379,12 @@ def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
         batch.quantity -= Decimal(str(entry.quantity))
         batch.updated_at = datetime.utcnow()
         batch.updated_by = entry.updated_by
-        batch.updated_by = entry.updated_by
-    db.delete(entry)
+
+    # Soft Delete: Mark as inactive instead of deleting
+    entry.is_active = False
     db.flush()
-    logger.debug(f"Stock entry id={stock_entry_id} deleted")
+
+    logger.debug(f"Stock entry id={stock_entry_id} soft-deleted (voided)")
 
     from app.db.models.item import Item
 

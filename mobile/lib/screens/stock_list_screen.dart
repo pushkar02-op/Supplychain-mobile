@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
 import '../providers/stock_list_provider.dart';
-import '../services/stock_service.dart';
 import '../widgets/skeleton_loader.dart';
+import '../widgets/stock_history_sheet.dart';
 
 class StockListScreen extends ConsumerWidget {
   const StockListScreen({super.key});
@@ -57,67 +58,136 @@ class StockListScreen extends ConsumerWidget {
                     itemCount: stocks.length,
                     itemBuilder: (context, index) {
                       final stock = stocks[index];
-                  return Card(
+                      final receivedQty = stock['quantity'];
+                      final currentQty = stock['batch_quantity'] ?? receivedQty;
+                      final unit = stock['unit'];
+                      final isAdjusted =
+                          (currentQty - receivedQty).abs() > 0.001;
+
+                      return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         elevation: 2,
                         shadowColor: Colors.black12,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: InkWell(
-                          onTap: () async {
-                            final result = await context.push(
-                              '/stock-entry',
-                              extra: stock,
-                            );
-                            if (result == true) {
-                              ref.invalidate(stockListProvider);
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: ListTile(
-                            title: Text(
-                              '${stock['item']['name']}',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Qty: ${stock['quantity']} ${stock['unit']}',
+                        child: ListTile(
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${stock['item']['name']}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                                Text(
-                                  'Price: ₹${stock['price_per_unit']}/${stock['unit']}',
+                              ),
+                              if (isAdjusted)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Adjusted',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.orange.shade800,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                 ),
-                              ],
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) async {
-                                if (value == 'edit') {
-                                  final result = await context.push(
-                                    '/stock-entry',
-                                    extra: stock,
-                                  );
-                                  if (result == true) {
-                                    ref.invalidate(stockListProvider);
-                                  }
-                                } else if (value == 'delete') {
-                                  _confirmDelete(context, ref, stock['id']);
+                            ],
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Received: $receivedQty $unit',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Current: $currentQty $unit',
+                                    style: TextStyle(
+                                      color:
+                                          isAdjusted
+                                              ? Colors.orange.shade700
+                                              : Colors.grey[600],
+                                      fontSize: 12,
+                                      fontWeight:
+                                          isAdjusted
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                '₹${stock['price_per_unit']}/$unit',
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (value == 'history') {
+                                final receivedQty = stock['quantity'] as num?;
+                                final currentQty =
+                                    (stock['batch_quantity'] as num?)
+                                        ?.toDouble() ??
+                                    receivedQty?.toDouble() ??
+                                    0.0;
+                                final unit = stock['unit'] ?? '';
+                                final qtyLabel =
+                                    'Current: ${currentQty.toStringAsFixed(1)} $unit';
+
+                                StockHistorySheet.show(
+                                  context,
+                                  stockEntryId: stock['id'],
+                                  itemName: stock['item']['name'],
+                                  currentQtyLabel: qtyLabel,
+                                );
+                              } else if (value == 'correct') {
+                                final result = await context.push(
+                                  '/stock-entry',
+                                  extra: {'mode': 'correct', 'stock': stock},
+                                );
+                                if (result == true) {
+                                  ref.invalidate(stockListProvider);
                                 }
-                              },
-                              itemBuilder:
-                                  (context) => [
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edit'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Delete'),
-                                    ),
-                                  ],
-                            ),
+                              } else if (value == 'void') {
+                                _confirmVoid(context, ref, stock);
+                              }
+                            },
+                            itemBuilder:
+                                (context) => [
+                                  const PopupMenuItem(
+                                    value: 'history',
+                                    child: Text('View history'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'correct',
+                                    child: Text('Correct stock'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'void',
+                                    child: Text('Void receipt'),
+                                  ),
+                                ],
                           ),
                         ),
                       );
@@ -130,7 +200,11 @@ class StockListScreen extends ConsumerWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                          Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.red[300],
+                          ),
                           const SizedBox(height: 12),
                           Text(
                             'Could not load stock entries',
@@ -169,7 +243,8 @@ class StockListScreen extends ConsumerWidget {
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
           icon: const Icon(Icons.add),
-          label: const Text('Add Stock'),
+          label: const Text('Receive Stock'),
+          heroTag: 'stock-add-fab',
         ),
       ),
     );
@@ -184,10 +259,7 @@ class StockListScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Text(
             'No stock entries for this date',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
           ),
           const SizedBox(height: 8),
           Semantics(
@@ -215,17 +287,37 @@ class StockListScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDelete(
+  Future<void> _confirmVoid(
     BuildContext context,
     WidgetRef ref,
-    int stockId,
+    Map<String, dynamic> stock,
   ) async {
+    final itemName = stock['item']?['name'] ?? 'Unknown';
+    final qty = stock['quantity'];
+    final unit = stock['unit'];
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (_) => AlertDialog(
-            title: const Text('Delete Stock Entry'),
-            content: const Text('Are you sure you want to delete this entry?'),
+            title: const Text('Void Stock Entry'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('You are about to void this receipt:'),
+                const SizedBox(height: 8),
+                Text(
+                  '$itemName — $qty $unit',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'This will reverse the inventory addition. This action cannot be undone.',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+              ],
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -233,15 +325,56 @@ class StockListScreen extends ConsumerWidget {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete'),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Void Entry'),
               ),
             ],
           ),
     );
 
     if (confirmed == true) {
-      await ref.read(stockListProvider.notifier).deleteStock(stockId);
+      try {
+        await ref.read(stockListProvider.notifier).deleteStock(stock['id']);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Stock entry voided successfully')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          // Extract message if it's a known format, otherwise show generic
+          String message = e.toString().replaceAll('Exception: ', '');
+          if (message.contains('Deletion would orphan')) {
+            await showDialog(
+              context: context,
+              builder:
+                  (ctx) => AlertDialog(
+                    title: const Text('Cannot void this receipt'),
+                    content: const Text(
+                      'Items from this receipt have already been used (for rejection, dispatch, or correction).\n\n'
+                      'To protect inventory accuracy, those actions must be reversed first before this receipt can be voided.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                        },
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      }
     }
   }
 }
-

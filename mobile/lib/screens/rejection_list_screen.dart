@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
 import '../../services/rejection_service.dart';
 
 class RejectionListScreen extends StatefulWidget {
@@ -16,11 +17,16 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
   int? _selectedItemId;
   List<Map<String, dynamic>> _rejections = [];
 
+  bool _isLoading = false;
+  int _skip = 0;
+  final int _limit = 50;
+  bool _hasMore = true;
+
   @override
   void initState() {
     super.initState();
     _loadItems();
-    _loadRejections();
+    _loadRejections(reset: true);
   }
 
   Future<void> _pickDate() async {
@@ -33,7 +39,7 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
-      _loadRejections();
+      _loadRejections(reset: true);
     }
   }
 
@@ -42,15 +48,55 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
     setState(() => _items = allItems);
   }
 
-  Future<void> _loadRejections() async {
-    final date = DateFormat('yyyy-MM-dd').format(_selectedDate);
+  Future<void> _loadRejections({bool reset = false}) async {
+    if (_isLoading) return;
 
-    final data = await RejectionService.fetchRejections(
-      date: date,
-      itemIds: _selectedItemId != null ? [_selectedItemId!] : null,
-    );
+    if (reset) {
+      setState(() {
+        _skip = 0;
+        _rejections.clear();
+        _hasMore = true;
+      });
+    }
 
-    setState(() => _rejections = data);
+    if (!_hasMore) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final date = DateFormat('yyyy-MM-dd').format(_selectedDate);
+
+      final result = await RejectionService.fetchRejections(
+        date: date,
+        itemIds: _selectedItemId != null ? [_selectedItemId!] : null,
+        skip: _skip,
+        limit: _limit,
+      );
+
+      final newItems = List<Map<String, dynamic>>.from(result['items']);
+      final hasMore = result['has_more'] as bool;
+
+      if (mounted) {
+        setState(() {
+          _rejections.addAll(newItems);
+          _skip += newItems.length;
+          _hasMore = hasMore;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load rejections: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Widget _buildDateFilter() {
@@ -89,7 +135,7 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
       value: _selectedItemId,
       onChanged: (id) {
         setState(() => _selectedItemId = id);
-        _loadRejections();
+        _loadRejections(reset: true);
       },
       isExpanded: true,
     );
@@ -108,8 +154,55 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
     );
   }
 
+  Future<void> _handleReversal(Map<String, dynamic> rejection) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Reverse rejection'),
+            content: Text(
+              'This will restore ${rejection['quantity']} ${rejection['unit'] ?? ''} back to stock.\n\n'
+              'The rejection record will remain for audit, but will be marked as reversed.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  'Reverse',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await RejectionService.reverseRejection(rejection['id']);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Rejection reversed. Stock has been restored.'),
+            ),
+          );
+          _loadRejections(reset: true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildList() {
-    if (_rejections.isEmpty) {
+    if (_rejections.isEmpty && !_isLoading) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -132,25 +225,84 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
     }
 
     return ListView.builder(
-      itemCount: _rejections.length,
+      itemCount: _rejections.length + 1,
       itemBuilder: (_, index) {
+        if (index == _rejections.length) {
+          if (_hasMore) {
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child:
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ElevatedButton(
+                        onPressed: () => _loadRejections(),
+                        child: const Text('Load More'),
+                      ),
+            );
+          } else {
+            return const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(
+                child: Text(
+                  'End of list',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            );
+          }
+        }
+
         final r = _rejections[index];
+        final isActive = r['is_active'] ?? true;
+
         return Card(
+          elevation: isActive ? 1 : 0,
+          color: isActive ? Colors.white : Colors.grey[200],
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: ListTile(
-            title: Text(r['batch']['item_name']),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            title: Row(
               children: [
-                Text('Batch received date: ${r['batch']['received_at']}'),
-                Text('Quantity: ${r['quantity']}'),
-                if (r['reason'] != null && r['reason'].toString().isNotEmpty)
-                  Text('reason: ${r['reason']}'),
-                Text(
-                  'Rejected At: ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(r['rejection_date']))}',
-                ),
+                Expanded(child: Text(r['batch']['item_name'])),
+                if (!isActive)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[400],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Reversed',
+                      style: TextStyle(fontSize: 10, color: Colors.white),
+                    ),
+                  ),
               ],
             ),
+            subtitle: Opacity(
+              opacity: isActive ? 1.0 : 0.6,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Batch received date: ${r['batch']['received_at']}'),
+                  Text('Quantity: ${r['quantity']} ${r['unit'] ?? ''}'),
+                  if (r['reason'] != null && r['reason'].toString().isNotEmpty)
+                    Text('Reason: ${r['reason']}'),
+                  Text(
+                    'Rejected At: ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(r['rejection_date']))}',
+                  ),
+                ],
+              ),
+            ),
+            trailing:
+                isActive
+                    ? IconButton(
+                      icon: const Icon(Icons.restore),
+                      tooltip: 'Reverse rejection',
+                      onPressed: () => _handleReversal(r),
+                    )
+                    : null,
           ),
         );
       },

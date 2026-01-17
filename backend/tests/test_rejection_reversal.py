@@ -64,8 +64,7 @@ def test_db_init(db_session):
         item_id=1,  # Assume seeded item 1 (Milk)
         quantity=Decimal("10.0"),
         unit="L",
-        price_per_unit=1.0,
-        total_cost=10.0,
+        vendor_id=1,
     )
     receipt = create_stock_entry(db=db_session, entry=entry_in)
     batch_id = receipt.batch_id
@@ -80,7 +79,6 @@ def test_db_init(db_session):
         unit="L",
         reason="Damaged",
         rejection_date=date.today(),
-        rejected_by="tester",
     )
     rejection = create_rejection_entry(db=db_session, entry=rej_in)
 
@@ -126,8 +124,7 @@ def test_reversal_is_idempotent_and_safe(db_session):
         item_id=1,
         quantity=Decimal("5.0"),
         unit="L",
-        price_per_unit=1.0,
-        total_cost=5.0,
+        vendor_id=1,
     )
     receipt = create_stock_entry(db=db_session, entry=entry_in)
 
@@ -137,7 +134,6 @@ def test_reversal_is_idempotent_and_safe(db_session):
         unit="L",
         reason="Expired",
         rejection_date=date.today(),
-        rejected_by="tester",
     )
     rejection = create_rejection_entry(db=db_session, entry=rej_in)
 

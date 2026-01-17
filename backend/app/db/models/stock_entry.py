@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, Date, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from .base_class import Base
@@ -15,6 +15,7 @@ class StockEntry(Base, AuditMixin):
     total_cost = Column(Float, nullable=False)
     quantity = Column(Float, nullable=False)
     unit = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
 
     item = relationship("Item")
     batch = relationship("Batch")

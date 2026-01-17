@@ -64,6 +64,7 @@ def read_all(
 ) -> List[StockEntryRead]:
     """
     Retrieve all stock entries with optional date filter.
+    Includes current batch quantity for each entry.
 
     Args:
         date (Optional[date]): Filter by entry date.
@@ -72,10 +73,34 @@ def read_all(
         db (Session): Database session dependency.
 
     Returns:
-        List[StockEntryRead]: List of stock entries.
+        List[StockEntryRead]: List of stock entries with batch quantities.
     """
     logger.info(f"Fetching stock entries date={date}, skip={skip}, limit={limit}")
-    return get_all_stock_entries(db=db, date=date, skip=skip, limit=limit)
+    entries = get_all_stock_entries(db=db, date=date, skip=skip, limit=limit)
+
+    # Enrich with batch quantity
+    result = []
+    for entry in entries:
+        entry_dict = {
+            "id": entry.id,
+            "item_id": entry.item_id,
+            "batch_id": entry.batch_id,
+            "batch_quantity": float(entry.batch.quantity) if entry.batch else None,
+            "received_date": entry.received_date,
+            "quantity": entry.quantity,
+            "unit": entry.unit,
+            "price_per_unit": entry.price_per_unit,
+            "total_cost": entry.total_cost,
+            "source": entry.source,
+            "item": entry.item,
+            "created_at": entry.created_at,
+            "updated_at": entry.updated_at,
+            "created_by": entry.created_by,
+            "updated_by": entry.updated_by,
+        }
+        result.append(entry_dict)
+
+    return result
 
 
 @router.get(

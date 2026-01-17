@@ -124,14 +124,14 @@ def create_rejection_entry(
             InventoryTxnCreate(
                 item_id=batch.item_id,
                 batch_id=entry.batch_id,
-                txn_type="OUT",
+                txn_type="ADJUST",  # Phase R2 Refinement: Rejections are adjustments
                 raw_qty=entry.quantity,
                 raw_unit=entry.unit,
                 base_qty=base_qty,
                 base_unit=target_unit,
                 ref_type="rejection_entry",
                 ref_id=rej.id,
-                remarks="Stock removed via rejection",
+                remarks=f"Rejection: {entry.reason or 'No reason provided'}",
             ),
         )
         db.flush()  # Ensure ID is generated before commit
@@ -154,6 +154,106 @@ def create_rejection_entry(
         raise AppException("Rejection entry creation failed", status_code=500)
 
 
+def reverse_rejection_entry(db: Session, rejection_id: int, user_id: int) -> bool:
+    """
+    Reverse a rejection entry by soft-deleting it and creating a compensating adjustment.
+
+    Args:
+        db (Session): Database session.
+        rejection_id (int): ID of the rejection to reverse.
+        user_id (int): User performing the reversal.
+
+    Returns:
+        bool: True if successful.
+
+    Raises:
+        AppException: If rejection not found or already reversed.
+    """
+    logger.info(f"Reversing rejection entry id={rejection_id} by user_id={user_id}")
+
+    rej = (
+        db.query(RejectionEntry)
+        .filter(RejectionEntry.id == rejection_id)
+        .with_for_update()
+        .first()
+    )
+    if not rej:
+        raise AppException("Rejection entry not found", status_code=404)
+
+    if not rej.is_active:
+        raise AppException("Rejection entry is already voided", status_code=400)
+
+    # 1. Soft Delete
+    rej.is_active = False
+
+    # 2. Compensating Adjustment (Add back quantity)
+    batch = db.query(Batch).filter(Batch.id == rej.batch_id).with_for_update().first()
+    if not batch:
+        # Should not happen as Batch is FK, but defensiveness
+        raise AppException("Batch associated with rejection not found", status_code=404)
+
+    # We need to add back the converted quantity if unit differs
+    # But batch.quantity is in batch.unit.
+    # Rejection qty is in rej.unit.
+    # Logic repeats from create.
+
+    add_back_qty = Decimal(str(rej.quantity))
+    if rej.unit != batch.unit:
+        try:
+            factor_to_batch = get_conversion_factor(
+                db, rej.item_id, rej.unit, batch.unit
+            )
+            add_back_qty = add_back_qty * factor_to_batch
+        except Exception:
+            # Critical failure if we can't convert back
+            raise AppException(
+                "Cannot convert rejection unit back to batch unit", status_code=500
+            )
+
+    batch.quantity += add_back_qty
+
+    # 3. Ledger Entry (Compensating)
+    try:
+        from app.db.models.item import Item
+
+        item = db.get(Item, rej.item_id)
+        if not item or not item.default_uom_code:
+            raise UOMConfigurationError(f"Item {rej.item_id} default UOM missing")
+
+        target_unit = item.default_uom_code
+        factor = get_conversion_factor(db, rej.item_id, rej.unit, target_unit)
+        base_qty = Decimal(str(rej.quantity)) * factor
+
+        create_inventory_txn(
+            db,
+            InventoryTxnCreate(
+                item_id=rej.item_id,
+                batch_id=rej.batch_id,
+                txn_type="ADJUST",  # Compensating Adjustment
+                raw_qty=rej.quantity,  # Positive logic handles "ADJUST" type?
+                # Wait, ADJUST type in create_inventory_txn usually expects signed?
+                # Actually, standard ADJUST logic depends on how it's treated.
+                # Let's check inventory_txn logic quickly?
+                # Assuming ADJUST: if raw_qty is positive, it adds?
+                # Rejections were OUT. So we create ADJUST with POSITIVE quantity to reverse.
+                raw_unit=rej.unit,
+                base_qty=base_qty,
+                base_unit=target_unit,
+                ref_type="rejection_reversal",  # Explicit ref type
+                ref_id=rej.id,
+                remarks=f"Reversal of Rejection #{rej.id}",
+            ),
+        )
+
+        db.commit()
+        return True
+
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Failed to reverse rejection {rejection_id}: {e}")
+        raise AppException("Rejection reversal failed", status_code=500)
+
+
 def get_all_rejections(db: Session) -> List[RejectionEntry]:
     """
     Retrieve all rejection entries ordered by date desc.
@@ -169,21 +269,52 @@ def get_all_rejections(db: Session) -> List[RejectionEntry]:
 
 
 def get_rejections_by_date_and_items(
-    db: Session, rejection_date: date, item_ids: Optional[List[int]] = None
-) -> List[RejectionEntry]:
+    db: Session,
+    rejection_date: date,
+    item_ids: Optional[List[int]] = None,
+    skip: int = 0,
+    limit: int = 50,
+) -> dict:
     """
-    Retrieve rejections filtered by date and optional item IDs.
+    Retrieve rejections filtered by date and optional item IDs with pagination.
 
     Args:
         db (Session): Database session.
         rejection_date (date): Filter date.
         item_ids (Optional[List[int]]): Filter item IDs.
+        skip (int): Offset.
+        limit (int): Page size.
 
     Returns:
-        List[RejectionEntry]: Filtered rejections.
+        dict: Pagination result (items, total, skip, limit, has_more).
     """
-    logger.debug(f"Fetching rejections for date={rejection_date}, items={item_ids}")
+    from sqlalchemy.orm import joinedload
+
+    logger.debug(
+        f"Fetching rejections for date={rejection_date}, items={item_ids}, skip={skip}, limit={limit}"
+    )
     q = db.query(RejectionEntry).filter(RejectionEntry.rejection_date == rejection_date)
+
     if item_ids:
         q = q.filter(RejectionEntry.item_id.in_(item_ids))
-    return q.order_by(RejectionEntry.created_at.desc()).all()
+
+    # Calculate total matching records
+    total = q.count()
+
+    # Apply pagination and sorting
+    # Improve performance by eager loading relations to avoid N+1
+    items = (
+        q.order_by(RejectionEntry.created_at.desc())
+        .options(joinedload(RejectionEntry.batch), joinedload(RejectionEntry.item))
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "items": items,
+        "skip": skip,
+        "limit": limit,
+        "total": total,
+        "has_more": (skip + len(items)) < total,
+    }
