@@ -15,6 +15,7 @@ from app.api.inventory_txn import router as inventory_txn_router
 from app.api.item import router as item_router
 from app.api.rejection_entry import router as rejection_router
 from app.api.stock_entry import router as stock_router
+from app.api.stock_history import router as stock_history_router
 from app.api.uom import router as uom_router
 from app.core.exceptions import register_exception_handlers
 from app.core.logging_config import setup_logging
@@ -58,6 +59,10 @@ app.include_router(
 )
 app.include_router(
     admin_diagnostics_router, prefix="/v1/admin", tags=["Admin Diagnostics"]
+)
+
+app.include_router(
+    stock_history_router, prefix="/v1/stock-entry", tags=["Stock Entry History"]
 )
 
 

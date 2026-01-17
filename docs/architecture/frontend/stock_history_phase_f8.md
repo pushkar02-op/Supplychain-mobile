@@ -1,0 +1,62 @@
+# Stock History & Adjustment Traceability (Phase F8.3)
+
+## 1. Overview
+This document defines the user experience for viewing the lifecycle of a stock entry. It adheres to the principle of **explainable immutability**: users cannot rewrite history, but they can easily understand why the current stock level differs from the original receipt.
+
+## 2. Terminology & Mental Model
+
+### 2.1 The Three States
+1.  **Receipt (Anchor)**: The original, immutable record of what arrived.
+    -   Represents physical truth at time $T_0$.
+    -   *Never changes* (except soft-delete/void).
+2.  **Adjustment (Drift/Correction)**: A discrete event adjusting the balance.
+    -   Represents a correction (`+` or `-`) at time $T_n$.
+    -   Must have a reason (e.g., "Spoilage", "Counting Error").
+3.  **Void (Reversal)**: A terminal event effectively negating the receipt.
+    -   Original record remains locally visible (orphaned) or soft-deleted depending on context.
+    -   Inventory impact is fully reversed.
+
+### 2.2 Traceability Rule
+> The "Current Quantity" of a batch is always equal to:
+> $$ Q_{current} = Q_{received} + \sum (\text{Adjustments}) - \sum (\text{Dispatches}) $$
+> *Note: Dispatches are currently separate, but Adjustments MUST be visible in context of the Receipt.*
+
+## 3. UI/UX Specification
+
+### 3.1 Stock List (Summary View)
+-   **No clutter**: The list continues to show only the *summary* state.
+-   **Receipt**: Shows original quantity (e.g., "Received: 10kg").
+-   **Current**: Shows batch balance (e.g., "Current: 8kg").
+-   **Indicator**: "Adjusted" badge (Amber) appears if $|Q_{current} - Q_{received}| > \epsilon$.
+-   **Action**: No inline history expansion. Users must tap for details.
+
+### 3.2 History View (Detail View)
+**Entry Point**: Popup Menu (⋮) -> "View history".
+
+**Presentation**:
+-   **Mobile**: Modal Bottom Sheet.
+-   **Web**: Side Sheet or Dialog.
+
+**Content Layout**:
+1.  **Header**: Item Name & Current Balance (Big).
+2.  **Timeline** (Reverse Chronological or Story Order):
+    -   **Start**: "Received 10kg on [Date]" (Neutral/Green).
+    -   **Event**: "Adjusted -2kg (Reason: Spoilage) on [Date]" (Amber).
+    -   **Event**: "Adjusted +1kg (Reason: Found extra) on [Date]" (Amber).
+    -   **Current**: "Current Stock: 9kg" (Summary).
+
+### 3.3 Voided Entries
+-   If an entry is voided, it may disappear from the default list (depending on filter), but if accessed via history/audit:
+    -   Status: **VOIDED** (Red).
+    -   Timeline ends with "Receipt Voided by [User] on [Date]".
+
+## 4. Technical Data Source
+-   **Endpoint**: `GET /stock-entry/{id}/history`
+-   **Aggregates**:
+    -   `StockEntry` (Receipt details).
+    -   `InventoryTxn` with `type=ADJUST` filtered by `batch_id`.
+    -   `InventoryTxn` with `type=OUT` and `ref_type=stock_entry` (for Void/Reversal tracking).
+
+## 5. Non-Goals
+-   We are NOT building a full ledger explorer here (that is Admin territory).
+-   We are NOT showing dispatches in this specific view yet (focus is on *correction* history).
