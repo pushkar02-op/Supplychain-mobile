@@ -164,4 +164,5 @@ The Stock List (`StockListScreen`) must display:
     3.  **Adjusted** (Cycle Count).
 - **Result**: System **BLOCKS** the void action.
 - **Reason**: You cannot retroactively "un-receive" goods that have already been used. Voiding would orphan the downstream transactions (Dispatches would point to ghost inventory).
-- **Remedy**: The user must first reverse the downstream actions (e.g., Return the dispatch, delete the rejection) before the system allows the receipt to be voided.
+- **Remedy**: The user must first reverse the downstream actions (e.g., Return the dispatch, **Reverse the rejection**) before the system allows the receipt to be voided.
+- **Reference**: See `docs/architecture/rejections-model.md` for Rejection Reversal design.
