@@ -177,12 +177,14 @@ def refresh_forecast_for_item(db: Session, item_id: int) -> dict:
     forecast.days_to_zero = depletion_data["days_to_zero"]
     forecast.projected_stockout_date = depletion_data["projected_stockout_date"]
     forecast.confidence_window_days = depletion_data["confidence_window_days"]
+
+    # 5. Compute and persist signal
+    signal = classify_signal(depletion_data["days_to_zero"])
+    forecast.signal = signal
+
     forecast.calculated_at = datetime.utcnow()
 
     db.commit()
-
-    # 5. Compute signal (not stored)
-    signal = classify_signal(depletion_data["days_to_zero"])
 
     return {
         "item_id": item_id,

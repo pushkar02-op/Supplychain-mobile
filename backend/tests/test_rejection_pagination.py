@@ -65,6 +65,7 @@ def test_pagination_logic(db_session):
                 unit="kg",
                 reason=f"Reason {i}",
                 rejection_date=today,
+                rejected_by="tester",
             ),
         )
 
@@ -98,7 +99,9 @@ def test_pagination_with_filters_and_active_state(db_session):
                 batch_id=db_session.batch_id,
                 quantity=Decimal("1.0"),
                 unit="kg",
+                reason="Test reason",
                 rejection_date=today,
+                rejected_by="tester",
             ),
         )
 
@@ -120,7 +123,9 @@ def test_eager_loading_check(db_session):
             batch_id=db_session.batch_id,
             quantity=10,
             unit="kg",
+            reason="Eager load test",
             rejection_date=date.today(),
+            rejected_by="tester",
         ),
     )
 

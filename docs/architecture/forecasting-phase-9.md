@@ -145,3 +145,37 @@ Refreshes all forecasts. Idempotent.
 - No mutation of core inventory tables
 - Forecasts can be regenerated at any time
 - Signals are computed on-read, not stored
+
+---
+
+## READ-ONLY CONSTRAINT (CLARIFIED)
+
+> [!IMPORTANT]
+> Phase 9 operates under strict **read-only** semantics with respect to all operational and ledger tables.
+
+### Tables Phase 9 CANNOT Write To
+
+| Table | Status |
+|-------|--------|
+| `StockEntry` | ❌ READ-ONLY |
+| `Batch` | ❌ READ-ONLY |
+| `InventoryTxn` | ❌ READ-ONLY |
+| `DispatchEntry` | ❌ READ-ONLY |
+| `RejectionEntry` | ❌ READ-ONLY |
+
+### Tables Phase 9 CAN Write To
+
+| Table | Purpose |
+|-------|---------|
+| `ItemBurnRate` | Computed daily outflow averages |
+| `StockDepletionForecast` | Projected stockout dates and signals |
+
+### POST /admin/forecasting/refresh Semantics
+
+- **Recomputes projections** from `InventoryFlowDaily` (Phase 8) and `Batch.quantity`
+- **Does NOT mutate** operational or ledger tables
+- **Is idempotent** — calling multiple times produces the same result
+- **Is rebuild-safe** — can be run after any data recovery or migration
+
+> [!CAUTION]
+> Any future change that causes Phase 9 to write to operational tables violates the architectural contract and MUST be escalated for review.
