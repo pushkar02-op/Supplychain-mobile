@@ -17,6 +17,7 @@ import '../providers/auth_provider.dart';
 import '../screens/alias_mapping_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/inventory_screen.dart';
+import '../screens/item_detail_screen.dart';
 import '../screens/item_list_screen.dart';
 import '../screens/item_management_screen.dart';
 import '../screens/mart_bill_list_screen.dart';
@@ -146,6 +147,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/items',
         builder: (context, state) => const ItemListScreen(),
+      ),
+      GoRoute(
+        path: '/item-detail',
+        builder: (context, state) {
+          final item = state.extra as Map<String, dynamic>;
+          return ItemDetailScreen(item: item);
+        },
       ),
       GoRoute(
         path: '/item-edit',

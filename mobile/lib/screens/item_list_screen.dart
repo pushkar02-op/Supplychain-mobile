@@ -249,6 +249,16 @@ class _ItemListScreenState extends State<ItemListScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
+                                  TextButton.icon(
+                                    icon: const Icon(
+                                      Icons.visibility,
+                                      size: 18,
+                                    ),
+                                    label: const Text('View Details'),
+                                    onPressed: () {
+                                      context.push('/item-detail', extra: item);
+                                    },
+                                  ),
                                   IconButton(
                                     icon: const Icon(Icons.edit),
                                     tooltip: 'Edit',
