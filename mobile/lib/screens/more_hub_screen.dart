@@ -3,6 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/auth_provider.dart';
+import '../ui/semantics/agro_severity.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_shapes.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
 
 /// "More" hub screen - provides access to secondary and admin screens.
 class MoreHubScreen extends ConsumerWidget {
@@ -14,7 +20,7 @@ class MoreHubScreen extends ConsumerWidget {
     final isAdmin = authState.value?.isAdmin ?? false;
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: AgroColors.background,
       appBar: AppBar(
         title: const Text('More'),
         backgroundColor: Colors.white,
@@ -23,69 +29,73 @@ class MoreHubScreen extends ConsumerWidget {
         automaticallyImplyLeading: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(AgroSpacing.screenPadding),
         children: [
           // Reference Section
-          _buildSectionHeader('Reference'),
-          _buildNavTile(
-            context,
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: AgroSpacing.sm,
+              top: AgroSpacing.sm,
+            ),
+            child: Text('Reference', style: AgroTypography.sectionTitle),
+          ),
+          _NavTile(
             icon: Icons.analytics_outlined,
             title: 'Inventory',
             subtitle: 'View current stock levels',
             route: '/inventory',
           ),
-          _buildNavTile(
-            context,
+          _NavTile(
             icon: Icons.receipt_outlined,
             title: 'Mart Bills',
             subtitle: 'Upload and manage invoices',
             route: '/mart-bills',
           ),
-          _buildNavTile(
-            context,
+          _NavTile(
             icon: Icons.category_outlined,
             title: 'Items',
             subtitle: 'Manage item catalog',
             route: '/items',
           ),
-          _buildNavTile(
-            context,
+          _NavTile(
             icon: Icons.link_outlined,
             title: 'Alias Mapping',
             subtitle: 'Map invoice items to master items',
             route: '/alias-mapping',
           ),
-          _buildNavTile(
-            context,
+          _NavTile(
             icon: Icons.cancel_outlined,
             title: 'Rejections',
             subtitle: 'Track rejected items',
             route: '/rejection-list',
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: AgroSpacing.xl),
 
           // Admin Section (only visible to admins)
           if (isAdmin) ...[
-            _buildSectionHeader('Administration'),
-            _buildNavTile(
-              context,
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: AgroSpacing.sm,
+                top: AgroSpacing.sm,
+              ),
+              child: Text('Administration', style: AgroTypography.sectionTitle),
+            ),
+            _NavTile(
               icon: Icons.health_and_safety_outlined,
               title: 'Inventory Health',
               subtitle: 'Ledger health and drift detection',
               route: '/admin/ledger/health',
               isAdmin: true,
             ),
-            _buildNavTile(
-              context,
+            _NavTile(
               icon: Icons.compare_arrows_outlined,
               title: 'Drift Report',
               subtitle: 'View detailed reconciliation',
               route: '/admin/ledger/drift',
               isAdmin: true,
             ),
-            _buildNavTile(
-              context,
+            _NavTile(
               icon: Icons.build_outlined,
               title: 'UOM Diagnostics',
               subtitle: 'Items with missing configurations',
@@ -94,101 +104,109 @@ class MoreHubScreen extends ConsumerWidget {
             ),
           ],
 
-          const SizedBox(height: 24),
+          SizedBox(height: AgroSpacing.xl),
 
           // Logout
-          _buildLogoutTile(context, ref),
+          _LogoutTile(ref: ref),
         ],
       ),
     );
   }
+}
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8, top: 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: Colors.grey,
-        ),
-      ),
-    );
-  }
+/// Navigation tile widget for the More hub.
+class _NavTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String route;
+  final bool isAdmin;
 
-  Widget _buildNavTile(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String route,
-    bool isAdmin = false,
-  }) {
+  const _NavTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.route,
+    this.isAdmin = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor = isAdmin ? AgroColors.adminAccent : AgroColors.primary;
+    final borderColor =
+        isAdmin
+            ? const Color(0xFFFFCC80) // orange.shade200
+            : AgroColors.dividerLight;
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: EdgeInsets.only(bottom: AgroSpacing.sm),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isAdmin ? Colors.orange.shade200 : Colors.grey.shade200,
-        ),
+        borderRadius: AgroShapes.cardRadius,
+        side: BorderSide(color: borderColor),
       ),
       child: ListTile(
-        leading: Icon(icon, color: isAdmin ? Colors.orange : Colors.green),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-        ),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+        leading: Icon(icon, color: iconColor),
+        title: Text(title, style: AgroTypography.cardTitle),
+        subtitle: Text(subtitle, style: AgroTypography.cardSubtitle),
+        trailing: Icon(Icons.chevron_right, color: AgroColors.textDisabled),
         onTap: () => context.push(route),
       ),
     );
   }
+}
 
-  Widget _buildLogoutTile(BuildContext context, WidgetRef ref) {
+/// Logout tile widget with destructive styling.
+class _LogoutTile extends StatelessWidget {
+  final WidgetRef ref;
+
+  const _LogoutTile({required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    // Use critical severity for destructive action
+    final severity = AgroSeverity.fromStatus(AgroStatus.critical);
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: EdgeInsets.only(bottom: AgroSpacing.sm),
       elevation: 0,
-      color: Colors.red.shade50,
+      color: severity.backgroundColor,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.red.shade200),
+        borderRadius: AgroShapes.cardRadius,
+        side: BorderSide(color: severity.borderColor),
       ),
       child: ListTile(
-        leading: Icon(Icons.logout, color: Colors.red.shade700),
+        leading: Icon(Icons.logout, color: severity.iconColor),
         title: Text(
           'Logout',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: Colors.red.shade700,
-          ),
+          style: AgroTypography.cardTitle.copyWith(color: severity.textColor),
         ),
-        onTap: () async {
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder:
-                (ctx) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Logout'),
-                    ),
-                  ],
-                ),
-          );
-          if (confirmed == true) {
-            await ref.read(authProvider.notifier).logout();
-          }
-        },
+        onTap: () => _confirmLogout(context),
       ),
     );
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to logout?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Logout'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed == true) {
+      await ref.read(authProvider.notifier).logout();
+    }
   }
 }

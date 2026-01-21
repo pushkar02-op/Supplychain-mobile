@@ -3,6 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/providers/auth_provider.dart';
 
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_shapes.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_card.dart';
+
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -14,7 +20,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: AgroColors.background,
       appBar: AppBar(
         title: const Text('Dashboard'),
         backgroundColor: Colors.white,
@@ -29,85 +35,66 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(AgroSpacing.screenPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Daily Operations Section
-            Text(
-              'Daily Operations',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildNavCard(
-              context,
+            Text('Daily Operations', style: AgroTypography.sectionTitle),
+            SizedBox(height: AgroSpacing.md),
+            _NavCard(
               icon: Icons.inventory_2,
               label: 'Stock',
               subtitle: 'Add and manage stock entries',
               route: '/stock-list',
               color: Colors.green,
             ),
-            const SizedBox(height: 12),
-            _buildNavCard(
-              context,
+            SizedBox(height: AgroSpacing.md),
+            _NavCard(
               icon: Icons.assignment,
               label: 'Orders',
               subtitle: 'View and create daily orders',
               route: '/orders',
               color: Colors.blue,
             ),
-            const SizedBox(height: 12),
-            _buildNavCard(
-              context,
+            SizedBox(height: AgroSpacing.md),
+            _NavCard(
               icon: Icons.local_shipping,
               label: 'Dispatch',
               subtitle: 'Track dispatch entries',
               route: '/dispatch-entries',
               color: Colors.orange,
             ),
-            const SizedBox(height: 12),
-            _buildNavCard(
-              context,
+            SizedBox(height: AgroSpacing.md),
+            _NavCard(
               icon: Icons.receipt_long,
               label: 'Mart Bills',
               subtitle: 'Upload and manage mart bills',
               route: '/mart-bills',
               color: Colors.purple,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: AgroSpacing.xl),
 
             // Reference Section
-            Text(
-              'Reference',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildNavCard(
-              context,
+            Text('Reference', style: AgroTypography.sectionTitle),
+            SizedBox(height: AgroSpacing.md),
+            _NavCard(
               icon: Icons.warehouse,
               label: 'Inventory',
               subtitle: 'View current stock levels',
               route: '/inventory',
               color: Colors.teal,
             ),
-            const SizedBox(height: 12),
-            _buildNavCard(
-              context,
+            SizedBox(height: AgroSpacing.md),
+            _NavCard(
               icon: Icons.category,
               label: 'Items',
               subtitle: 'Manage item catalog',
               route: '/items',
               color: Colors.indigo,
             ),
-            const SizedBox(height: 12),
-            _buildNavCard(
-              context,
+            SizedBox(height: AgroSpacing.md),
+            _NavCard(
               icon: Icons.cancel,
               label: 'Rejections',
               subtitle: 'Track rejected items',
@@ -126,26 +113,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 24),
-                    Text(
-                      'Administration',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildNavCard(
-                      context,
+                    SizedBox(height: AgroSpacing.xl),
+                    Text('Administration', style: AgroTypography.sectionTitle),
+                    SizedBox(height: AgroSpacing.md),
+                    _NavCard(
                       icon: Icons.health_and_safety,
                       label: 'Inventory Health',
                       subtitle: 'Monitor ledger status and drift',
                       route: '/admin/ledger/health',
                       color: Colors.redAccent,
                     ),
-                    const SizedBox(height: 12),
-                    _buildNavCard(
-                      context,
+                    SizedBox(height: AgroSpacing.md),
+                    _NavCard(
                       icon: Icons.rule_rounded,
                       label: 'UOM Diagnostics',
                       subtitle: 'View configuration risks',
@@ -185,61 +164,59 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       await ref.read(authProvider.notifier).logout();
     }
   }
+}
 
-  Widget _buildNavCard(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String subtitle,
-    required String route,
-    required Color color,
-  }) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: InkWell(
-        onTap: () => context.push(route),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 28),
+/// Navigation card widget using Agro UI foundation.
+/// Replaces the old _buildNavCard helper method.
+class _NavCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final String route;
+  final Color color;
+
+  const _NavCard({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.route,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AgroCard.outlined(
+      onTap: () => context.push(route),
+      child: Row(
+        children: [
+          // Icon container with color tint
+          Container(
+            padding: EdgeInsets.all(AgroSpacing.md),
+            decoration: BoxDecoration(
+              color: Color.fromRGBO(
+                (color.r * 255).round(),
+                (color.g * 255).round(),
+                (color.b * 255).round(),
+                0.1,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: Colors.grey[400]),
-            ],
+              borderRadius: AgroShapes.cardRadius,
+            ),
+            child: Icon(icon, color: color, size: 28),
           ),
-        ),
+          SizedBox(width: AgroSpacing.lg),
+          // Text content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: AgroTypography.cardTitle),
+                const SizedBox(height: 2),
+                Text(subtitle, style: AgroTypography.cardSubtitle),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: AgroColors.textDisabled),
+        ],
       ),
     );
   }

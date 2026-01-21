@@ -4,6 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../services/order_service.dart';
+import '../ui/semantics/agro_severity.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_shapes.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_empty_state.dart';
+import '../ui/widgets/agro_error_state.dart';
 import '../widgets/skeleton_loader.dart';
 
 class OrdersScreen extends StatefulWidget {
@@ -69,6 +77,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
     }
   }
 
+  // PRESERVED EXACTLY: Delete confirmation dialog with destructive styling
   Future<void> _confirmDelete(int id) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -95,29 +104,17 @@ class _OrderListScreenState extends State<OrdersScreen> {
     }
   }
 
-  String _getStatusText(num ordered, num dispatched) {
-    if (dispatched >= ordered) return 'Fully dispatched';
-    if (dispatched > 0) return 'Partially dispatched';
-    return 'Not dispatched yet';
-  }
-
-  Color _getStatusColor(num ordered, num dispatched) {
-    if (dispatched >= ordered) return Colors.green;
-    if (dispatched > 0) return Colors.amber.shade700;
-    return Colors.red;
-  }
-
   @override
   Widget build(BuildContext context) {
     final dateFormatted = DateFormat('EEEE, MMM d').format(_selectedDate);
     final isToday = DateUtils.isSameDay(_selectedDate, DateTime.now());
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: AgroColors.background,
       appBar: AppBar(
         title: const Text('Orders'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AgroColors.surface,
+        foregroundColor: AgroColors.textPrimary,
         elevation: 1,
         automaticallyImplyLeading: false,
       ),
@@ -126,8 +123,13 @@ class _OrderListScreenState extends State<OrdersScreen> {
         children: [
           // Date header with semantic meaning
           Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            color: AgroColors.surface,
+            padding: EdgeInsets.fromLTRB(
+              AgroSpacing.lg,
+              AgroSpacing.md,
+              AgroSpacing.lg,
+              AgroSpacing.sm,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -136,10 +138,7 @@ class _OrderListScreenState extends State<OrdersScreen> {
                     Expanded(
                       child: Text(
                         isToday ? 'Today — $dateFormatted' : dateFormatted,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AgroTypography.cardTitle.copyWith(fontSize: 18),
                       ),
                     ),
                     IconButton(
@@ -151,15 +150,20 @@ class _OrderListScreenState extends State<OrdersScreen> {
                 ),
                 Text(
                   'Orders scheduled for this date',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  style: AgroTypography.caption,
                 ),
               ],
             ),
           ),
           // Compact filter bar
           Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            color: AgroColors.surface,
+            padding: EdgeInsets.fromLTRB(
+              AgroSpacing.lg,
+              0,
+              AgroSpacing.lg,
+              AgroSpacing.md,
+            ),
             child: Row(
               children: [
                 // Mart filter chip-style
@@ -169,26 +173,23 @@ class _OrderListScreenState extends State<OrdersScreen> {
                     value: _selectedMartFilter,
                     decoration: InputDecoration(
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: AgroSpacing.md,
+                        vertical: AgroSpacing.sm,
                       ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                        borderRadius: AgroShapes.pillRadius,
+                        borderSide: BorderSide(color: AgroColors.divider),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                        borderRadius: AgroShapes.pillRadius,
+                        borderSide: BorderSide(color: AgroColors.divider),
                       ),
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: AgroColors.surfaceVariant,
                     ),
                     dropdownStyleData: const DropdownStyleData(maxHeight: 200),
-                    hint: const Text(
-                      'All Marts',
-                      style: TextStyle(fontSize: 14),
-                    ),
+                    hint: Text('All Marts', style: AgroTypography.body),
                     items: [
                       const DropdownMenuItem<String>(
                         value: null,
@@ -209,71 +210,35 @@ class _OrderListScreenState extends State<OrdersScreen> {
               ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1, color: AgroColors.divider),
           // Orders list
           Expanded(
             child:
                 _isLoading
                     ? const StaticSkeletonList(itemCount: 5)
                     : _error.isNotEmpty
-                    ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 48,
-                            color: Colors.red[300],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            _error,
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: _fetchOrders,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retry'),
-                          ),
-                        ],
-                      ),
+                    ? AgroErrorState(
+                      title: 'Failed to load orders',
+                      message: _error,
+                      onRetry: _fetchOrders,
                     )
                     : _orders.isEmpty
-                    ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.assignment_outlined,
-                            size: 64,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No orders for this date',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Tap + to create an order',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[500],
-                            ),
-                          ),
-                        ],
-                      ),
+                    ? AgroEmptyState(
+                      icon: Icons.assignment_outlined,
+                      title: 'No orders for this date',
+                      message: 'Tap + to create an order',
                     )
                     : RefreshIndicator(
                       onRefresh: _fetchOrders,
                       child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
+                        padding: EdgeInsets.all(AgroSpacing.lg),
                         itemCount: _orders.length,
-                        itemBuilder: (_, i) => _buildOrderCard(_orders[i]),
+                        itemBuilder:
+                            (_, i) => _OrderCard(
+                              order: _orders[i],
+                              onRefresh: _fetchOrders,
+                              onDelete: _confirmDelete,
+                            ),
                       ),
                     ),
           ),
@@ -284,60 +249,86 @@ class _OrderListScreenState extends State<OrdersScreen> {
           final ok = await context.push('/order-entry');
           if (ok == true) _fetchOrders();
         },
-        backgroundColor: Colors.green,
+        backgroundColor: AgroColors.success.text,
         icon: const Icon(Icons.add),
         label: const Text('Add Order'),
         heroTag: 'orders-add-fab',
       ),
     );
   }
+}
 
-  Widget _buildOrderCard(Map<String, dynamic> o) {
-    final itemName = o['item']?['name'] ?? 'Unknown';
-    final martName = o['mart_name'] ?? '';
-    final ordered = (o['quantity_ordered'] as num?) ?? 0;
-    final dispatched = (o['quantity_dispatched'] as num?) ?? 0;
+/// Order card displaying order details with status-based left border.
+/// Preserves all navigation and action callbacks exactly.
+class _OrderCard extends StatelessWidget {
+  final Map<String, dynamic> order;
+  final VoidCallback onRefresh;
+  final Future<void> Function(int) onDelete;
+
+  const _OrderCard({
+    required this.order,
+    required this.onRefresh,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final itemName = order['item']?['name'] ?? 'Unknown';
+    final martName = order['mart_name'] ?? '';
+    final ordered = (order['quantity_ordered'] as num?) ?? 0;
+    final dispatched = (order['quantity_dispatched'] as num?) ?? 0;
     final remaining = ordered - dispatched;
-    final unit = o['unit'] ?? '';
+    final unit = order['unit'] ?? '';
 
-    final statusText = _getStatusText(ordered, dispatched);
-    final statusColor = _getStatusColor(ordered, dispatched);
+    // Derive status using semantic parser
+    final status = AgroStatusParser.fromOrderDispatchProgress(
+      ordered,
+      dispatched,
+    );
+    final statusText = AgroStatusParser.getOrderDispatchLabel(
+      ordered,
+      dispatched,
+    );
+    final severityStyle = AgroSeverity.fromStatus(status);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: AgroSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border(left: BorderSide(color: statusColor, width: 5)),
+        color: AgroColors.surface,
+        borderRadius: AgroShapes.containerRadius,
+        border: Border(
+          left: BorderSide(color: severityStyle.textColor, width: 5),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
+            color: AgroColors.divider,
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: InkWell(
+        // PRESERVED EXACTLY: Dispatch navigation on card tap
         onTap: () async {
           final ok = await context.push(
             '/dispatch-entry',
             extra: {
-              'order_id': o['id'],
-              'item_id': o['item_id'],
-              'batch_id': o['batch_id'],
-              'mart_name': o['mart_name'],
-              'quantity_ordered': o['quantity_ordered'],
-              'quantity_dispatched': o['quantity_dispatched'],
-              'unit': o['unit'],
-              'dispatch_date': o['order_date'],
-              'item_name': o['item']?['name'],
+              'order_id': order['id'],
+              'item_id': order['item_id'],
+              'batch_id': order['batch_id'],
+              'mart_name': order['mart_name'],
+              'quantity_ordered': order['quantity_ordered'],
+              'quantity_dispatched': order['quantity_dispatched'],
+              'unit': order['unit'],
+              'dispatch_date': order['order_date'],
+              'item_name': order['item']?['name'],
             },
           );
-          if (ok == true) _fetchOrders();
+          if (ok == true) onRefresh();
         },
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AgroShapes.containerRadius,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(AgroSpacing.md + 2), // 14px as before
           child: Row(
             children: [
               Expanded(
@@ -346,44 +337,39 @@ class _OrderListScreenState extends State<OrdersScreen> {
                   children: [
                     Text(
                       itemName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
+                      style: AgroTypography.cardTitle.copyWith(fontSize: 15),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      martName,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: AgroSpacing.xs / 2), // 2px
+                    Text(martName, style: AgroTypography.caption),
+                    SizedBox(height: AgroSpacing.sm),
                     Row(
                       children: [
-                        _quantityChip(
-                          'Ordered',
-                          ordered,
-                          unit,
-                          Colors.grey.shade200,
+                        _QuantityChip(
+                          label: 'Ordered',
+                          value: ordered,
+                          unit: unit,
+                          backgroundColor: AgroColors.surfaceVariant,
                         ),
-                        const SizedBox(width: 8),
-                        _quantityChip(
-                          'Dispatched',
-                          dispatched,
-                          unit,
-                          Colors.green.shade50,
+                        SizedBox(width: AgroSpacing.sm),
+                        _QuantityChip(
+                          label: 'Dispatched',
+                          value: dispatched,
+                          unit: unit,
+                          backgroundColor: AgroColors.success.background,
                         ),
-                        const SizedBox(width: 8),
-                        _quantityChip(
-                          'Remaining',
-                          remaining,
-                          unit,
-                          remaining > 0
-                              ? Colors.orange.shade50
-                              : Colors.grey.shade100,
+                        SizedBox(width: AgroSpacing.sm),
+                        _QuantityChip(
+                          label: 'Remaining',
+                          value: remaining,
+                          unit: unit,
+                          backgroundColor:
+                              remaining > 0
+                                  ? AgroColors.warning.background
+                                  : AgroColors.surfaceVariant,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: AgroSpacing.sm),
                     Row(
                       children: [
                         Icon(
@@ -393,15 +379,14 @@ class _OrderListScreenState extends State<OrdersScreen> {
                               ? Icons.autorenew
                               : Icons.schedule,
                           size: 16,
-                          color: statusColor,
+                          color: severityStyle.textColor,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: AgroSpacing.xs),
                         Text(
                           statusText,
-                          style: TextStyle(
-                            fontSize: 12,
+                          style: AgroTypography.caption.copyWith(
                             fontWeight: FontWeight.w500,
-                            color: statusColor,
+                            color: severityStyle.textColor,
                           ),
                         ),
                       ],
@@ -409,29 +394,30 @@ class _OrderListScreenState extends State<OrdersScreen> {
                   ],
                 ),
               ),
+              // PRESERVED EXACTLY: PopupMenuButton with edit/dispatch/delete actions
               PopupMenuButton<String>(
                 onSelected: (v) async {
                   if (v == 'edit') {
-                    final ok = await context.push('/order-entry', extra: o);
-                    if (ok == true) _fetchOrders();
+                    final ok = await context.push('/order-entry', extra: order);
+                    if (ok == true) onRefresh();
                   } else if (v == 'dispatch') {
                     final ok = await context.push(
                       '/dispatch-entry',
                       extra: {
-                        'order_id': o['id'],
-                        'item_id': o['item_id'],
-                        'batch_id': o['batch_id'],
-                        'mart_name': o['mart_name'],
-                        'quantity_ordered': o['quantity_ordered'],
-                        'quantity_dispatched': o['quantity_dispatched'],
-                        'unit': o['unit'],
-                        'dispatch_date': o['order_date'],
-                        'item_name': o['item']?['name'],
+                        'order_id': order['id'],
+                        'item_id': order['item_id'],
+                        'batch_id': order['batch_id'],
+                        'mart_name': order['mart_name'],
+                        'quantity_ordered': order['quantity_ordered'],
+                        'quantity_dispatched': order['quantity_dispatched'],
+                        'unit': order['unit'],
+                        'dispatch_date': order['order_date'],
+                        'item_name': order['item']?['name'],
                       },
                     );
-                    if (ok == true) _fetchOrders();
+                    if (ok == true) onRefresh();
                   } else {
-                    _confirmDelete(o['id']);
+                    onDelete(order['id']);
                   }
                 },
                 itemBuilder:
@@ -447,21 +433,40 @@ class _OrderListScreenState extends State<OrdersScreen> {
       ),
     );
   }
+}
 
-  Widget _quantityChip(String label, num value, String unit, Color bgColor) {
+/// Quantity chip displaying a value with label.
+class _QuantityChip extends StatelessWidget {
+  final String label;
+  final num value;
+  final String unit;
+  final Color backgroundColor;
+
+  const _QuantityChip({
+    required this.label,
+    required this.value,
+    required this.unit,
+    required this.backgroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: AgroSpacing.sm,
+        vertical: AgroSpacing.xs,
+      ),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(6),
+        color: backgroundColor,
+        borderRadius: AgroShapes.bannerRadius,
       ),
       child: Column(
         children: [
           Text(
             '${value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 1)}$unit',
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            style: AgroTypography.captionEmphasis,
           ),
-          Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+          Text(label, style: AgroTypography.caption.copyWith(fontSize: 10)),
         ],
       ),
     );

@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../providers/admin_ledger_provider.dart';
+import '../ui/semantics/agro_severity.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_shapes.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_card.dart';
+import '../ui/widgets/agro_error_state.dart';
 
 class AdminInventoryHealthScreen extends ConsumerWidget {
   const AdminInventoryHealthScreen({super.key});
@@ -23,7 +32,10 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
       body: healthAsync.when(
         data: (data) => _buildBody(context, data),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        error:
+            (err, stack) => AgroErrorState.loadFailed(
+              onRetry: () => ref.read(ledgerHealthProvider.notifier).refresh(),
+            ),
       ),
     );
   }
@@ -35,67 +47,54 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
     final negativeCount = data['negative_stock_batches'] ?? 0;
 
     final isHealthy = status == 'healthy';
-    final statusColor = isHealthy ? Colors.green : Colors.red;
-    final statusIcon = isHealthy ? Icons.check_circle : Icons.warning_amber_rounded;
+    final healthStatus = AgroStatusParser.fromHealthStatus(status);
+    final severityStyle = AgroSeverity.fromStatus(healthStatus);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(AgroSpacing.screenPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Status Card
-          Card(
-            color: statusColor.withOpacity(0.1),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  Icon(statusIcon, size: 48, color: statusColor),
-                  const SizedBox(height: 16),
-                  Text(
-                    'System Status: ${status.toUpperCase()}',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: statusColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          _HealthStatusCard(
+            status: status,
+            isHealthy: isHealthy,
+            severityStyle: severityStyle,
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: AgroSpacing.xl),
 
           // Metrics Grid
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+            crossAxisSpacing: AgroSpacing.lg,
+            mainAxisSpacing: AgroSpacing.lg,
             physics: const NeverScrollableScrollPhysics(),
             children: [
-              _MetricCard(
+              _HealthMetricCard(
                 title: 'Total Batches',
                 value: totalBatches.toString(),
                 icon: Icons.inventory_2,
-                color: Colors.blue,
+                status: AgroStatus.info,
               ),
-              _MetricCard(
+              _HealthMetricCard(
                 title: 'Drifted Batches',
                 value: driftedCount.toString(),
                 icon: Icons.compare_arrows,
-                color: driftedCount > 0 ? Colors.red : Colors.green,
+                status:
+                    driftedCount > 0 ? AgroStatus.critical : AgroStatus.stable,
               ),
-              _MetricCard(
+              _HealthMetricCard(
                 title: 'Negative Stock',
                 value: negativeCount.toString(),
                 icon: Icons.trending_down,
-                color: negativeCount > 0 ? Colors.red : Colors.green,
+                status:
+                    negativeCount > 0 ? AgroStatus.critical : AgroStatus.stable,
               ),
             ],
           ),
 
-          const SizedBox(height: 32),
+          SizedBox(height: AgroSpacing.xxl),
 
           // Action Button
           if (!isHealthy)
@@ -104,56 +103,99 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
               icon: const Icon(Icons.list_alt),
               label: const Text('View Detailed Drift Report'),
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
-                padding: const EdgeInsets.all(16),
+                backgroundColor: AgroColors.critical.background,
+                foregroundColor: AgroColors.critical.text,
+                padding: EdgeInsets.all(AgroSpacing.lg),
               ),
             )
           else
-             const Center(
-               child: Text(
-                 'All systems nominal. No reconciliation actions required.',
-                 style: TextStyle(color: Colors.grey),
-               ),
-             ),
+            Center(
+              child: Text(
+                'All systems nominal. No reconciliation actions required.',
+                style: AgroTypography.caption,
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
+/// Health status card displaying overall system status with semantic severity styling.
+class _HealthStatusCard extends StatelessWidget {
+  final String status;
+  final bool isHealthy;
+  final AgroSeverityStyle severityStyle;
 
-  const _MetricCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
+  const _HealthStatusCard({
+    required this.status,
+    required this.isHealthy,
+    required this.severityStyle,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
+    return Container(
+      decoration: BoxDecoration(
+        color: severityStyle.backgroundColor,
+        borderRadius: AgroShapes.cardRadius,
+        border: Border.all(color: severityStyle.borderColor),
+      ),
+      padding: EdgeInsets.all(AgroSpacing.xl),
+      child: Column(
+        children: [
+          Icon(
+            isHealthy ? Icons.check_circle : Icons.warning_amber_rounded,
+            size: 48,
+            color: severityStyle.iconColor,
+          ),
+          SizedBox(height: AgroSpacing.lg),
+          Text(
+            'System Status: ${status.toUpperCase()}',
+            style: AgroTypography.cardTitle.copyWith(
+              fontSize: 20,
+              color: severityStyle.textColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Metric card for displaying health metrics with semantic status styling.
+class _HealthMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final AgroStatus status;
+
+  const _HealthMetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final severityStyle = AgroSeverity.fromStatus(status);
+
+    return AgroCard.outlined(
+      borderColor: severityStyle.borderColor,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(AgroSpacing.lg),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
+            Icon(icon, size: 32, color: severityStyle.iconColor),
+            SizedBox(height: AgroSpacing.sm),
+            Text(value, style: AgroTypography.metricValue),
+            SizedBox(height: AgroSpacing.xs),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: AgroTypography.metricLabel,
             ),
           ],
         ),
