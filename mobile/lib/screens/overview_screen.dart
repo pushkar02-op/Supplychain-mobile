@@ -8,6 +8,13 @@ import '../providers/auth_provider.dart';
 import '../services/dispatch_service.dart';
 import '../services/order_service.dart';
 import '../services/stock_service.dart';
+import '../ui/semantics/agro_severity.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_card.dart';
+import '../ui/widgets/agro_error_state.dart';
 
 /// Overview screen - read-only dashboard showing today's system snapshot.
 /// This is Tab 1 in the bottom navigation.
@@ -70,7 +77,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     final todayFormatted = DateFormat('EEEE, MMMM d').format(DateTime.now());
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: AgroColors.background,
       appBar: AppBar(
         title: const Text('Overview'),
         backgroundColor: Colors.white,
@@ -89,39 +96,38 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
           _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
-              ? _buildError()
+              ? AgroErrorState.loadFailed(
+                customTitle: 'Could not load overview',
+                onRetry: _loadTodayData,
+              )
               : RefreshIndicator(
                 onRefresh: _loadTodayData,
                 child: ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(AgroSpacing.screenPadding),
                   children: [
                     // Date Header
-                    Text(
-                      todayFormatted,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+                    Text(todayFormatted, style: AgroTypography.captionEmphasis),
+                    SizedBox(height: AgroSpacing.lg),
 
                     // Today's Operations
-                    _buildSectionHeader('Today\'s Operations'),
-                    const SizedBox(height: 8),
+                    Text(
+                      "Today's Operations",
+                      style: AgroTypography.sectionTitle,
+                    ),
+                    SizedBox(height: AgroSpacing.sm),
                     _buildOperationsGrid(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AgroSpacing.xl),
 
                     // Quick Actions
-                    _buildSectionHeader('Quick Actions'),
-                    const SizedBox(height: 8),
+                    Text('Quick Actions', style: AgroTypography.sectionTitle),
+                    SizedBox(height: AgroSpacing.sm),
                     _buildQuickActions(),
 
                     // Admin Summary (conditional)
                     if (isAdmin) ...[
-                      const SizedBox(height: 24),
-                      _buildSectionHeader('System Health'),
-                      const SizedBox(height: 8),
+                      SizedBox(height: AgroSpacing.xl),
+                      Text('System Health', style: AgroTypography.sectionTitle),
+                      SizedBox(height: AgroSpacing.sm),
                       _buildAdminSummary(),
                     ],
                   ],
@@ -130,153 +136,68 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     );
   }
 
-  Widget _buildError() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-          const SizedBox(height: 12),
-          Text(
-            'Could not load overview',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _loadTodayData,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.bold,
-        color: Colors.grey,
-      ),
-    );
-  }
-
   Widget _buildOperationsGrid() {
     return Row(
       children: [
         Expanded(
-          child: _buildMetricCard(
-            'Orders',
-            _ordersToday.toString(),
-            Icons.receipt_long,
-            Colors.blue,
-            () => context.push('/orders'),
+          child: _MetricCard(
+            label: 'Orders',
+            value: _ordersToday.toString(),
+            icon: Icons.receipt_long,
+            color: Colors.blue,
+            onTap: () => context.push('/orders'),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: AgroSpacing.md),
         Expanded(
-          child: _buildMetricCard(
-            'Dispatches',
-            _dispatchesToday.toString(),
-            Icons.local_shipping,
-            Colors.orange,
-            () => context.push('/dispatch-entries'),
+          child: _MetricCard(
+            label: 'Dispatches',
+            value: _dispatchesToday.toString(),
+            icon: Icons.local_shipping,
+            color: Colors.orange,
+            onTap: () => context.push('/dispatch-entries'),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: AgroSpacing.md),
         Expanded(
-          child: _buildMetricCard(
-            'Stock In',
-            _stockEntriesToday.toString(),
-            Icons.inventory_2,
-            Colors.green,
-            () => context.push('/stock-list'),
+          child: _MetricCard(
+            label: 'Stock In',
+            value: _stockEntriesToday.toString(),
+            icon: Icons.inventory_2,
+            color: Colors.green,
+            onTap: () => context.push('/stock-list'),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildMetricCard(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
   Widget _buildQuickActions() {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: AgroSpacing.sm,
+      runSpacing: AgroSpacing.sm,
       children: [
-        _buildActionChip(
-          'New Stock',
-          Icons.add_box_outlined,
-          () => context.push('/stock-entry'),
+        _ActionChip(
+          label: 'New Stock',
+          icon: Icons.add_box_outlined,
+          onTap: () => context.push('/stock-entry'),
         ),
-        _buildActionChip(
-          'New Order',
-          Icons.add_shopping_cart,
-          () => context.push('/order-entry'),
+        _ActionChip(
+          label: 'New Order',
+          icon: Icons.add_shopping_cart,
+          onTap: () => context.push('/order-entry'),
         ),
-        _buildActionChip(
-          'View Inventory',
-          Icons.analytics_outlined,
-          () => context.push('/inventory'),
+        _ActionChip(
+          label: 'View Inventory',
+          icon: Icons.analytics_outlined,
+          onTap: () => context.push('/inventory'),
         ),
-        _buildActionChip(
-          'Mart Bills',
-          Icons.receipt_outlined,
-          () => context.push('/mart-bills'),
+        _ActionChip(
+          label: 'Mart Bills',
+          icon: Icons.receipt_outlined,
+          onTap: () => context.push('/mart-bills'),
         ),
       ],
-    );
-  }
-
-  Widget _buildActionChip(String label, IconData icon, VoidCallback onTap) {
-    return ActionChip(
-      avatar: Icon(icon, size: 18, color: Colors.green),
-      label: Text(label),
-      onPressed: onTap,
-      backgroundColor: Colors.white,
-      side: BorderSide(color: Colors.grey.shade300),
     );
   }
 
@@ -285,84 +206,122 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
 
     return healthAsync.when(
       loading:
-          () => const Card(
+          () => AgroCard(
             child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
+              padding: EdgeInsets.all(AgroSpacing.lg),
+              child: const Center(child: CircularProgressIndicator()),
             ),
           ),
-      error:
-          (e, _) => Card(
-            color: Colors.red.shade50,
-            child: ListTile(
-              leading: Icon(Icons.error_outline, color: Colors.red.shade700),
-              title: const Text('Could not load health'),
-              trailing: IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed:
-                    () => ref.read(ledgerHealthProvider.notifier).refresh(),
-              ),
-            ),
-          ),
-      data: (data) {
-        final status = data['status'] as String? ?? 'unknown';
-        final isHealthy = status == 'healthy';
-        final driftedBatches = data['drifted_batches'] ?? 0;
-        final negativeStock = data['negative_stock_batches'] ?? 0;
-
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: isHealthy ? Colors.green.shade200 : Colors.red.shade200,
-            ),
-          ),
-          child: InkWell(
-            onTap: () => context.push('/admin/ledger/health'),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Icon(
-                    isHealthy
-                        ? Icons.check_circle
-                        : Icons.warning_amber_rounded,
-                    color: isHealthy ? Colors.green : Colors.red,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isHealthy ? 'System Healthy' : 'Attention Needed',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color:
-                                isHealthy ? Colors.green[700] : Colors.red[700],
-                          ),
-                        ),
-                        if (!isHealthy)
-                          Text(
-                            'Drift: $driftedBatches | Negative: $negativeStock',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, color: Colors.grey),
-                ],
-              ),
+      error: (e, _) {
+        final severity = AgroSeverity.fromStatus(AgroStatus.critical);
+        return AgroCard(
+          borderColor: severity.borderColor,
+          child: ListTile(
+            leading: Icon(Icons.error_outline, color: severity.iconColor),
+            title: const Text('Could not load health'),
+            trailing: IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed:
+                  () => ref.read(ledgerHealthProvider.notifier).refresh(),
             ),
           ),
         );
       },
+      data: (data) {
+        final status = data['status'] as String? ?? 'unknown';
+        final agroStatus = AgroStatusParser.fromHealthStatus(status);
+        final severity = AgroSeverity.fromStatus(agroStatus);
+        final isHealthy = status == 'healthy';
+        final driftedBatches = data['drifted_batches'] ?? 0;
+        final negativeStock = data['negative_stock_batches'] ?? 0;
+
+        return AgroCard.outlined(
+          borderColor: severity.borderColor,
+          onTap: () => context.push('/admin/ledger/health'),
+          child: Row(
+            children: [
+              Icon(severity.icon, color: severity.iconColor, size: 32),
+              SizedBox(width: AgroSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isHealthy ? 'System Healthy' : 'Attention Needed',
+                      style: AgroTypography.emphasis.copyWith(
+                        color: severity.textColor,
+                      ),
+                    ),
+                    if (!isHealthy)
+                      Text(
+                        'Drift: $driftedBatches | Negative: $negativeStock',
+                        style: AgroTypography.caption,
+                      ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: AgroColors.textDisabled),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Metric card widget for the operations grid.
+class _MetricCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MetricCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AgroCard.outlined(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          SizedBox(height: AgroSpacing.sm),
+          Text(value, style: AgroTypography.metricValue.copyWith(color: color)),
+          SizedBox(height: AgroSpacing.xs),
+          Text(label, style: AgroTypography.metricLabel),
+        ],
+      ),
+    );
+  }
+}
+
+/// Action chip widget for quick actions.
+class _ActionChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _ActionChip({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      avatar: Icon(icon, size: 18, color: AgroColors.primary),
+      label: Text(label),
+      onPressed: onTap,
+      backgroundColor: AgroColors.surface,
+      side: BorderSide(color: AgroColors.divider),
     );
   }
 }

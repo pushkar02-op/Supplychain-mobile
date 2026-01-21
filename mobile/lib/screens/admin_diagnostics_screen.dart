@@ -1,6 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../providers/admin_diagnostics_provider.dart';
+import '../ui/semantics/agro_severity.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_shapes.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_card.dart';
+import '../ui/widgets/agro_empty_state.dart';
+import '../ui/widgets/agro_error_state.dart';
+import '../ui/widgets/agro_section.dart';
 
 class AdminDiagnosticsScreen extends ConsumerWidget {
   const AdminDiagnosticsScreen({super.key});
@@ -10,7 +21,7 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
     final missingItemsAsync = ref.watch(missingDefaultUOMProvider);
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: AgroColors.surfaceVariant,
       appBar: AppBar(
         title: const Text('System Diagnostics'),
         backgroundColor: Colors.white,
@@ -23,13 +34,13 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(AgroSpacing.screenPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(context),
-              const SizedBox(height: 24),
-              _buildUOMSection(context, missingItemsAsync),
+              _buildHeader(),
+              SizedBox(height: AgroSpacing.xl),
+              _buildUOMSection(context, ref, missingItemsAsync),
             ],
           ),
         ),
@@ -37,35 +48,40 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader() {
+    final severity = AgroSeverity.fromStatus(AgroStatus.info);
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AgroSpacing.lg),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade100),
+        color: severity.backgroundColor,
+        borderRadius: AgroShapes.cardRadius,
+        border: Border.all(color: severity.borderColor),
       ),
       child: Row(
         children: [
-          Icon(Icons.monitor_heart_outlined, color: Colors.blue.shade700, size: 28),
-          const SizedBox(width: 16),
+          Icon(
+            Icons.monitor_heart_outlined,
+            color: severity.iconColor,
+            size: 28,
+          ),
+          SizedBox(width: AgroSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Inventory Health Monitor',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade900,
-                      ),
+                  style: AgroTypography.cardTitle.copyWith(
+                    color: severity.textColor,
+                  ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: AgroSpacing.xs),
                 Text(
                   'Read-only diagnostic data. Contact support to resolve configuration issues.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.blue.shade800,
-                      ),
+                  style: AgroTypography.caption.copyWith(
+                    color: severity.textColor,
+                  ),
                 ),
               ],
             ),
@@ -77,159 +93,117 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
 
   Widget _buildUOMSection(
     BuildContext context,
+    WidgetRef ref,
     AsyncValue<List<Map<String, dynamic>>> asyncValue,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.rule, size: 20, color: Colors.grey),
-            const SizedBox(width: 8),
-            Text(
-              'UOM Configuration Risks',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Items with missing default units. Operations are blocked.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
-        ),
-        const SizedBox(height: 16),
-        asyncValue.when(
-          data: (items) {
-            if (items.isEmpty) {
-              return _buildEmptyState();
-            }
-            return ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                return _buildItemCard(context, items[index]);
-              },
+    return AgroSection(
+      title: 'UOM Configuration Risks',
+      subtitle: 'Items with missing default units. Operations are blocked.',
+      child: asyncValue.when(
+        data: (items) {
+          if (items.isEmpty) {
+            return AgroEmptyState(
+              icon: Icons.check_circle_outline,
+              iconColor: AgroColors.success.text,
+              title: 'All items configured correctly',
+              message: 'No missing default UOMs detected.',
+              iconSize: 48,
             );
-          },
-          loading: () => const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32.0),
-              child: CircularProgressIndicator(),
+          }
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => SizedBox(height: AgroSpacing.md),
+            itemBuilder: (context, index) {
+              return _DiagnosticItemCard(item: items[index]);
+            },
+          );
+        },
+        loading:
+            () => Padding(
+              padding: EdgeInsets.all(AgroSpacing.xxl),
+              child: const Center(child: CircularProgressIndicator()),
             ),
-          ),
-          error: (err, stack) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                'Error loading diagnostics: $err',
-                style: const TextStyle(color: Colors.red),
-              ),
+        error:
+            (err, stack) => AgroErrorState(
+              title: 'Error loading diagnostics',
+              message: err.toString(),
             ),
-          ),
-        ),
-      ],
+      ),
     );
   }
+}
 
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
+/// Diagnostic item card showing a configuration warning.
+class _DiagnosticItemCard extends StatelessWidget {
+  final Map<String, dynamic> item;
+
+  const _DiagnosticItemCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final warningSeverity = AgroSeverity.fromStatus(AgroStatus.major);
+    final criticalSeverity = AgroSeverity.fromStatus(AgroStatus.critical);
+
+    return AgroCard.outlined(
+      borderColor: warningSeverity.borderColor,
+      padding: EdgeInsets.all(AgroSpacing.lg),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.check_circle_outline, color: Colors.green.shade400, size: 48),
-          const SizedBox(height: 16),
-          Text(
-            'All items configured correctly',
-            style: TextStyle(
-              color: Colors.grey.shade800,
-              fontWeight: FontWeight.w600,
+          // Warning icon container
+          Container(
+            padding: EdgeInsets.all(AgroSpacing.sm + 2), // 10px
+            decoration: BoxDecoration(
+              color: warningSeverity.backgroundColor,
+              borderRadius: AgroShapes.containerRadius,
+            ),
+            child: Icon(
+              warningSeverity.icon,
+              color: warningSeverity.iconColor,
+              size: 24,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'No missing default UOMs detected.',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+          SizedBox(width: AgroSpacing.lg),
+          // Content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['name'] ?? 'Unknown Item',
+                  style: AgroTypography.cardTitle,
+                ),
+                SizedBox(height: AgroSpacing.xs),
+                Text(
+                  'ID: ${item['id']} • Code: ${item['item_code'] ?? 'N/A'}',
+                  style: AgroTypography.caption.copyWith(
+                    fontFamily: 'Monospace',
+                  ),
+                ),
+                SizedBox(height: AgroSpacing.sm),
+                // Blocked badge
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AgroSpacing.sm,
+                    vertical: AgroSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: criticalSeverity.backgroundColor,
+                    borderRadius: AgroShapes.badgeRadius,
+                  ),
+                  child: Text(
+                    'BLOCKED: Missing Default UOM',
+                    style: AgroTypography.badgeText.copyWith(
+                      color: criticalSeverity.textColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildItemCard(BuildContext context, Map<String, dynamic> item) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.orange.shade200),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.warning_amber_rounded,
-                  color: Colors.orange.shade700, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item['name'] ?? 'Unknown Item',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'ID: ${item['id']} • Code: ${item['item_code'] ?? 'N/A'}',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 13,
-                      fontFamily: 'Monospace',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'BLOCKED: Missing Default UOM',
-                      style: TextStyle(
-                        color: Colors.red.shade700,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

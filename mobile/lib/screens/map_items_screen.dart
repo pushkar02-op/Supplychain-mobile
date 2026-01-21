@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../services/item_service.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_card.dart';
 
 class MapItemsScreen extends StatefulWidget {
   final int billId;
@@ -25,13 +29,14 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
     rows = widget.unmappedItems.map((e) => _MapRow.fromJson(e)).toList();
   }
 
+  // PRESERVED EXACTLY: Save mapping logic
   Future<void> _saveMapping(_MapRow row) async {
     if (row.selectedMasterItem == null) return;
 
     final payload = {
       "alias_code": row.aliasCode,
       "alias_name": row.aliasName,
-      // "alias_unit": row.aliasUnit,
+      // "alias_unit": row.aliasUnit, // Preserved commented out from original
       "master_item_id": row.selectedMasterItem!['id'],
     };
 
@@ -47,6 +52,7 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
     }
   }
 
+  // PRESERVED EXACTLY: Create new item logic
   Future<void> _createNewItem(_MapRow row) async {
     final name = await _showTextInputDialog(context, 'New Item Name');
     if (name == null || name.trim().isEmpty) return;
@@ -64,6 +70,7 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
     }
   }
 
+  // PRESERVED EXACTLY: Text input dialog
   Future<String?> _showTextInputDialog(BuildContext context, String title) {
     final controller = TextEditingController();
     return showDialog<String>(
@@ -92,7 +99,7 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // as soon as we've removed the last row, reprocess + pop once
+    // PRESERVED EXACTLY: Completion logic
     if (rows.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await ItemService.reprocessStock(widget.billId);
@@ -105,76 +112,109 @@ class _MapItemsScreenState extends State<MapItemsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Map Mart Bill Items")),
+      backgroundColor: AgroColors.background,
+      appBar: AppBar(
+        title: const Text("Map Mart Bill Items"),
+        backgroundColor: AgroColors.surface,
+        foregroundColor: AgroColors.textPrimary,
+        elevation: 1,
+      ),
       body: ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(AgroSpacing.lg),
         itemCount: rows.length,
         itemBuilder: (context, index) {
           final row = rows[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Alias: ${row.aliasName} (Code: ${row.aliasCode}, ${row.aliasUnit})",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<int>(
-                    isExpanded: true,
-                    value: row.selectedMasterItem?["id"],
-                    items:
-                        row.suggestedItems
-                            .map(
-                              (e) => DropdownMenuItem<int>(
-                                value: e["id"],
-                                child: Text(e["name"]),
-                              ),
-                            )
-                            .toList(),
-                    onChanged: (val) {
-                      setState(() {
-                        row.selectedMasterItem = row.suggestedItems.firstWhere(
-                          (e) => e["id"] == val,
-                        );
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12),
-                      hintText: "Select Master Item",
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _createNewItem(row),
-                        icon: const Icon(Icons.add),
-                        label: const Text("New Item"),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                        ),
-                        onPressed: () => _saveMapping(row),
-                        icon: const Icon(Icons.save),
-                        label: const Text("Save Mapping"),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          return _MappingCard(
+            row: row,
+            onSave: () => _saveMapping(row),
+            onCreateNew: () => _createNewItem(row),
+            // Pass simple callback to force rebuild on selection change
+            onSelectionChanged: (val) {
+              setState(() {
+                row.selectedMasterItem = row.suggestedItems.firstWhere(
+                  (e) => e["id"] == val,
+                );
+              });
+            },
           );
         },
+      ),
+    );
+  }
+}
+
+class _MappingCard extends StatelessWidget {
+  final _MapRow row;
+  final VoidCallback onSave;
+  final VoidCallback onCreateNew;
+  final ValueChanged<int?> onSelectionChanged;
+
+  const _MappingCard({
+    required this.row,
+    required this.onSave,
+    required this.onCreateNew,
+    required this.onSelectionChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Using AgroCard for consistent styling
+    return AgroCard.outlined(
+      padding: EdgeInsets.all(AgroSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Alias: ${row.aliasName}",
+            style: AgroTypography.cardTitle.copyWith(fontSize: 15),
+          ),
+          SizedBox(height: AgroSpacing.xs),
+          Text(
+            "(Code: ${row.aliasCode}, Unit: ${row.aliasUnit})",
+            style: AgroTypography.caption,
+          ),
+          SizedBox(height: AgroSpacing.md),
+          DropdownButtonFormField<int>(
+            isExpanded: true,
+            value: row.selectedMasterItem?["id"],
+            items:
+                row.suggestedItems
+                    .map(
+                      (e) => DropdownMenuItem<int>(
+                        value: e["id"],
+                        child: Text(e["name"]),
+                      ),
+                    )
+                    .toList(),
+            onChanged: onSelectionChanged,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12),
+              hintText: "Select Master Item",
+            ),
+          ),
+          SizedBox(height: AgroSpacing.md),
+          Row(
+            children: [
+              ElevatedButton.icon(
+                onPressed: onCreateNew,
+                icon: const Icon(Icons.add),
+                label: const Text("New Item"),
+              ),
+              SizedBox(width: AgroSpacing.md),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  // Use success color for Save Mapping to match "Green" semantic
+                  backgroundColor: AgroColors.success.text,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: onSave,
+                icon: const Icon(Icons.save),
+                label: const Text("Save Mapping"),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

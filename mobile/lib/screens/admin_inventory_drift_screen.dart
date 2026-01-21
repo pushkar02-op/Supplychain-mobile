@@ -2,6 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/admin_ledger_provider.dart';
+import '../ui/semantics/agro_severity.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_shapes.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_empty_state.dart';
+import '../ui/widgets/agro_error_state.dart';
+import '../ui/widgets/agro_key_value_row.dart';
+import '../ui/widgets/agro_status_badge.dart';
 import 'admin_reconciliation_detail_screen.dart';
 
 class AdminInventoryDriftScreen extends ConsumerWidget {
@@ -24,25 +34,17 @@ class AdminInventoryDriftScreen extends ConsumerWidget {
       body: reportAsync.when(
         data: (report) {
           if (report.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    size: 64,
-                    color: Colors.green,
-                  ),
-                  SizedBox(height: 16),
-                  Text('No drift detected.'),
-                ],
-              ),
+            return AgroEmptyState(
+              icon: Icons.check_circle_outline,
+              iconColor: AgroColors.success.text,
+              title: 'No drift detected.',
             );
           }
           return ListView.separated(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(AgroSpacing.sm),
             itemCount: report.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            separatorBuilder:
+                (context, index) => SizedBox(height: AgroSpacing.sm),
             itemBuilder: (context, index) {
               final item = report[index];
               return _DriftItemCard(item: item);
@@ -50,12 +52,16 @@ class AdminInventoryDriftScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        error:
+            (err, stack) => AgroErrorState.loadFailed(
+              onRetry: () => ref.read(driftReportProvider.notifier).refresh(),
+            ),
       ),
     );
   }
 }
 
+/// Card displaying drift information for a single item with severity-based styling.
 class _DriftItemCard extends StatelessWidget {
   final Map<String, dynamic> item;
 
@@ -70,122 +76,77 @@ class _DriftItemCard extends StatelessWidget {
     final available = (item['state_qty'] as num?)?.toDouble() ?? 0.0;
     final ledger = (item['ledger_qty'] as num?)?.toDouble() ?? 0.0;
 
-    // Severity Colors
-    Color color;
-    switch (severity) {
-      case 'CRITICAL':
-        color = Colors.red;
-        break;
-      case 'MAJOR':
-        color = Colors.orange;
-        break;
-      case 'MINOR':
-        color = Colors.amber;
-        break;
-      default:
-        color = Colors.green;
-    }
+    // Derive semantic status and severity styling
+    final status = AgroStatusParser.fromDriftSeverity(severity);
+    final severityStyle = AgroSeverity.fromStatus(status);
 
-    return Card(
-      elevation: 0,
-      color: color.withOpacity(0.05),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: color.withOpacity(0.5)),
+    return Container(
+      decoration: BoxDecoration(
+        color: severityStyle.backgroundColor,
+        borderRadius: AgroShapes.cardRadius,
+        border: Border.all(color: severityStyle.borderColor),
       ),
-      child: InkWell(
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder:
-                  (_) => AdminReconciliationDetailScreen(
-                    itemId: itemId,
-                    itemName: itemName,
-                  ),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      itemName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: AgroShapes.cardRadius,
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder:
+                    (_) => AdminReconciliationDetailScreen(
+                      itemId: itemId,
+                      itemName: itemName,
+                    ),
+              ),
+            );
+          },
+          borderRadius: AgroShapes.cardRadius,
+          child: Padding(
+            padding: EdgeInsets.all(AgroSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header row: Item name + severity badge
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(itemName, style: AgroTypography.cardTitle),
+                    ),
+                    AgroStatusBadge.fromDriftSeverity(severity),
+                  ],
+                ),
+                Divider(color: AgroColors.divider),
+                // Available (Batch) row
+                AgroKeyValueRow(
+                  label: 'Available (Batch)',
+                  value: '$available',
+                ),
+                SizedBox(height: AgroSpacing.xs),
+                // Ledger row
+                AgroKeyValueRow(label: 'Ledger', value: '$ledger'),
+                Divider(color: AgroColors.divider),
+                // Net Drift row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('NET DRIFT:', style: AgroTypography.emphasis),
+                    Text(
+                      delta > 0
+                          ? '+${delta.toStringAsFixed(3)}'
+                          : delta.toStringAsFixed(3),
+                      style: AgroTypography.metricValue.copyWith(
+                        color: severityStyle.textColor,
                       ),
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      severity,
-                      style: const TextStyle(color: Colors.white, fontSize: 10),
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(),
-              _RowInfo('Available (Batch)', '$available'),
-              const SizedBox(height: 4),
-              _RowInfo('Ledger', '$ledger'),
-              const Divider(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'NET DRIFT:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    delta > 0
-                        ? '+${delta.toStringAsFixed(3)}'
-                        : delta.toStringAsFixed(3),
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _RowInfo extends StatelessWidget {
-  final String label;
-  final String value;
-  final TextStyle? valueStyle;
-
-  const _RowInfo(this.label, this.value, {this.valueStyle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey)),
-        Text(value, style: valueStyle),
-      ],
     );
   }
 }

@@ -5,6 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../services/mart_bill_service.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_shapes.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_empty_state.dart';
+import '../ui/widgets/agro_status_badge.dart';
 
 class MartBillListScreen extends StatefulWidget {
   const MartBillListScreen({Key? key}) : super(key: key);
@@ -43,6 +49,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
     } catch (_) {}
   }
 
+  // PRESERVED EXACTLY: Pagination logic
   Future<void> _fetchMartBills({bool loadMore = false}) async {
     if (loadMore) {
       if (_isLoadingMore || !_hasMore) return;
@@ -98,6 +105,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
     }
   }
 
+  // PRESERVED EXACTLY: File picking
   Future<void> _pickFiles() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -123,6 +131,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
     }
   }
 
+  // PRESERVED EXACTLY: Upload logic
   Future<void> _uploadFiles() async {
     if (_pickedPaths.isEmpty) return;
 
@@ -179,6 +188,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
     }
   }
 
+  // PRESERVED EXACTLY: Delete confirmation dialog
   Future<void> _confirmDelete(int id) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -204,6 +214,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
     }
   }
 
+  // PRESERVED EXACTLY: Edit item dialog
   Future<void> _showEditItemDialog(Map<String, dynamic> item) async {
     final qtyController = TextEditingController(
       text: item['quantity'].toString(),
@@ -286,33 +297,317 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
     );
   }
 
-  Widget _buildBillCard(Map<String, dynamic> bill) {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AgroColors.background,
+      appBar: AppBar(
+        title: const Text('Mart Bills'),
+        backgroundColor: AgroColors.surface,
+        foregroundColor: AgroColors.textPrimary,
+        elevation: 1,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Upload Mart Bill',
+            onPressed: _pickFiles,
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(AgroSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Filter row
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _selectDate,
+                  icon: const Icon(Icons.calendar_today),
+                  label: Text(
+                    _filterDate == null
+                        ? 'All Dates'
+                        : DateFormat('yyyy-MM-dd').format(_filterDate!),
+                  ),
+                ),
+                const SizedBox(width: AgroSpacing.md),
+                Expanded(
+                  child: DropdownButtonFormField2<String>(
+                    isExpanded: true,
+                    value: _filterMart,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: AgroSpacing.md,
+                        vertical: AgroSpacing.sm + 2, // 10px
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    dropdownStyleData: const DropdownStyleData(
+                      maxHeight: 200,
+                      width: 200,
+                    ),
+                    hint: const Text('All Marts'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('All Marts'),
+                      ),
+                      ..._marts.map(
+                        (m) => DropdownMenuItem(value: m, child: Text(m)),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      setState(() {
+                        _filterMart = v;
+                        _fetchMartBills();
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: AgroSpacing.md),
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(hintText: 'Search…'),
+                    onSubmitted: (v) {
+                      _search = v;
+                      _fetchMartBills();
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AgroSpacing.md),
+
+            if (_error != null)
+              Center(
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: AgroColors.critical.text),
+                ),
+              ),
+
+            const SizedBox(height: AgroSpacing.md),
+
+            // 1) UPLOAD FORM CARD
+            if (_showUploadSection) _buildUploadFormCard(),
+
+            // 2) UPLOAD RESULTS CARD
+            if (_uploadResults.isNotEmpty) _buildUploadResultsCard(),
+
+            // List
+            Expanded(child: _buildBillList()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadFormCard() {
+    return Card(
+      elevation: 2,
+      margin: EdgeInsets.only(bottom: AgroSpacing.md),
+      shape: RoundedRectangleBorder(borderRadius: AgroShapes.containerRadius),
+      child: Padding(
+        padding: EdgeInsets.all(AgroSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Selected Files', style: AgroTypography.cardTitle),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Cancel Upload',
+                  onPressed: () {
+                    setState(() {
+                      _pickedPaths.clear();
+                      _showUploadSection = false;
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: AgroSpacing.sm),
+            ..._pickedPaths.map(
+              (p) => Text('• ${p.split('/').last}', style: AgroTypography.body),
+            ),
+            const SizedBox(height: AgroSpacing.md),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                icon:
+                    _uploading
+                        ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AgroColors.surface,
+                          ),
+                        )
+                        : const Icon(Icons.cloud_upload),
+                label: const Text('Upload'),
+                onPressed: _uploading ? null : _uploadFiles,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadResultsCard() {
+    return Card(
+      elevation: 2,
+      margin: EdgeInsets.only(bottom: AgroSpacing.md),
+      shape: RoundedRectangleBorder(borderRadius: AgroShapes.containerRadius),
+      child: Padding(
+        padding: EdgeInsets.all(AgroSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Upload Results', style: AgroTypography.cardTitle),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Dismiss Results',
+                  onPressed: () {
+                    setState(() {
+                      _uploadResults.clear();
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: AgroSpacing.sm),
+            for (final result in _uploadResults)
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  result['success'] == true ? Icons.check_circle : Icons.error,
+                  color:
+                      result['success'] == true
+                          ? AgroColors.success.text
+                          : AgroColors.critical.text,
+                ),
+                title: Text(result['filename'] ?? 'Unnamed file'),
+                subtitle:
+                    result['success'] == true
+                        ? null
+                        : Text(
+                          result['error'] ?? 'Unknown error',
+                          style: TextStyle(color: AgroColors.critical.text),
+                        ),
+              ),
+            const SizedBox(height: AgroSpacing.md),
+            Center(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Add More Files'),
+                onPressed: () {
+                  setState(() {
+                    _uploadResults.clear();
+                    _pickedPaths.clear();
+                    _showUploadSection = true;
+                  });
+                  _pickFiles();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBillList() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_martBills.isEmpty) {
+      return AgroEmptyState(
+        icon: Icons.receipt_long_outlined,
+        title: 'No mart bills found',
+        actionLabel: 'Upload your first bill',
+        onAction: _pickFiles,
+      );
+    }
+
+    // PRESERVED EXACTLY: ListView with pagination
+    return ListView.builder(
+      padding: EdgeInsets.only(top: AgroSpacing.md, bottom: AgroSpacing.xl),
+      itemCount: _martBills.length + (_hasMore ? 1 : 0),
+      itemBuilder: (ctx, i) {
+        if (i == _martBills.length) {
+          return Padding(
+            padding: EdgeInsets.all(AgroSpacing.lg),
+            child: Center(
+              child:
+                  _isLoadingMore
+                      ? const CircularProgressIndicator()
+                      : _error != null
+                      ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Failed to load more items',
+                            style: TextStyle(color: AgroColors.critical.text),
+                          ),
+                          const SizedBox(height: AgroSpacing.sm),
+                          ElevatedButton.icon(
+                            onPressed: () => _fetchMartBills(loadMore: true),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry'),
+                          ),
+                        ],
+                      )
+                      : ElevatedButton.icon(
+                        onPressed: () => _fetchMartBills(loadMore: true),
+                        icon: const Icon(Icons.arrow_downward),
+                        label: const Text('Load More'),
+                      ),
+            ),
+          );
+        }
+        final bill = _martBills[i];
+        return _BillCard(
+          bill: bill,
+          onRefresh: _fetchMartBills,
+          onDelete: _confirmDelete,
+          onEditItem: _showEditItemDialog,
+        );
+      },
+    );
+  }
+}
+
+/// Bill card with expansion tile displaying bill details and items.
+/// Preserves all verify/unverify and delete callbacks exactly.
+class _BillCard extends StatelessWidget {
+  final Map<String, dynamic> bill;
+  final Future<void> Function() onRefresh;
+  final Future<void> Function(int) onDelete;
+  final Future<void> Function(Map<String, dynamic>) onEditItem;
+
+  const _BillCard({
+    required this.bill,
+    required this.onRefresh,
+    required this.onDelete,
+    required this.onEditItem,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final status = bill['status'] as String? ?? 'NEEDS_REVIEW';
     final isVerified = status == 'VERIFIED';
     final isProcessing = status == 'PROCESSING';
-
-    Color statusColor;
-    IconData statusIcon;
-    String statusLabel;
-
-    switch (status) {
-      case 'VERIFIED':
-        statusColor = Colors.green;
-        statusIcon = Icons.check_circle;
-        statusLabel = 'Verified';
-        break;
-      case 'PROCESSING':
-        statusColor = Colors.grey;
-        statusIcon = Icons.hourglass_top;
-        statusLabel = 'Processing';
-        break;
-      case 'NEEDS_REVIEW':
-      default:
-        statusColor = Colors.orange;
-        statusIcon = Icons.warning_amber_rounded;
-        statusLabel = 'Review Needed';
-        break;
-    }
 
     return ExpansionTile(
       title: Row(
@@ -320,47 +615,30 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
           Expanded(
             child: Text(
               bill['mart_name'] ?? 'Unknown Mart',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: AgroTypography.cardTitle,
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: statusColor),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(statusIcon, size: 12, color: statusColor),
-                const SizedBox(width: 4),
-                Text(
-                  statusLabel,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          AgroStatusBadge.fromBillStatus(status),
         ],
       ),
       subtitle: Text(
         '${DateFormat('MMM dd, yyyy').format(DateTime.parse(bill['invoice_date']))}   ₹ ${bill['total_amount'].toStringAsFixed(2)}',
+        style: AgroTypography.caption,
       ),
       trailing: Wrap(
-        spacing: 4,
+        spacing: AgroSpacing.xs,
         children: [
+          // PRESERVED EXACTLY: Verify/Unverify button
           if (!isProcessing)
             Tooltip(
               message: isVerified ? 'Unlock Bill' : 'Verify Bill',
               child: IconButton(
                 icon: Icon(
                   isVerified ? Icons.lock : Icons.lock_open,
-                  color: isVerified ? Colors.green : Colors.grey,
+                  color:
+                      isVerified
+                          ? AgroColors.success.text
+                          : AgroColors.textDisabled,
                 ),
                 onPressed: () async {
                   try {
@@ -369,7 +647,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                     } else {
                       await MartBillService.verifyMartBill(bill['id']);
                     }
-                    _fetchMartBills();
+                    onRefresh();
                   } catch (e) {
                     ScaffoldMessenger.of(
                       context,
@@ -378,12 +656,14 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                 },
               ),
             ),
+          // PRESERVED EXACTLY: Delete button
           Tooltip(
             message: 'Delete Bill',
             child: IconButton(
               icon: Icon(
                 Icons.delete,
-                color: isVerified ? Colors.grey[300] : Colors.red,
+                color:
+                    isVerified ? AgroColors.divider : AgroColors.critical.text,
               ),
               onPressed:
                   isVerified
@@ -396,7 +676,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                           ),
                         );
                       }
-                      : () => _confirmDelete(bill['id']),
+                      : () => onDelete(bill['id']),
             ),
           ),
         ],
@@ -404,7 +684,10 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
 
       children: [
         ListTile(
-          title: Text(bill['file_path'].toString().split('/').last),
+          title: Text(
+            bill['file_path'].toString().split('/').last,
+            style: AgroTypography.body,
+          ),
           trailing: TextButton(
             onPressed: () {
               context.push(
@@ -447,18 +730,20 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                             Text((it['total'] as num).toStringAsFixed(2)),
                           ),
                           DataCell(
+                            // PRESERVED EXACTLY: Item actions with edit/delete
                             isVerified
-                                ? const Icon(
+                                ? Icon(
                                   Icons.lock,
                                   size: 16,
-                                  color: Colors.grey,
+                                  color: AgroColors.textDisabled,
                                 )
                                 : PopupMenuButton<String>(
                                   icon: const Icon(Icons.more_vert, size: 18),
                                   onSelected: (value) async {
                                     if (value == 'edit') {
-                                      await _showEditItemDialog(it);
+                                      await onEditItem(it);
                                     } else if (value == 'delete') {
+                                      // PRESERVED EXACTLY: Item delete confirmation
                                       final confirmed = await showDialog<bool>(
                                         context: context,
                                         builder:
@@ -491,17 +776,17 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                                         await MartBillService.deleteMartBillItem(
                                           it['id'],
                                         );
-                                        setState(() {});
+                                        onRefresh();
                                       }
                                     }
                                   },
                                   itemBuilder:
-                                      (context) => [
-                                        const PopupMenuItem(
+                                      (context) => const [
+                                        PopupMenuItem(
                                           value: 'edit',
                                           child: Text('Edit'),
                                         ),
-                                        const PopupMenuItem(
+                                        PopupMenuItem(
                                           value: 'delete',
                                           child: Text('Delete'),
                                         ),
@@ -516,327 +801,6 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
           },
         ),
       ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        title: const Text('Mart Bills'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Upload Mart Bill',
-            onPressed: _pickFiles,
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Filter row
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _selectDate,
-                  icon: const Icon(Icons.calendar_today),
-                  label: Text(
-                    _filterDate == null
-                        ? 'All Dates'
-                        : DateFormat('yyyy-MM-dd').format(_filterDate!),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField2<String>(
-                    isExpanded: true,
-                    value: _filterMart,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
-                    dropdownStyleData: DropdownStyleData(
-                      maxHeight: 200,
-                      width: 200,
-                    ),
-                    hint: const Text('All Marts'),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: null,
-                        child: Text('All Marts'),
-                      ),
-                      ..._marts.map(
-                        (m) => DropdownMenuItem(value: m, child: Text(m)),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      setState(() {
-                        _filterMart = v;
-                        _fetchMartBills();
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(hintText: 'Search…'),
-                    onSubmitted: (v) {
-                      _search = v;
-                      _fetchMartBills();
-                    },
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            if (_error != null)
-              Center(
-                child: Text(_error!, style: const TextStyle(color: Colors.red)),
-              ),
-
-            const SizedBox(height: 12),
-
-            // 1) UPLOAD FORM CARD
-            if (_showUploadSection)
-              Card(
-                elevation: 2,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Selected Files',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            tooltip: 'Cancel Upload',
-                            onPressed: () {
-                              setState(() {
-                                _pickedPaths.clear();
-                                _showUploadSection = false;
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ..._pickedPaths.map(
-                        (p) => Text(
-                          '• ${p.split('/').last}',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: ElevatedButton.icon(
-                          icon:
-                              _uploading
-                                  ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                  : const Icon(Icons.cloud_upload),
-                          label: const Text('Upload'),
-                          onPressed: _uploading ? null : _uploadFiles,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            // 2) UPLOAD RESULTS CARD
-            if (_uploadResults.isNotEmpty)
-              Card(
-                elevation: 2,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Upload Results',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            tooltip: 'Dismiss Results',
-                            onPressed: () {
-                              setState(() {
-                                _uploadResults.clear();
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      for (final result in _uploadResults)
-                        ListTile(
-                          dense: true,
-                          leading: Icon(
-                            result['success'] == true
-                                ? Icons.check_circle
-                                : Icons.error,
-                            color:
-                                result['success'] == true
-                                    ? Colors.green
-                                    : Colors.red,
-                          ),
-                          title: Text(result['filename'] ?? 'Unnamed file'),
-                          subtitle:
-                              result['success'] == true
-                                  ? null
-                                  : Text(
-                                    result['error'] ?? 'Unknown error',
-                                    style: const TextStyle(
-                                      color: Colors.redAccent,
-                                    ),
-                                  ),
-                        ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add More Files'),
-                          onPressed: () {
-                            setState(() {
-                              _uploadResults.clear();
-                              _pickedPaths.clear();
-                              _showUploadSection = true;
-                            });
-                            _pickFiles();
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            // List
-            Expanded(
-              child:
-                  _loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _martBills.isEmpty
-                      ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.receipt_long_outlined,
-                            size: 64,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No mart bills found',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: _pickFiles,
-                            icon: const Icon(Icons.upload_file),
-                            label: const Text('Upload your first bill'),
-                          ),
-                        ],
-                      )
-                      : ListView.builder(
-                        padding: const EdgeInsets.only(top: 12, bottom: 24),
-                        itemCount: _martBills.length + (_hasMore ? 1 : 0),
-                        itemBuilder: (ctx, i) {
-                          if (i == _martBills.length) {
-                            return Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Center(
-                                child:
-                                    _isLoadingMore
-                                        ? const CircularProgressIndicator()
-                                        : _error != null
-                                        ? Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              'Failed to load more items',
-                                              style: const TextStyle(
-                                                color: Colors.red,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            ElevatedButton.icon(
-                                              onPressed:
-                                                  () => _fetchMartBills(
-                                                    loadMore: true,
-                                                  ),
-                                              icon: const Icon(Icons.refresh),
-                                              label: const Text('Retry'),
-                                            ),
-                                          ],
-                                        )
-                                        : ElevatedButton.icon(
-                                          onPressed:
-                                              () => _fetchMartBills(
-                                                loadMore: true,
-                                              ),
-                                          icon: const Icon(
-                                            Icons.arrow_downward,
-                                          ),
-                                          label: const Text('Load More'),
-                                        ),
-                              ),
-                            );
-                          }
-                          final bill = _martBills[i];
-                          return _buildBillCard(bill);
-                        },
-                      ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

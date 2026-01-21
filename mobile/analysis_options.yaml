@@ -21,8 +21,87 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
+    # === AGRO UI Consistency Rules ===
+    # These rules help maintain UI consistency across the application.
+    # See docs/ui/UI_WIDGET_CONTRACT.md for the full widget usage contract.
+    
+    # Prefer const constructors for immutable widgets
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true
+    
+    # Encourage explicit types for better readability
+    always_specify_types: false  # Too strict for Flutter
+    
+    # Avoid magic numbers and strings
+    # Note: Use AgroSpacing.* instead of inline EdgeInsets values
+    # Note: Use AgroColors.* instead of inline Colors.* values
+    # Note: Use AgroTypography.* instead of inline TextStyle values
+    
+    # Encourage documentation for public APIs
+    public_member_api_docs: false  # Enable when ready
+    
+    # Encourage immutability
+    prefer_final_fields: true
+    prefer_final_locals: true
+    
+    # Discourage deprecated API usage
+    deprecated_member_use_from_same_package: true
+    
+    # Encourage proper null safety
+    avoid_null_checks_in_equality_operators: true
+    
+    # Widget best practices
+    use_key_in_widget_constructors: true
+    sized_box_for_whitespace: true
+    
+    # Code organization
+    sort_child_properties_last: true
+    
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+
+analyzer:
+  # === AGRO UI Guardrails ===
+  # The following comments document patterns that should be avoided in new code.
+  # These are not enforced by the analyzer but should be caught in code review.
+  #
+  # DISCOURAGED PATTERNS (see docs/ui/UI_WIDGET_CONTRACT.md):
+  #
+  # 1. Direct Colors.* usage in screens:
+  #    ❌ Color: Colors.red
+  #    ✅ Use: AgroColors.critical.text or AgroSeverity.fromStatus(status).textColor
+  #
+  # 2. Inline TextStyle in screens:
+  #    ❌ TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+  #    ✅ Use: AgroTypography.cardTitle or AgroTypography.emphasis
+  #
+  # 3. Inline EdgeInsets in screens:
+  #    ❌ EdgeInsets.all(16.0)
+  #    ✅ Use: EdgeInsets.all(AgroSpacing.lg) or AgroSpacing.screenPadding
+  #
+  # 4. Switch/case on severity strings in screens:
+  #    ❌ switch(severity) { case 'CRITICAL': color = Colors.red; ... }
+  #    ✅ Use: AgroStatusParser.fromDriftSeverity(severity) + AgroSeverity.fromStatus()
+  #
+  # 5. Custom error/empty UI in screens:
+  #    ❌ Center(child: Text('Error: $err'))
+  #    ✅ Use: AgroErrorState.loadFailed(onRetry: ...)
+  #    ❌ Center(child: Text('No items found'))
+  #    ✅ Use: AgroEmptyState(icon: ..., title: ...)
+  
+  errors:
+    # Treat deprecated API usage as warnings
+    deprecated_member_use: warning
+    deprecated_member_use_from_same_package: warning
+    
+  exclude:
+    # Exclude generated files from analysis
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.gr.dart"
+    - "**/generated/**"
+    - "build/**"
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
