@@ -14,6 +14,7 @@ import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_card.dart';
+import '../ui/widgets/agro_decision_card.dart';
 import '../ui/widgets/agro_error_state.dart';
 
 /// Overview screen - read-only dashboard showing today's system snapshot.
@@ -76,6 +77,9 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     final isAdmin = authState.value?.isAdmin ?? false;
     final todayFormatted = DateFormat('EEEE, MMMM d').format(DateTime.now());
 
+    // Watch ledger health for the decision strip (available to all users)
+    final healthAsync = ref.watch(ledgerHealthProvider);
+
     return Scaffold(
       backgroundColor: AgroColors.background,
       appBar: AppBar(
@@ -105,6 +109,10 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                 child: ListView(
                   padding: EdgeInsets.all(AgroSpacing.screenPadding),
                   children: [
+                    // Decision Strip (Available to all users if data exists)
+                    if (healthAsync.hasValue && healthAsync.value != null)
+                      _buildDecisionStrip(healthAsync.value!),
+
                     // Date Header
                     Text(todayFormatted, style: AgroTypography.captionEmphasis),
                     SizedBox(height: AgroSpacing.lg),
@@ -123,7 +131,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                     SizedBox(height: AgroSpacing.sm),
                     _buildQuickActions(),
 
-                    // Admin Summary (conditional)
+                    // Admin Summary (Admin only)
                     if (isAdmin) ...[
                       SizedBox(height: AgroSpacing.xl),
                       Text('System Health', style: AgroTypography.sectionTitle),
@@ -133,6 +141,44 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                   ],
                 ),
               ),
+    );
+  }
+
+  Widget _buildDecisionStrip(Map<String, dynamic> data) {
+    // FIX 1: Use combined signals (only Ledger available currently)
+    final statusStr = data['status'] as String? ?? 'unknown';
+    final agroStatus = AgroStatusParser.fromHealthStatus(statusStr);
+    final driftCount = data['drifted_batches'] ?? 0;
+
+    String primary;
+    String? secondary;
+    String explanation;
+
+    // FIX 4: Adjust Explanation Copy (Truthful, Not Absolute)
+    if (agroStatus == AgroStatus.stable) {
+      primary = 'Ledger Balanced';
+      explanation = 'No ledger drift detected based on current records.';
+    } else {
+      primary = 'Inventory Drift Detected';
+      secondary =
+          '$driftCount batch${driftCount == 1 ? '' : 'es'} showing discrepancies';
+      explanation =
+          'Differences found between ledger and physical stock calculations.';
+    }
+
+    // FIX 3: Correct Source Attribution ("Ledger Health" since only using ledger)
+    const source = 'Ledger Health';
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: AgroSpacing.lg),
+      child: AgroDecisionCard(
+        status: agroStatus,
+        primaryMessage: primary,
+        secondaryMessage: secondary,
+        explanation: explanation,
+        source: source,
+        lastUpdated: DateTime.now(),
+      ),
     );
   }
 

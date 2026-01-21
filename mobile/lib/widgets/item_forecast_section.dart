@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../services/forecasting_service.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/widgets/agro_decision_card.dart';
 
 /// Widget that displays forecasting information for a single item.
 /// This widget is READ-ONLY and displays data exactly as received from backend.
@@ -112,20 +113,12 @@ class ItemForecastSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with Signal Badge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Forecasting',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              _buildSignalBadge(forecast!.signal),
-            ],
-          ),
-          const SizedBox(height: 12),
+          // Decision Card (Replaces Header/Badge/Explanation logic)
+          _buildDecisionCard(forecast!),
 
-          // Metrics Grid
+          const SizedBox(height: 16),
+
+          // Metrics Grid (PRESERVED)
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -161,47 +154,53 @@ class ItemForecastSection extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-
-          // Signal Explanation
-          _buildSignalExplanation(forecast!.signal),
-
-          const SizedBox(height: 12),
-
-          // Disclaimer (UX Copy Truthfulness)
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'This forecast is based on recent dispatch activity. '
-                    'It assumes recent demand continues. '
-                    'Seasonality and future changes are not considered.',
-                    style: TextStyle(fontSize: 11, color: Colors.blue.shade800),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Last refreshed timestamp
-          if (forecast!.lastRefreshed != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Last refreshed: ${DateFormat('MMM d, h:mm a').format(forecast!.lastRefreshed!)}',
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-            ),
-          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildDecisionCard(ItemForecast forecast) {
+    // 1. Status Mapping
+    final status = AgroStatusParser.fromForecastSignal(forecast.signal);
+
+    // 2. Headeline Mapping (Strictly from documented rules)
+    String primaryMessage;
+    switch (forecast.signal) {
+      case 'CRITICAL':
+        primaryMessage = "Immediate stockout risk";
+        break;
+      case 'REORDER_SOON':
+        primaryMessage = "Reorder required soon";
+        break;
+      case 'WATCH':
+        primaryMessage = "Monitor stock closely";
+        break;
+      case 'STABLE':
+      default:
+        primaryMessage = "Stock levels are stable";
+        break;
+    }
+
+    // 3. Secondary Message (Computed fields)
+    String? secondaryMessage;
+    if (forecast.daysToZero != null) {
+      secondaryMessage =
+          "Estimated stockout in ${forecast.daysToZero!.toStringAsFixed(0)} days";
+    }
+
+    // 4. Explanation (Verbatim disclaimer)
+    const explanation =
+        'This forecast is based on recent dispatch activity. '
+        'It assumes recent demand continues. '
+        'Seasonality and future changes are not considered.';
+
+    return AgroDecisionCard(
+      status: status,
+      primaryMessage: primaryMessage,
+      secondaryMessage: secondaryMessage,
+      explanation: explanation,
+      source: 'Forecasting',
+      lastUpdated: forecast.lastRefreshed ?? DateTime.now(),
     );
   }
 
@@ -218,93 +217,6 @@ class ItemForecastSection extends StatelessWidget {
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
       ],
-    );
-  }
-
-  Widget _buildSignalBadge(String signal) {
-    Color bgColor;
-    Color textColor;
-    IconData icon;
-
-    switch (signal) {
-      case 'CRITICAL':
-        bgColor = Colors.red.shade100;
-        textColor = Colors.red.shade800;
-        icon = Icons.error;
-        break;
-      case 'REORDER_SOON':
-        bgColor = Colors.orange.shade100;
-        textColor = Colors.orange.shade800;
-        icon = Icons.warning;
-        break;
-      case 'WATCH':
-        bgColor = Colors.amber.shade100;
-        textColor = Colors.amber.shade800;
-        icon = Icons.visibility;
-        break;
-      case 'STABLE':
-      default:
-        bgColor = Colors.green.shade100;
-        textColor = Colors.green.shade800;
-        icon = Icons.check_circle;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: textColor),
-          const SizedBox(width: 4),
-          Text(
-            signal.replaceAll('_', ' '),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSignalExplanation(String signal) {
-    String explanation;
-
-    // Signal explanations map 1:1 to documented thresholds (Phase 9 architecture)
-    switch (signal) {
-      case 'CRITICAL':
-        explanation =
-            'Stock expected to run out in less than 3 days. Immediate attention needed.';
-        break;
-      case 'REORDER_SOON':
-        explanation =
-            'Stock expected to run out in less than 7 days. Plan reorder this week.';
-        break;
-      case 'WATCH':
-        explanation =
-            'Stock expected to run out in less than 14 days. Monitor closely.';
-        break;
-      case 'STABLE':
-      default:
-        explanation =
-            'Stock levels are stable with no immediate action required.';
-        break;
-    }
-
-    return Text(
-      explanation,
-      style: TextStyle(
-        fontSize: 11,
-        color: Colors.grey.shade700,
-        fontStyle: FontStyle.italic,
-      ),
     );
   }
 }

@@ -18,10 +18,12 @@ depends_on = None
 
 def upgrade() -> None:
     # Add signal column to stock_depletion_forecast
-    op.add_column(
-        "stock_depletion_forecast",
-        sa.Column("signal", sa.String(20), server_default="STABLE", nullable=True),
-    )
+    # Add signal column to stock_depletion_forecast
+    # op.add_column(
+    #    "stock_depletion_forecast",
+    #    sa.Column("signal", sa.String(20), server_default="STABLE", nullable=True),
+    # )
+    pass
 
 
 def downgrade() -> None:
