@@ -176,6 +176,59 @@ Card(
 
 ---
 
+---
+
+### AgroDecisionCard â€” Decision Framing Widget
+
+### 1. Purpose & Intent
+`AgroDecisionCard` is a read-only, intent-aware decision strip designed to frame high-priority system signals. It forces an "explanation-first" presentation, requiring a clear `status`, `primaryMessage` (headline), and `explanation` (why). It serves as a visual anchor for truth, guiding user judgment without replacing it.
+
+### 2. Required Inputs (Contract)
+- **status** (`AgroStatus`): Determines visual styling (color, icon) via `AgroSeverity`.
+- **primaryMessage** (String): The main headline. Must NOT be empty.
+- **secondaryMessage** (String, optional): Supporting context. Must NOT equal primaryMessage.
+- **explanation** (String): Clear reasoning for the status. Must NOT be empty.
+- **source** (String): The provenance of the signal (e.g., "Ledger Health", "Forecasting").
+- **lastUpdated** (DateTime): Timestamp of the signal's origin.
+
+### 3. When to Use
+- To display a top-level system decision or status summary (e.g., Overview screen).
+- To frame advisory signals like Forecasting, where context is critical.
+- When you need to explain *why* a status is Red or Yellow, not just *that* it is Red or Yellow.
+
+### 4. When NOT to Use
+- As a generic container or card wrapper.
+- For interactive elements or actionable lists.
+- For low-priority or stable detailed metrics (use `AgroMetricCard` or `AgroKeyValueRow`).
+- When the data source is ambiguous or explanation is missing.
+
+### 5. Truthfulness Rules
+- **No False Prophecy**: Use honest language for forecasts (e.g., "Assumes recent demand continues").
+- **Source Attribution**: The `source` field must accurately reflect the data inputs (e.g., "Forecasting + Ledger").
+- **Dynamic Accuracy**: Do not display the card if the required signal data is loading or failed.
+
+### 6. Relationship to Other UI Widgets
+- **AgroCard**: `AgroDecisionCard` uses `AgroCard.outlined` internally for its container logic.
+- **AgroSeverity**: It strictly adheres to `AgroSeverity` for all color and icon definitions.
+- **AgroTypography**: Enforces specific text styles (`emphasis` for headline, `caption` for explanation).
+
+### 7. Textual Usage Examples
+
+**Example 1: Ledger Health (Overview)**
+> **Status**: Warning
+> **Primary**: "Inventory Drift Detected"
+> **Secondary**: "12 batches showing discrepancies"
+> **Explanation**: "Differences found between ledger and physical stock calculations."
+> **Source**: "Ledger Health"
+
+**Example 2: Forecasting (Item Detail)**
+> **Status**: Critical
+> **Primary**: "Immediate stockout risk"
+> **Explanation**: "This forecast is based on recent dispatch activity. It assumes recent demand continues."
+> **Source**: "Forecasting"
+
+---
+
 ## Forbidden Patterns
 
 The following patterns are **FORBIDDEN** in new code and migrated screens:

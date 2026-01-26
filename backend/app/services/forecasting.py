@@ -238,6 +238,7 @@ def get_forecast_summary(db: Session, item_id: int) -> Optional[dict]:
         ),
         "signal": classify_signal(forecast.days_to_zero),
         "calculated_at": str(forecast.calculated_at),
+        "last_refreshed": str(forecast.calculated_at),
         "burn_rates": {
             "7d": burn_rate.avg_daily_outflow_7d if burn_rate else None,
             "14d": burn_rate.avg_daily_outflow_14d if burn_rate else None,

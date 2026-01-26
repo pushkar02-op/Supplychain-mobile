@@ -18,10 +18,15 @@ depends_on = None
 
 def upgrade() -> None:
     # Add signal column to stock_depletion_forecast
-    op.add_column(
-        "stock_depletion_forecast",
-        sa.Column("signal", sa.String(20), server_default="STABLE", nullable=True),
-    )
+    # Add signal column to stock_depletion_forecast if it doesn't exist
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = [c["name"] for c in inspector.get_columns("stock_depletion_forecast")]
+    if "signal" not in columns:
+        op.add_column(
+            "stock_depletion_forecast",
+            sa.Column("signal", sa.String(20), server_default="STABLE", nullable=True),
+        )
 
 
 def downgrade() -> None:
