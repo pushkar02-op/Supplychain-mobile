@@ -35,6 +35,19 @@ These documents define **non-negotiable rules**. They are not suggestions.
 
 ---
 
+## 3. Branch Discipline (Effective Immediately)
+
+**These rules apply ONLY after the BASELINE tag.**
+
+### Rules:
+1.  **Feature Branches Only**: All new work MUST happen on feature branches.
+    *   Naming: `feature/<domain>-<short-description>`
+2.  **Single Scope**: One concern per branch. No mixed refactors.
+3.  **No Direct Commits**: No direct commits to `main`, `master`, or `develop` (unless P0 Fix).
+4.  **Documentation Prerequisite**: Completed phases must be documented before merge.
+
+---
+
 ## 3. Change Control Contract
 
 ### A. Non-Negotiable Requirement
