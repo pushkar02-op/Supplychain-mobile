@@ -119,6 +119,22 @@ class _MyCard extends StatelessWidget {
 
 ---
 
+
+---
+
+## Item UX Non-Regression Checklist
+
+**CRITICAL**: When modifying any Item-related screen (`ItemList`, `ItemDetail`, `ItemManagement`), you MUST verify:
+
+- [ ] **No New Intelligence**: You have not added "Smart" suggestions, auto-filling, or recommendations that were not in the design spec.
+- [ ] **No New Backend Calls**: UX updates must rely on existing API data. Do not add "fetchX" just for a UI signal.
+- [ ] **No Activity UI Without Logic**: Do not show "Last Used" or timestamps unless provided by the backend.
+- [ ] **Silence Preserved**: Zero states (no aliases, no conversions) must be hidden, not shown as "0" or empty placeholders.
+- [ ] **One Surface Usage**: You are editing only the intended surface (e.g., List or Detail), not bleeding logic across screens.
+- [ ] **"What We Did NOT Add"**: Your PR description must list features you considered but skipped (like UX-6).
+
+---
+
 ## Validation Process
 
 ### "No Behavior Change" Verification
@@ -280,3 +296,21 @@ After completing this migration:
 
 > [!NOTE]
 > For the full widget usage contract, see [UI_WIDGET_CONTRACT.md](./UI_WIDGET_CONTRACT.md).
+
+---
+
+## Item Lifecycle Regression Checks
+
+**Governed by**: `docs/governance/ITEM_LIFECYCLE.md` (Phase C)
+
+When modifying any Item-related screen, you must explicitly verify:
+
+- [ ] **Deletion is Dead**: No delete button, no trash can icon.
+- [ ] **Inactive Visibility**:
+    - Default state: Inactive items HIDDEN.
+    - Toggle ON: Inactive items VISIBLE.
+- [ ] **Lifecycle Interactions**:
+    - Active Items: "Deactivate" action available.
+    - Inactive Items: "Reactivate" action available.
+    - Inactive Items: Reduced opacity styling.
+
