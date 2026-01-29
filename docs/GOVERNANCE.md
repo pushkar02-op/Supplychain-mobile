@@ -14,7 +14,8 @@ All decision-making and implementation MUST adhere to this precedence order. If 
 |:---:|---|---|---|
 | **1** | **`docs/business_rules_and_enforcement.md`** | **The Law.** Immutable business logic, invariants, and hard constraints. | Never violate. Update only via approved RFC. |
 | **2** | **`docs/GOVERNANCE.md`** | **The Constitution.** Governance structure, authority, and meta-rules. | Source of truth for process. |
-| **3** | **`docs/core_freeze_declaration.md`** | **The Freeze.** Defines components that are locked for stability. | Defines "Red Lanes" for changes. |
+| **3** | **`docs/governance/ITEM_LIFECYCLE.md`** | **Item Law.** Strict rules on Item Archival and Deletion banning. | **LOCKED**. No exceptions. |
+| **4** | **`docs/core_freeze_declaration.md`** | **The Freeze.** Defines components that are locked for stability. | Defines "Red Lanes" for changes. |
 | **4** | **`LOCAL_DEVELOPMENT_RFC.md`** | **The Workflow.** Canonical way to run, build, and test locally. | Strict enforcement of Docker procedures. |
 | **5** | **`mobile/README.md`** | **Frontend Law.** Architecture, state management, and strict UI patterns. | Reference for all Mobile work. |
 | **6** | `docs/runbook_*.md`, `docs/sop_*.md` | **Operational Guides.** Procedures for humans (Admins/Ops). | Follow for support/incident response. |
@@ -31,6 +32,19 @@ These documents define **non-negotiable rules**. They are not suggestions.
 *   **Deployment:** `DEPLOYMENT_PIPELINE_DESIGN.md` (Target State)
 *   **Testing:** `e2e/E2E_RULES.md`
 *   **Safety:** `docs/critical_donts.md`
+
+---
+
+## 3. Branch Discipline (Effective Immediately)
+
+**These rules apply ONLY after the BASELINE tag.**
+
+### Rules:
+1.  **Feature Branches Only**: All new work MUST happen on feature branches.
+    *   Naming: `feature/<domain>-<short-description>`
+2.  **Single Scope**: One concern per branch. No mixed refactors.
+3.  **No Direct Commits**: No direct commits to `main`, `master`, or `develop` (unless P0 Fix).
+4.  **Documentation Prerequisite**: Completed phases must be documented before merge.
 
 ---
 

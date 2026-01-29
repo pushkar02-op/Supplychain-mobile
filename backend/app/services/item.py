@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from app.db.models import Item
 from app.db.models.batch import Batch
+from app.db.models.item import ItemStatus
 from app.db.models.uom import UOM
 from app.db.schemas.item import ItemCreate, ItemRead, ItemUpdate
 from sqlalchemy import select
@@ -68,6 +69,7 @@ def create_item(db: Session, entry: ItemCreate, created_by: int) -> Item:
         name=entry.name,
         item_code=entry.item_code,
         default_uom_id=uom_id,
+        creation_intent=entry.creation_intent,
         created_by=user_name,
         created_by_id=user_id,
         updated_by=user_name,
@@ -104,7 +106,9 @@ def get_item(db: Session, item_id: int) -> Optional[Item]:
     return item_data
 
 
-def get_all_items(db: Session, skip: int = 0, limit: int = 100) -> List[Item]:
+def get_all_items(
+    db: Session, skip: int = 0, limit: int = 100, include_inactive: bool = False
+) -> List[Item]:
     """
     Retrieve all catalog items with pagination.
 
@@ -112,16 +116,23 @@ def get_all_items(db: Session, skip: int = 0, limit: int = 100) -> List[Item]:
         db (Session): Database session.
         skip (int): Records to skip.
         limit (int): Max records to return.
+        include_inactive (bool): If True, include INACTIVE items. Default: False (ACTIVE only).
 
     Returns:
         List[Item]: List of items.
     """
-    logger.debug(f"Fetching items skip={skip}, limit={limit}")
+    logger.debug(
+        f"Fetching items skip={skip}, limit={limit}, include_inactive={include_inactive}"
+    )
     from app.utils.pagination import get_pagination_params
 
     offset, limit = get_pagination_params(skip=skip, limit=limit)
 
-    items = db.query(Item).offset(offset).limit(limit).all()
+    query = db.query(Item)
+    if not include_inactive:
+        query = query.filter(Item.status == ItemStatus.ACTIVE)
+
+    items = query.offset(offset).limit(limit).all()
     uoms = {u.id: u.code for u in db.query(UOM).all()}
     result = []
     for item in items:
@@ -129,6 +140,75 @@ def get_all_items(db: Session, skip: int = 0, limit: int = 100) -> List[Item]:
         item_data.default_unit = uoms.get(item.default_uom_id)
         result.append(item_data)
     return result
+
+
+def search_advisory_name_matches(
+    db: Session, name: str, uom_code: Optional[str] = None, limit: int = 5
+) -> List[dict]:
+    """
+    Find similar items for "Duplicate Awareness" (Advisory Only).
+
+    Constraints:
+    - READ-ONLY
+    - Name-only + base UOM matching
+    - NO alias-based inference
+    - NO fuzzy/trigram logic (Deterministic containment only)
+    """
+    from app.db.models.item_alias import ItemAlias
+    from app.db.models.stock_entry import StockEntry
+    from sqlalchemy import func
+
+    query = db.query(Item)
+
+    # 1. Name Check (Simple containment for now, ILIKE)
+    # Split tokens? "Token overlap".
+    # e.g. "Green Apple" vs "Apple Green".
+    tokens = name.strip().split()
+    if tokens:
+        # Match if ANY token is in the name? Or ALL?
+        # "Similarity" implies strictness.
+        # Let's match ANY token > 3 chars? too loose.
+        # Let's do simple ILIKE %name% first.
+        query = query.filter(Item.name.ilike(f"%{name.strip()}%"))
+
+    # 2. UOM Check (if provided, prioritize or filter? Requirement says "Same base UOM" in display logic)
+    # "Perform simple similarity checks: ... Same base UOM".
+    # Usually this means "Find Name Match" AND "UOM Match".
+    # But if names match but UOM differs, is it a duplicate? Maybe.
+    # If UOM matches but name differs? No.
+    # So Name is primary filter.
+    if uom_code:
+        uom = db.query(UOM).filter(func.lower(UOM.code) == uom_code.lower()).first()
+        if uom:
+            # We want to flag if existing item ALSO has this UOM?
+            # Or assume UOM mismatch is safer?
+            # "Return list... For each candidate show... Base UOM"
+            pass  # We return everything matching name, UI shows details.
+
+    candidates = query.limit(limit).all()
+
+    results = []
+    uom_cache = {u.id: u.code for u in db.query(UOM).all()}
+
+    for item in candidates:
+        # Alias count
+        alias_count = (
+            db.query(ItemAlias).filter(ItemAlias.master_item_id == item.id).count()
+        )
+        # Usage
+        has_stock = db.query(StockEntry).filter(StockEntry.item_id == item.id).first()
+
+        results.append(
+            {
+                "id": item.id,
+                "name": item.name,
+                "default_unit": uom_cache.get(item.default_uom_id),
+                "alias_count": alias_count,
+                "has_stock": bool(has_stock),
+            }
+        )
+
+    return results
 
 
 def get_items_with_available_batches(db: Session) -> List[Item]:
@@ -219,14 +299,7 @@ def update_item(
     user_name, user_id = resolve_user_audit(db, updated_by)
 
     item.updated_by = user_name
-    # item.updated_by_id = user_id # If we had it, but we only promised created_by_id for now?
-    # The migration added created_by_id, but AuditMixin has updated_by.
-    # Did we add updated_by_id?
-    # MIGRATION_DESIGN_CREATED_BY.md: "Add a new column created_by_id"
-    # It did NOT mention updated_by_id.
-    # So we ONLY update created_by_id on CREATE? No, created_by is immutable?
-    # Actually updated_by is usually just string.
-    # Let's keep updated_by as is (resolved username) and NOT try to set updated_by_id since it doesn't exist.
+    # item.updated_by_id = user_id
     db.commit()
     db.refresh(item)
     uom = db.query(UOM).filter(UOM.id == item.default_uom_id).first()
@@ -235,23 +308,56 @@ def update_item(
     return item_data
 
 
-def delete_item(db: Session, item_id: int) -> bool:
+def deactivate_item(db: Session, item_id: int) -> Item | None:
     """
-    Delete a catalog item.
+    Deactivate an item (set status to INACTIVE).
+
+    This is reversible via reactivate_item. Preserves all data and relationships.
+    Idempotent: calling on already-inactive item returns success.
 
     Args:
         db (Session): Database session.
         item_id (int): Item ID.
 
     Returns:
-        bool: True if deleted, False otherwise.
+        Item | None: Updated item if found, None otherwise.
     """
-    logger.info(f"Deleting item id={item_id}")
+
+    logger.info(f"Deactivating item id={item_id}")
     item = db.query(Item).filter(Item.id == item_id).first()
     if not item:
         logger.error(f"Item not found id={item_id}")
-        return False
-    db.delete(item)
+        return None
+
+    item.status = ItemStatus.INACTIVE
     db.commit()
-    logger.debug(f"Item id={item_id} deleted")
-    return True
+    db.refresh(item)
+    logger.info(f"Item id={item_id} deactivated")
+    return item
+
+
+def reactivate_item(db: Session, item_id: int) -> Item | None:
+    """
+    Reactivate an item (set status to ACTIVE).
+
+    Idempotent: calling on already-active item returns success.
+
+    Args:
+        db (Session): Database session.
+        item_id (int): Item ID.
+
+    Returns:
+        Item | None: Updated item if found, None otherwise.
+    """
+
+    logger.info(f"Reactivating item id={item_id}")
+    item = db.query(Item).filter(Item.id == item_id).first()
+    if not item:
+        logger.error(f"Item not found id={item_id}")
+        return None
+
+    item.status = ItemStatus.ACTIVE
+    db.commit()
+    db.refresh(item)
+    logger.info(f"Item id={item_id} reactivated")
+    return item

@@ -4,20 +4,21 @@ Provides CRUD operations for items and retrieval of items with available batches
 """
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from app.core.exceptions import AppException
 from app.db.schemas.item import ItemCreate, ItemRead, ItemUpdate
 from app.db.session import get_db
 from app.services.item import (
     create_item,
-    delete_item,
+    deactivate_item,
     get_all_items,
     get_item,
     get_items_with_available_batches,
+    reactivate_item,
     update_item,
 )
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,10 @@ def create(entry: ItemCreate, db: Session = Depends(get_db)) -> ItemRead:
 
 @router.get("/", response_model=List[ItemRead], summary="List items")
 def read_all(
-    skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
+    skip: int = 0,
+    limit: int = 100,
+    include_inactive: bool = False,
+    db: Session = Depends(get_db),
 ) -> List[ItemRead]:
     """
     Retrieve all items.
@@ -50,13 +54,18 @@ def read_all(
     Args:
         skip (int): Number of records to skip.
         limit (int): Maximum number of records to return.
+        include_inactive (bool): If True, include INACTIVE items. Default: False.
         db (Session): Database session dependency.
 
     Returns:
         List[ItemRead]: List of item objects.
     """
-    logger.info(f"Fetching items skip={skip}, limit={limit}")
-    return get_all_items(db=db, skip=skip, limit=limit)
+    logger.info(
+        f"Fetching items skip={skip}, limit={limit}, include_inactive={include_inactive}"
+    )
+    return get_all_items(
+        db=db, skip=skip, limit=limit, include_inactive=include_inactive
+    )
 
 
 @router.get(
@@ -76,6 +85,30 @@ def get_items_with_batches(db: Session = Depends(get_db)) -> List[ItemRead]:
     """
     logger.info("Fetching items with available batches")
     return get_items_with_available_batches(db)
+
+
+@router.get("/check-similarity", summary="Check for similar items (Advisory)")
+def check_advisory_similarity(
+    name: str, uom: Optional[str] = None, db: Session = Depends(get_db)
+):
+    """
+    Find similar items for soft duplicate awareness (Advisory Only).
+
+    CRITICAL CONSTRAINT:
+    This endpoint is advisory-only and must not be used for automation.
+    It provides "Duplicate Awareness", not "Duplicate Prevention".
+
+    Logic:
+    - Basic name similarity (case-insensitive containment)
+    - Optional base UOM filtering
+    - No alias-based inference
+    - No cross-mart intelligence
+
+    Returns candidate list with basic metadata.
+    """
+    from app.services.item import search_advisory_name_matches
+
+    return search_advisory_name_matches(db=db, name=name, uom_code=uom)
 
 
 @router.get("/{item_id}", response_model=ItemRead, summary="Get item by ID")
@@ -130,22 +163,52 @@ def update(
 
 
 @router.delete(
-    "/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete item"
+    "/{item_id}",
+    status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+    summary="Delete item (BLOCKED)",
 )
-def delete(item_id: int, db: Session = Depends(get_db)) -> None:
+def delete(item_id: int) -> None:
     """
-    Delete an item by ID.
+    Item deletion is not supported. Use archival instead.
 
-    Args:
-        item_id (int): Item ID.
-        db (Session): Database session dependency.
-
-    Raises:
-        AppException: If the item is not found (404).
+    This endpoint is intentionally blocked per governance mandate.
+    Items should be deactivated, not deleted, to preserve referential integrity.
     """
-    logger.info(f"Deleting item id={item_id}")
-    success = delete_item(db=db, item_id=item_id)
-    if not success:
-        logger.error(f"Item not found: id={item_id}")
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Item deletion is not supported. Use /item/{id}/deactivate instead.",
+    )
+
+
+@router.post(
+    "/{item_id}/deactivate", response_model=ItemRead, summary="Deactivate item"
+)
+def deactivate(item_id: int, db: Session = Depends(get_db)) -> ItemRead:
+    """
+    Deactivate an item (set status to INACTIVE).
+
+    This is reversible via /item/{id}/reactivate.
+    Idempotent: calling on already-inactive item returns success.
+    Preserves all data and relationships.
+    """
+    logger.info(f"API: Deactivating item id={item_id}")
+    item = deactivate_item(db=db, item_id=item_id)
+    if not item:
         raise AppException("Item not found", status_code=404)
-    return None
+    return ItemRead.from_orm(item)
+
+
+@router.post(
+    "/{item_id}/reactivate", response_model=ItemRead, summary="Reactivate item"
+)
+def reactivate(item_id: int, db: Session = Depends(get_db)) -> ItemRead:
+    """
+    Reactivate an item (set status to ACTIVE).
+
+    Idempotent: calling on already-active item returns success.
+    """
+    logger.info(f"API: Reactivating item id={item_id}")
+    item = reactivate_item(db=db, item_id=item_id)
+    if not item:
+        raise AppException("Item not found", status_code=404)
+    return ItemRead.from_orm(item)

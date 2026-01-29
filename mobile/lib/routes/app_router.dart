@@ -7,7 +7,6 @@ import 'package:mobile/screens/admin_inventory_drift_screen.dart';
 import 'package:mobile/screens/admin_inventory_health_screen.dart';
 import 'package:mobile/screens/dispatch_entry_screen.dart';
 import 'package:mobile/screens/dispatch_list_screen.dart';
-import 'package:mobile/screens/map_items_screen.dart';
 import 'package:mobile/screens/pdf_view_screen.dart';
 import 'package:mobile/screens/rejection_entry_screen.dart';
 import 'package:mobile/screens/rejection_list_screen.dart';
@@ -127,18 +126,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/rejection-entry',
         builder: (context, state) => const RejectionEntryScreen(),
-      ),
-      GoRoute(
-        path: '/map-items',
-        builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
-          return MapItemsScreen(
-            billId: extra['invoice_id'],
-            unmappedItems: List<Map<String, dynamic>>.from(
-              extra['unmapped_items'],
-            ),
-          );
-        },
       ),
       GoRoute(
         path: '/inventory',

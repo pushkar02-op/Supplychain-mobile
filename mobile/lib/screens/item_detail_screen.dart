@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../services/forecasting_service.dart';
+import '../services/item_service.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_card.dart';
 import '../widgets/item_forecast_section.dart';
 
 /// Item Detail Screen showing full item information including forecasting.
@@ -21,10 +26,20 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   bool isForecastLoading = true;
   String? forecastError;
 
+  // Alias metrics (Read-Only, Observational)
+  List<Map<String, dynamic>> aliasMetrics = [];
+
   @override
   void initState() {
     super.initState();
     _fetchForecasts();
+    _fetchAliasMetrics();
+  }
+
+  Future<void> _fetchAliasMetrics() async {
+    final metrics = await ItemService.fetchAliasMetrics();
+    if (!mounted) return;
+    setState(() => aliasMetrics = metrics);
   }
 
   Future<void> _fetchForecasts() async {
@@ -48,161 +63,303 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    final aliases = List<Map<String, dynamic>>.from(item['aliases'] ?? []);
-    final conversions = List<Map<String, dynamic>>.from(
-      item['conversions'] ?? [],
-    );
-    final itemId = item['id'] as int;
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: AgroColors.background,
       appBar: AppBar(
         title: Text(item['name'] ?? 'Item Detail'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
+        backgroundColor: AgroColors.surface,
+        foregroundColor: AgroColors.textPrimary,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(color: AgroColors.dividerLight, height: 1.0),
+        ),
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AgroSpacing.screenPadding,
+          vertical: AgroSpacing.lg,
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Basic Info Card
-            Card(
-              margin: const EdgeInsets.all(12),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item['name'] ?? 'Unknown',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.straighten,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Default UOM: ${item['default_uom_code'] ?? 'N/A'}',
-                          style: TextStyle(color: Colors.grey[700]),
-                        ),
-                      ],
-                    ),
-                    if (item['item_code'] != null) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.tag, size: 16, color: Colors.grey),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Code: ${item['item_code']}',
-                            style: TextStyle(color: Colors.grey[700]),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
+            // Lifecycle Panel (Status indicator)
+            _buildLifecyclePanel(item),
+            const SizedBox(height: AgroSpacing.sectionGap),
 
-            // Aliases Section
-            if (aliases.isNotEmpty)
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Aliases',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children:
-                            aliases
-                                .map(
-                                  (a) => Chip(
-                                    label: Text(
-                                      '${a['alias_name']} (${a['alias_code']})',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            _buildIdentitySection(item),
+            const SizedBox(height: AgroSpacing.sectionGap),
 
-            // Conversions Section
-            if (conversions.isNotEmpty)
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Conversions',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ...conversions.map((c) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Row(
-                            children: [
-                              Text('1 ${item['default_uom_code'] ?? ''} = '),
-                              Text(
-                                '${c['conversion_factor']} ${c['target_unit']}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-              ),
+            _buildAliasesSection(item),
+            const SizedBox(height: AgroSpacing.sectionGap),
 
-            // Forecasting Section (Phase 9 - READ-ONLY)
-            Card(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: ItemForecastSection(
-                forecast: ForecastingService.getItemForecast(forecasts, itemId),
-                isLoading: isForecastLoading,
-                error: forecastError,
-              ),
-            ),
+            _buildConversionsSection(item),
+            const SizedBox(height: AgroSpacing.sectionGap),
 
-            const SizedBox(height: 24),
+            _buildForecastingSection(item),
+            const SizedBox(height: AgroSpacing.xl),
           ],
         ),
       ),
+    );
+  }
+
+  // 0️⃣ Lifecycle Panel (Status display)
+  Widget _buildLifecyclePanel(Map<String, dynamic> item) {
+    final status = item['status'] ?? 'ACTIVE';
+    final isActive = status == 'ACTIVE';
+
+    return AgroCard(
+      child: Row(
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color:
+                  isActive
+                      ? AgroColors.success.background
+                      : AgroColors.textSecondary,
+            ),
+          ),
+          const SizedBox(width: AgroSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isActive ? 'Active' : 'Inactive',
+                  style: AgroTypography.cardTitle.copyWith(
+                    color:
+                        isActive
+                            ? AgroColors.success.text
+                            : AgroColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isActive
+                      ? 'This item is available for all operations.'
+                      : 'This item has been deactivated and is not available for new operations.',
+                  style: AgroTypography.caption.copyWith(
+                    color: AgroColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 1️⃣ Identity Section (Top)
+  Widget _buildIdentitySection(Map<String, dynamic> item) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          item['name'] ?? 'Unknown Item',
+          style: AgroTypography.screenTitle.copyWith(fontSize: 24),
+        ),
+        if (item['item_code'] != null) ...[
+          const SizedBox(height: AgroSpacing.xs),
+          Text(
+            'Code: ${item['item_code']}',
+            style: AgroTypography.caption.copyWith(fontSize: 14),
+          ),
+        ],
+        const SizedBox(height: AgroSpacing.md),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AgroColors.neutral.background,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: AgroColors.neutral.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.straighten,
+                    size: 14,
+                    color: AgroColors.textSecondary,
+                  ),
+                  const SizedBox(width: AgroSpacing.iconTextGapCompact),
+                  Text(
+                    'Default UOM: ${item['default_uom_code'] ?? 'N/A'}',
+                    style: AgroTypography.captionEmphasis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // 2️⃣ Aliases Section — “Naming Memory”
+  Widget _buildAliasesSection(Map<String, dynamic> item) {
+    final aliases = List<Map<String, dynamic>>.from(item['aliases'] ?? []);
+
+    if (aliases.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Aliases', style: AgroTypography.sectionTitle),
+        const SizedBox(height: AgroSpacing.sectionHeaderGap),
+        AgroCard.outlined(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children:
+                aliases.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final a = entry.value;
+                  final isLast = index == aliases.length - 1;
+
+                  // Find seen_count from aliasMetrics
+                  final metric = aliasMetrics.firstWhere(
+                    (m) => m['alias_id'] == a['id'],
+                    orElse: () => {'seen_count': null},
+                  );
+                  final seenCount = metric['seen_count'];
+
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(AgroSpacing.cardPadding),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    a['alias_name'] ?? '',
+                                    style: AgroTypography.body,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    a['alias_code'] ?? '',
+                                    style: AgroTypography.tiny,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (seenCount != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AgroColors.background,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Seen $seenCount times',
+                                  style: AgroTypography.caption,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (!isLast)
+                        const Divider(
+                          height: 1,
+                          color: AgroColors.dividerLight,
+                        ),
+                    ],
+                  );
+                }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 3️⃣ Conversions Section — “Unit Memory”
+  Widget _buildConversionsSection(Map<String, dynamic> item) {
+    final conversions = List<Map<String, dynamic>>.from(
+      item['conversions'] ?? [],
+    );
+
+    if (conversions.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Conversions', style: AgroTypography.sectionTitle),
+        const SizedBox(height: AgroSpacing.sectionHeaderGap),
+        AgroCard(
+          child: Column(
+            children:
+                conversions.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final c = entry.value;
+                  final isLast = index == conversions.length - 1;
+
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            Text(
+                              '1 ${item['default_uom_code'] ?? ''}',
+                              style: AgroTypography.bodySecondary,
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Icon(
+                                Icons.arrow_right_alt,
+                                size: 16,
+                                color: AgroColors.divider,
+                              ),
+                            ),
+                            Text(
+                              '${c['conversion_factor']} ${c['target_unit']}',
+                              style: AgroTypography.emphasis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!isLast)
+                        const Divider(
+                          height: 1,
+                          color: AgroColors.dividerLight,
+                        ),
+                    ],
+                  );
+                }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 4️⃣ Forecasting / Decision Section
+  // Visually separated operational signal
+  Widget _buildForecastingSection(Map<String, dynamic> item) {
+    final itemId = item['id'] as int;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Operational Signal', style: AgroTypography.sectionTitle),
+        const SizedBox(height: AgroSpacing.sectionHeaderGap),
+        ItemForecastSection(
+          forecast: ForecastingService.getItemForecast(forecasts, itemId),
+          isLoading: isForecastLoading,
+          error: forecastError,
+        ),
+      ],
     );
   }
 }

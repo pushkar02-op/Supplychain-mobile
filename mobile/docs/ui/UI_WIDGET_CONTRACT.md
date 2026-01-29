@@ -397,6 +397,37 @@ appBar: AppBar(
 
 ---
 
+
+---
+
+## Contextual Memory Widgets
+
+These widgets provide "Just-in-Time" read-only context to aid user decisions without automation.
+
+### AgroContextPanel (Concept)
+
+A layout pattern (using `AgroCard` or custom containers) that displays **existing data** relevant to a current input fields.
+
+**Examples:**
+- **Alias Context**: Showing "Existing aliases: A, B, C" when mapping a new alias.
+- **Conversion Context**: Showing "1 KG = 1000 G" when adding a new conversion.
+
+**Rules:**
+- **Read-Only**: Must never be editable inline.
+- **Neutral**: Use `AgroColors.textSecondary` or `AgroColors.info`.
+- **No Action**: Do not add buttons like "Copy" or "Use" unless explicitly required.
+- **Placement**: Must appear **below** or **adjacent** to the relevant input field.
+
+### AgroDecisionCard (Refined)
+
+(See [AgroDecisionCard](#agrodecisioncard-decision-framing-widget) above).
+
+**Specific Constraints for Item UX:**
+- **No "Smart" Forecasts**: Only use `AgroDecisionCard` for forecasting if the signal comes directly from the backend.
+- **Advisory Only**: If used for soft duplicates, must include `(Advisory Only)` in the title.
+
+---
+
 ## Design Token Reference
 
 ### AgroSpacing

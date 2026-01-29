@@ -9,6 +9,7 @@ from typing import List
 
 from app.core.exceptions import AppException
 from app.db.models import UOM, Item, ItemAlias, ItemConversionMap, User
+from app.db.models.item import ItemStatus
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.schemas.item_management import (
     ItemManagementCreateUpdate,
@@ -20,20 +21,22 @@ from sqlalchemy.orm import Session, selectinload
 logger = logging.getLogger(__name__)
 
 
-def get_master_items_details(db: Session) -> List[ItemManagementRead]:
+def get_master_items_details(
+    db: Session, include_inactive: bool = False
+) -> List[ItemManagementRead]:
     """
     Fetches all master items with their related aliases, conversions, and default UOM.
     Uses eager loading to prevent N+1 queries.
     """
-    items = (
-        db.query(Item)
-        .options(
-            selectinload(Item.aliases),
-            selectinload(Item.default_uom),
-        )
-        .order_by(Item.name)
-        .all()
+    query = db.query(Item).options(
+        selectinload(Item.aliases),
+        selectinload(Item.default_uom),
     )
+
+    if not include_inactive:
+        query = query.filter(Item.status == ItemStatus.ACTIVE)
+
+    items = query.order_by(Item.name).all()
 
     if not items:
         return []

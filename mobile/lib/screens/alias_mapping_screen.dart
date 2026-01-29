@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../services/item_service.dart';
 import '../ui/theme/agro_colors.dart';
@@ -21,6 +22,9 @@ class _AliasMappingScreenState extends State<AliasMappingScreen> {
   bool isLoading = true;
   String error = '';
 
+  // Alias metrics (Read-Only, Observational)
+  List<Map<String, dynamic>> aliasMetrics = [];
+
   @override
   void initState() {
     super.initState();
@@ -32,10 +36,12 @@ class _AliasMappingScreenState extends State<AliasMappingScreen> {
     try {
       final aliases = await ItemService.fetchUnmappedMartBillItems();
       final allItems = await ItemService.fetchItems();
+      final metrics = await ItemService.fetchAliasMetrics();
 
       setState(() {
         rows = aliases.map((e) => _AliasRow.fromJson(e)).toList();
         items = allItems;
+        aliasMetrics = metrics;
         isLoading = false;
         error = ''; // Clear error on success
       });
@@ -61,49 +67,24 @@ class _AliasMappingScreenState extends State<AliasMappingScreen> {
     });
   }
 
-  // PRESERVED EXACTLY: Create new item logic
   Future<void> _createNewItem(_AliasRow row) async {
-    final name = await _showTextInputDialog(context, 'New Item Name');
-    if (name == null || name.trim().isEmpty) return;
-
-    final newItem = await ItemService.createItem({
-      "name": name.trim(),
-      "default_unit": row.aliasUnit,
-    });
+    // Navigate to ItemManagementScreen for full guardrail flow
+    final newItem = await context.push<Map<String, dynamic>>(
+      '/item-edit',
+      extra: {'name': '', 'default_uom_code': row.aliasUnit},
+    );
 
     if (newItem != null) {
+      if (!mounted) return;
       setState(() {
-        items.add(newItem);
-        row.selectedItemId = newItem["id"];
+        // Add to items list if not already there
+        if (!items.any((i) => i['id'] == newItem['id'])) {
+          items.add(newItem);
+        }
+        row.selectedItemId = newItem['id'];
       });
+      // Optionally map immediately logic could go here, but user can click Map.
     }
-  }
-
-  // PRESERVED EXACTLY: Text input dialog
-  Future<String?> _showTextInputDialog(BuildContext context, String title) {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            title: Text(title),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(hintText: "Enter item name"),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, controller.text),
-                child: const Text("Save"),
-              ),
-            ],
-          ),
-    );
   }
 
   @override
@@ -145,9 +126,19 @@ class _AliasMappingScreenState extends State<AliasMappingScreen> {
       itemCount: rows.length,
       itemBuilder: (context, index) {
         final row = rows[index];
+        // Find seen_count for this alias (by matching alias_name)
+        final metric = aliasMetrics.firstWhere(
+          (m) =>
+              (m['alias_name'] ?? '').toString().toLowerCase() ==
+              row.aliasName.toLowerCase(),
+          orElse: () => {'seen_count': null},
+        );
+        final seenCount = metric['seen_count'];
         return _AliasMappingCard(
           row: row,
           items: items,
+          seenCount: seenCount,
+          aliasMetrics: aliasMetrics, // Pass metrics for context
           onMap: () => _mapAlias(row),
           onCreateNew: () => _createNewItem(row),
           onSelectionChanged: (val) {
@@ -164,6 +155,8 @@ class _AliasMappingScreenState extends State<AliasMappingScreen> {
 class _AliasMappingCard extends StatelessWidget {
   final _AliasRow row;
   final List<Map<String, dynamic>> items;
+  final int? seenCount;
+  final List<Map<String, dynamic>> aliasMetrics; // New field for context
   final VoidCallback onMap;
   final VoidCallback onCreateNew;
   final ValueChanged<int?> onSelectionChanged;
@@ -171,6 +164,8 @@ class _AliasMappingCard extends StatelessWidget {
   const _AliasMappingCard({
     required this.row,
     required this.items,
+    required this.seenCount,
+    required this.aliasMetrics, // Receive metrics
     required this.onMap,
     required this.onCreateNew,
     required this.onSelectionChanged,
@@ -178,6 +173,14 @@ class _AliasMappingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🔍 Context Logic: Filter aliases for the selected item
+    final contextAliases =
+        row.selectedItemId != null
+            ? aliasMetrics
+                .where((m) => m['master_item_id'] == row.selectedItemId)
+                .toList()
+            : <Map<String, dynamic>>[];
+
     return AgroCard.outlined(
       padding: EdgeInsets.all(AgroSpacing.md),
       child: Column(
@@ -189,6 +192,12 @@ class _AliasMappingCard extends StatelessWidget {
               Expanded(
                 child: Text(row.aliasName, style: AgroTypography.cardTitle),
               ),
+              // Observational metric: "Seen X times before"
+              if (seenCount != null && seenCount! > 0)
+                Text(
+                  'Seen $seenCount times',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
             ],
           ),
           const SizedBox(height: AgroSpacing.xs),
@@ -216,6 +225,43 @@ class _AliasMappingCard extends StatelessWidget {
               hintText: "Select Item",
             ),
           ),
+
+          // 👁️ UX-2: Context Panel (Read-Only)
+          if (row.selectedItemId != null && contextAliases.isNotEmpty) ...[
+            const SizedBox(height: AgroSpacing.sm),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AgroSpacing.sm),
+              decoration: BoxDecoration(
+                color: AgroColors.neutral.background,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Existing aliases for this item:",
+                    style: AgroTypography.captionEmphasis,
+                  ),
+                  const SizedBox(height: 4),
+                  ...contextAliases.map((alias) {
+                    final name = alias['alias_name'] ?? 'Unknown';
+                    final count = alias['seen_count'] ?? 0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        "• $name — Seen $count times",
+                        style: AgroTypography.tiny.copyWith(
+                          color: AgroColors.textSecondary,
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: AgroSpacing.md),
           Row(
             children: [
@@ -260,10 +306,10 @@ class _AliasRow {
 
   factory _AliasRow.fromJson(Map<String, dynamic> json) {
     return _AliasRow(
-      id: json['id'],
-      aliasCode: json['alias_code'],
-      aliasName: json['alias_name'],
-      aliasUnit: json['uom'],
+      id: json['invoice_item_id'] ?? json['id'],
+      aliasCode: json['item_code'] ?? json['alias_code'] ?? '',
+      aliasName: json['item_name'] ?? json['alias_name'] ?? '',
+      aliasUnit: json['uom'] ?? '',
     );
   }
 }
