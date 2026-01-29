@@ -22,6 +22,7 @@ class _ItemListScreenState extends State<ItemListScreen> {
   String error = '';
   int? selectedBillItemId;
   int? selectedItemId;
+  bool showInactive = false; // Toggle for showing inactive items
 
   @override
   void initState() {
@@ -31,7 +32,9 @@ class _ItemListScreenState extends State<ItemListScreen> {
 
   Future<void> _fetchItems() async {
     try {
-      final fetchedItems = await ItemService.fetchItems();
+      final fetchedItems = await ItemService.fetchItems(
+        includeInactive: showInactive,
+      );
       final billItems = await ItemService.fetchUnmappedMartBillItems();
       setState(() {
         items = fetchedItems;
@@ -42,12 +45,6 @@ class _ItemListScreenState extends State<ItemListScreen> {
     } finally {
       setState(() => isLoading = false);
     }
-  }
-
-  // PRESERVED EXACTLY: Delete callback
-  Future<void> _deleteItem(int id) async {
-    await ItemService.deleteItem(id);
-    _fetchItems();
   }
 
   // PRESERVED EXACTLY: Map bill item to item callback
@@ -136,6 +133,29 @@ class _ItemListScreenState extends State<ItemListScreen> {
         foregroundColor: AgroColors.textPrimary,
         elevation: 1,
         actions: [
+          // Toggle for showing inactive items
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Inactive',
+                style: AgroTypography.caption.copyWith(
+                  color: AgroColors.textSecondary,
+                ),
+              ),
+              Switch(
+                value: showInactive,
+                onChanged: (val) {
+                  setState(() {
+                    showInactive = val;
+                    isLoading = true;
+                  });
+                  _fetchItems();
+                },
+                activeColor: AgroColors.primary,
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.link),
             tooltip: 'Map Mart Bill Items',
@@ -184,28 +204,18 @@ class _ItemListScreenState extends State<ItemListScreen> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        return _ItemCard(
-          item: item,
-          onRefresh: _fetchItems,
-          onDelete: _deleteItem,
-        );
+        return _ItemCard(item: item, onRefresh: _fetchItems);
       },
     );
   }
 }
 
 /// Item card with expansion for aliases and conversions.
-/// Preserves all action callbacks exactly.
 class _ItemCard extends StatelessWidget {
   final Map<String, dynamic> item;
   final VoidCallback onRefresh;
-  final Future<void> Function(int) onDelete;
 
-  const _ItemCard({
-    required this.item,
-    required this.onRefresh,
-    required this.onDelete,
-  });
+  const _ItemCard({required this.item, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -213,124 +223,170 @@ class _ItemCard extends StatelessWidget {
     final conversions = List<Map<String, dynamic>>.from(
       item['conversions'] ?? [],
     );
+    final isInactive = item['status'] == 'INACTIVE';
 
-    return Card(
-      margin: EdgeInsets.all(AgroSpacing.sm),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: AgroColors.divider),
-      ),
-      child: ExpansionTile(
-        title: Text(item['name'], style: AgroTypography.cardTitle),
-        subtitle: Text(
-          'Default UOM: ${item['default_uom_code'] ?? 'N/A'}',
-          style: AgroTypography.caption,
-        ),
-        children: [
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: AgroSpacing.lg,
-              vertical: AgroSpacing.sm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Aliases section
-                Text('Aliases:', style: AgroTypography.emphasis),
-                Wrap(
-                  spacing: AgroSpacing.xs + 2, // 6px as before
-                  children:
-                      aliases.isNotEmpty
-                          ? aliases
-                              .map(
-                                (a) => Chip(
-                                  label: Text(
-                                    '${a['alias_name']} (${a['alias_code']})',
-                                    style: AgroTypography.caption,
-                                  ),
-                                ),
-                              )
-                              .toList()
-                          : [
-                            Text(
-                              'No aliases',
-                              style: AgroTypography.bodySecondary,
-                            ),
-                          ],
-                ),
-                SizedBox(height: AgroSpacing.sm),
-
-                // Conversions section
-                Text('Conversions:', style: AgroTypography.emphasis),
-                conversions.isNotEmpty
-                    ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children:
-                          conversions.map((c) {
-                            return Row(
-                              children: [
-                                Text(
-                                  '1 ${item['default_uom_code'] ?? ''} = ',
-                                  style: AgroTypography.body,
-                                ),
-                                Text(
-                                  '${c['conversion_factor']} ${c['target_unit']}',
-                                  style: AgroTypography.emphasis,
-                                ),
-                              ],
-                            );
-                          }).toList(),
-                    )
-                    : Text(
-                      'No conversions',
-                      style: AgroTypography.bodySecondary,
-                    ),
-                SizedBox(height: AgroSpacing.sm),
-
-                // PRESERVED EXACTLY: Action buttons row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      icon: Icon(
-                        Icons.visibility,
-                        size: 18,
-                        color: AgroColors.primary,
-                      ),
-                      label: Text(
-                        'View Details',
-                        style: TextStyle(color: AgroColors.primary),
-                      ),
-                      onPressed: () {
-                        context.push('/item-detail', extra: item);
-                      },
-                    ),
-                    // PRESERVED EXACTLY: Edit button
-                    IconButton(
-                      icon: Icon(Icons.edit, color: AgroColors.textSecondary),
-                      tooltip: 'Edit',
-                      onPressed: () async {
-                        final ok = await context.push(
-                          '/item-edit',
-                          extra: item,
-                        );
-                        if (ok == true) onRefresh();
-                      },
-                    ),
-                    // PRESERVED EXACTLY: Delete button (no confirmation, direct call)
-                    IconButton(
-                      icon: Icon(Icons.delete, color: AgroColors.critical.text),
-                      tooltip: 'Delete',
-                      onPressed: () => onDelete(item['id']),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+    return Opacity(
+      opacity: isInactive ? 0.6 : 1.0,
+      child: Card(
+        margin: EdgeInsets.all(AgroSpacing.sm),
+        elevation: 0,
+        color: isInactive ? AgroColors.surfaceVariant : null,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+            color: isInactive ? AgroColors.textSecondary : AgroColors.divider,
           ),
-        ],
-      ),
-    );
+        ),
+        child: ExpansionTile(
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(item['name'], style: AgroTypography.cardTitle),
+              ),
+              if (isInactive)
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AgroSpacing.xs,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AgroColors.textSecondary.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Inactive',
+                    style: AgroTypography.caption.copyWith(
+                      color: AgroColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Default UOM: ${item['default_uom_code'] ?? 'N/A'}',
+                style: AgroTypography.caption,
+              ),
+              if (aliases.isNotEmpty || conversions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    [
+                      if (aliases.isNotEmpty) 'Aliases: ${aliases.length}',
+                      if (conversions.isNotEmpty)
+                        'Conversions: ${conversions.length}',
+                    ].join(' • '),
+                    style: AgroTypography.caption.copyWith(
+                      color: AgroColors.textSecondary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AgroSpacing.lg,
+                vertical: AgroSpacing.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Aliases section
+                  Text('Aliases:', style: AgroTypography.emphasis),
+                  Wrap(
+                    spacing: AgroSpacing.xs + 2, // 6px as before
+                    children:
+                        aliases.isNotEmpty
+                            ? aliases
+                                .map(
+                                  (a) => Chip(
+                                    label: Text(
+                                      '${a['alias_name']} (${a['alias_code']})',
+                                      style: AgroTypography.caption,
+                                    ),
+                                  ),
+                                )
+                                .toList()
+                            : [
+                              Text(
+                                'No aliases',
+                                style: AgroTypography.bodySecondary,
+                              ),
+                            ],
+                  ),
+                  SizedBox(height: AgroSpacing.sm),
+
+                  // Conversions section
+                  Text('Conversions:', style: AgroTypography.emphasis),
+                  conversions.isNotEmpty
+                      ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children:
+                            conversions.map((c) {
+                              return Row(
+                                children: [
+                                  Text(
+                                    '1 ${item['default_uom_code'] ?? ''} = ',
+                                    style: AgroTypography.body,
+                                  ),
+                                  Text(
+                                    '${c['conversion_factor']} ${c['target_unit']}',
+                                    style: AgroTypography.emphasis,
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                      )
+                      : Text(
+                        'No conversions',
+                        style: AgroTypography.bodySecondary,
+                      ),
+                  SizedBox(height: AgroSpacing.sm),
+
+                  // PRESERVED EXACTLY: Action buttons row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        icon: Icon(
+                          Icons.visibility,
+                          size: 18,
+                          color: AgroColors.primary,
+                        ),
+                        label: Text(
+                          'View Details',
+                          style: TextStyle(color: AgroColors.primary),
+                        ),
+                        onPressed: () {
+                          context.push('/item-detail', extra: item);
+                        },
+                      ),
+                      // Edit button
+                      IconButton(
+                        icon: Icon(Icons.edit, color: AgroColors.textSecondary),
+                        tooltip: 'Edit',
+                        onPressed: () async {
+                          final ok = await context.push(
+                            '/item-edit',
+                            extra: item,
+                          );
+                          if (ok == true) onRefresh();
+                        },
+                      ),
+                      // Delete button REMOVED per governance mandate
+                      // Item deletion is not supported. Use archival instead.
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ], // closes ExpansionTile.children
+        ), // closes ExpansionTile
+      ), // closes Card
+    ); // closes Opacity and return
   }
 }

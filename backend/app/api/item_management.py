@@ -26,8 +26,8 @@ class InvoiceItemMapInput(BaseModel):
 
 
 @router.get("/", response_model=List[ItemManagementRead])
-def get_items(db: Session = Depends(get_db)):
-    return svc.get_master_items_details(db)
+def get_items(include_inactive: bool = False, db: Session = Depends(get_db)):
+    return svc.get_master_items_details(db, include_inactive=include_inactive)
 
 
 @router.get("/uoms", response_model=List[UOMRead])
