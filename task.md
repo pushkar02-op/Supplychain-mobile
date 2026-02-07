@@ -166,3 +166,19 @@
     - [x] Create `event-relay-phase-8.md`
     - [x] Strict Governance Check (Status, Tests, Single Commit).
     - [x] Push to `arch/phase-8-event-relay`.
+
+# PHASE-1 — Stabilization & Hygiene
+
+- [ ] **1. Numeric Precision Governance**
+    - [ ] Update `docs/business_rules_and_enforcement.md`: Explicitly document `InventoryTxn` (10,3) vs `Batch` (18,6) distinction.
+    - [ ] Update `backend/app/services/inventory_txn.py`: Add explicit rounding/quantization to `RawQty` and `BaseQty`.
+- [ ] **2. Repository Hygiene**
+    - [ ] Remove `debug_*.py`, `verify_*.py` from `backend/` and `backend/app/`.
+    - [ ] Remove `*.log`, `*.txt` artifacts.
+    - [ ] Update `.gitignore` to prevent recurrence.
+- [ ] **3. CI/CD Visibility**
+    - [ ] Create `.github/workflows/mobile-ci.yml` for Flutter.
+    - [ ] Add `flutter analyze` and `flutter test` steps.
+- [ ] **4. Verification**
+    - [ ] Verify clean git status.
+    - [ ] Verify CI triggers.
