@@ -1,4 +1,5 @@
 import logging
+from decimal import ROUND_HALF_UP, Decimal
 from typing import List, Optional
 
 from app.db.models.domain_event import DomainEvent
@@ -11,7 +12,22 @@ logger = logging.getLogger(__name__)
 
 
 def create_inventory_txn(db: Session, data: InventoryTxnCreate) -> InventoryTxn:
-    txn = InventoryTxn(**data.dict())
+    # ENFORCEMENT: NUM-001 Ledger Storage Precision
+    # Quantize to 3 decimal places to match Numeric(10,3) schema
+    # Use ROUND_HALF_UP to ensure consistent behavior
+    quantized_raw = Decimal(str(data.raw_qty)).quantize(
+        Decimal("0.001"), rounding=ROUND_HALF_UP
+    )
+    quantized_base = Decimal(str(data.base_qty)).quantize(
+        Decimal("0.001"), rounding=ROUND_HALF_UP
+    )
+
+    # Update data object with quantized values
+    txn_data = data.dict()
+    txn_data["raw_qty"] = quantized_raw
+    txn_data["base_qty"] = quantized_base
+
+    txn = InventoryTxn(**txn_data)
     db.add(txn)
     db.flush()
     db.refresh(txn)

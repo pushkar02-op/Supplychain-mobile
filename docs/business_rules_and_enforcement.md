@@ -630,15 +630,27 @@ One order per (item, mart, date). Attempts to create duplicates must fail with a
 
 ---
 
+
 ## 10. NUMERIC & PRECISION RULES
 
-### NUM-001 — Decimal Safety
+### NUM-001 — Decimal Safety & Precision Hierarchy
 
-Floats forbidden for inventory math.
+Floats forbidden for inventory math. Precision varies by domain context to balance storage vs analytics.
+
+| Context | Model | Precision | Rationale |
+|---|---|---|---|
+| **Analytical State** | `Batch`, `Order`, `Rejection` | `Numeric(18, 6)` | High precision for weighted average cost, financial auditing, and fractional inventory. |
+| **Ledger Storage** | `InventoryTxn` | `Numeric(10, 3)` | Optimized for storage efficiency. Ledger acts as a "Resolution" of truth, accepting quantization noise < 0.001. |
 
 #### Checklist
-- [ ] Numeric/Decimal used in DB
-- [ ] Decimal used in Python services
+- [ ] `Batch.quantity` MUST be `Numeric(18, 6)`
+- [ ] `InventoryTxn.raw_qty` MUST be quantized to 3 decimal places BEFORE write.
+- [ ] `InventoryTxn.base_qty` MUST be quantized to 3 decimal places BEFORE write.
+- [ ] Decimal used in Python services (no float math).
+
+#### Backend Mapping
+- `app/services/inventory_txn.py`: `create_inventory_txn` MUST quantize inputs.
+
 
 ---
 
