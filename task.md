@@ -182,3 +182,17 @@
 - [ ] **4. Verification**
     - [ ] Verify clean git status.
     - [ ] Verify CI triggers.
+
+# PHASE-2A — API Contract & Governance Alignment
+
+- [x] **1. Audit API Error Serialization**
+    - [x] Compare documented invariant contracts (e.g., ORD-007).
+    - [x] Verify structured error metadata preservation.
+- [x] **2. Align Error Propagation**
+    - [x] Ensure rule metadata is not dropped in `exceptions.py`.
+    - [x] Align transport to documentation.
+- [x] **3. Legacy Path Governance Check**
+    - [x] Audit active legacy API/service paths.
+    - [x] Quarantine or explicitly document exceptions.
+- [x] **4. Contract Tests**
+    - [x] Add/Update tests to lock correctness.
