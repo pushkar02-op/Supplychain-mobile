@@ -9,7 +9,7 @@ class OrderBase(BaseModel):
     item_id: int
     unit: str
     order_date: date
-    quantity_ordered: float
+    quantity_ordered: float  # Validation handled in service layer
 
 
 class OrderCreate(OrderBase):
