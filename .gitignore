@@ -112,4 +112,4 @@ mobile/test/integration/
 verify_*.txt
 verification_*.txt
 
-. r u f f _ c a c h e /  
+.ruff_cache/
