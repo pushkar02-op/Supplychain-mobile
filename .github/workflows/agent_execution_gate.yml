@@ -1,0 +1,43 @@
+name: Agent Governance Gate
+
+on:
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  governance-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify feature branch naming
+        run: |
+          [[ "${{ github.head_ref }}" =~ ^feature\/[a-z0-9\-]+$ ]] || {
+            echo "❌ Branch must be feature/<slug>"
+            exit 1
+          }
+
+      - name: Ensure base branch is develop
+        run: |
+          [[ "${{ github.base_ref }}" == "develop" ]] || {
+            echo "❌ PR base must be develop"
+            exit 1
+          }
+
+      - name: Enforce phase-scoped commits
+        run: |
+          git log origin/develop..HEAD --pretty=%s | while read msg; do
+            echo "$msg" | grep -Eq '^phase-[0-9]+[a-z]:' || {
+              echo "❌ Commit missing phase tag: $msg"
+              exit 1
+            }
+          done
+
+      - name: Block protected paths
+        run: |
+          FORBIDDEN="inventory_txn|core_freeze|migrations/locked"
+          git diff --name-only origin/develop...HEAD | grep -E "$FORBIDDEN" && {
+            echo "❌ Forbidden paths modified"
+            exit 1
+          } || true
