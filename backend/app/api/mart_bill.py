@@ -104,10 +104,22 @@ def read_mart_bills(
     """
     logger.info("Fetching mart bills")
 
-    # Handle legacy pagination if provided
-    if page is not None:
+    # LEGACY PATH — DO NOT DEPEND ON FOR NEW FEATURES
+    # Handle legacy pagination if provided (deprecated in favor of skip/limit)
+    if page is not None or page_size is not None:
+        # Emit deprecation warning for legacy pagination (Phase 2B)
+        logger.warning(
+            "LEGACY_PARAM_USED: Deprecated pagination parameters detected",
+            extra={
+                "legacy_param": "page" if page is not None else "page_size",
+                "replacement": "skip/limit",
+                "endpoint": "/mart-bills",
+                "page_value": page,
+                "page_size_value": page_size,
+            },
+        )
         effective_limit = page_size if page_size else limit
-        effective_skip = (page - 1) * effective_limit
+        effective_skip = (page - 1) * effective_limit if page else skip
     else:
         effective_skip = skip
         effective_limit = limit

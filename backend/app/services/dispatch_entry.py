@@ -225,7 +225,8 @@ def create_dispatch_entry(
         if not order:
             raise AppException(f"Order {entry.order_id} not found", status_code=404)
     else:
-        # Heuristic Fallback (Legacy)
+        # LEGACY PATH — DO NOT DEPEND ON FOR NEW FEATURES
+        # Heuristic Fallback (Legacy): Implicit order linking when order_id not provided
         order = db.scalar(
             select(Order).where(
                 Order.item_id == entry.item_id,
@@ -233,6 +234,18 @@ def create_dispatch_entry(
                 Order.status.notin_(["Cancelled", "Completed"]),
             )
         )
+        if order:
+            # Emit structured warning for legacy path observability (Phase 2B)
+            logger.warning(
+                "LEGACY_PATH_TRIGGERED: Implicit dispatch-order linking used",
+                extra={
+                    "rule_violation": "ORD-007",
+                    "legacy_path": "implicit_dispatch_order_link",
+                    "item_id": entry.item_id,
+                    "mart_id": mart.id,
+                    "linked_order_id": order.id,
+                },
+            )
     if order:
         existing_dispatched = Decimal(str(order.quantity_dispatched or 0))
         quantity_ordered = Decimal(str(order.quantity_ordered))
