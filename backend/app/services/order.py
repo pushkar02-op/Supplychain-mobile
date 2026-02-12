@@ -317,9 +317,7 @@ def recompute_order_status(db: Session, order_id: int) -> None:
     pass
 
 
-def update_order_status_after_reversal(
-    db: Session, order: Order, reversal_qty: float
-) -> None:
+def update_order_status_after_reversal(db: Session, order: Order, reversal_qty) -> None:
     """
     Adjust order dispatched quantity and refresh status after a reversal.
     """
@@ -333,7 +331,7 @@ def update_order_status_after_reversal(
         )
         new_dispatched = Decimal(0)
 
-    order.quantity_dispatched = float(new_dispatched)
+    order.quantity_dispatched = new_dispatched
 
     # Update Status
     qty_ordered = Decimal(str(order.quantity_ordered))

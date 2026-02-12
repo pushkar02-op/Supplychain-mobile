@@ -7,6 +7,7 @@ All forecasts are READ-ONLY with respect to core domain models.
 
 import logging
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import List, Optional
 
 from app.db.models.inventory_flow_daily import InventoryFlowDaily
@@ -63,7 +64,7 @@ def compute_burn_rate(db: Session, item_id: int) -> dict:
     """
     today = date.today()
 
-    def avg_outflow_for_window(days: int) -> float:
+    def avg_outflow_for_window(days: int) -> Decimal:
         start_date = today - timedelta(days=days)
         result = (
             db.query(func.coalesce(func.sum(InventoryFlowDaily.out_qty), 0))
@@ -74,8 +75,8 @@ def compute_burn_rate(db: Session, item_id: int) -> dict:
             )
             .scalar()
         )
-        total_out = float(result or 0)
-        return total_out / days if days > 0 else 0.0
+        total_out = Decimal(str(result or 0))
+        return total_out / Decimal(str(days)) if days > 0 else Decimal("0")
 
     return {
         "avg_daily_outflow_7d": avg_outflow_for_window(7),
@@ -84,7 +85,7 @@ def compute_burn_rate(db: Session, item_id: int) -> dict:
     }
 
 
-def get_current_ledger_qty(db: Session, item_id: int) -> float:
+def get_current_ledger_qty(db: Session, item_id: int) -> Decimal:
     """
     Get current ledger quantity for an item.
 
@@ -101,7 +102,7 @@ def get_current_ledger_qty(db: Session, item_id: int) -> float:
         .filter(Batch.item_id == item_id)
         .scalar()
     )
-    return float(result or 0)
+    return Decimal(str(result or 0))
 
 
 def compute_depletion_forecast(
