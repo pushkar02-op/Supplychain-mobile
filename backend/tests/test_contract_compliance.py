@@ -36,19 +36,9 @@ def test_ord_009_zero_quantity_order_error_contract(
     # We need to hit the Service Layer raise.
     # If Schema allows 0 but Service forbids, we hit the App Exception.
 
-    try:
-        response = client.post("/v1/orders/", json=payload)
-    except Exception as e:
-        import traceback
-
-        with open("/app/test_error.log", "w") as f:
-            f.write(traceback.format_exc())
-        raise e
+    response = client.post("/v1/orders/", json=payload)
 
     # Assert
-    with open("/app/response.log", "w") as f:
-        f.write(f"Status: {response.status_code}\n")
-        f.write(f"Body: {response.text}\n")
 
     assert response.status_code == 422
     data = response.json()
@@ -116,14 +106,7 @@ def test_ord_007_over_dispatch_error_contract(
         "order_id": order.id,
     }
 
-    try:
-        response = client.post("/v1/dispatch-entries/", json=payload)
-    except Exception as e:
-        import traceback
-
-        with open("/app/test_error_ord007.log", "w") as f:
-            f.write(traceback.format_exc())
-        raise e
+    response = client.post("/v1/dispatch-entries/", json=payload)
 
     # Assert
     assert response.status_code == 409
