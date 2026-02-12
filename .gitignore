@@ -18,6 +18,8 @@ venv/
 /backend/invoices/*.pdf
 /backend/*.log
 /backend/*.txt
+# Exception: track backend deps for CI parity with Docker
+!backend/requirements.txt
 /backend/debug_*.py
 /backend/verify_*.py
 /backend/app/verify_*.py
