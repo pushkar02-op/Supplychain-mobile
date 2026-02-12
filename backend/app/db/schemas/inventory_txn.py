@@ -12,9 +12,9 @@ class InventoryTxnCreate(BaseModel):
     raw_unit: str
     base_qty: float
     base_unit: str
-    ref_type: Optional[str]
-    ref_id: Optional[int]
-    remarks: Optional[str]
+    ref_type: Optional[str] = None
+    ref_id: Optional[int] = None
+    remarks: Optional[str] = None
 
 
 class InventoryTxnRead(InventoryTxnCreate):
