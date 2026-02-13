@@ -44,9 +44,13 @@ def register_exception_handlers(app):
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
         logger.warning(f"AppException: {exc.message}")
-        content = {"detail": exc.message}
+        rule_id = None
+        metadata = None
         if exc.extra:
-            content.update(exc.extra)
+            extra = dict(exc.extra)
+            rule_id = extra.pop("rule_id", None)
+            metadata = extra if extra else None
+        content = {"detail": exc.message, "rule_id": rule_id, "metadata": metadata}
         return JSONResponse(status_code=exc.status_code, content=content)
 
     @app.exception_handler(RequestValidationError)

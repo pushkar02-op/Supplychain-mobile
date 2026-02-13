@@ -133,5 +133,5 @@ def test_ord_007_over_dispatch_error_contract(
     assert data.get("rule_id") == "ORD-007", (
         f"Expected rule_id 'ORD-007', got {data.get('rule_id')}"
     )
-    assert data.get("requested_quantity") == 15.0
-    assert data.get("remaining_quantity") == 10.0
+    assert data["metadata"]["requested_quantity"] == 15.0
+    assert data["metadata"]["remaining_quantity"] == 10.0
