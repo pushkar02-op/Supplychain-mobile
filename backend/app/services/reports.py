@@ -7,6 +7,7 @@ import logging
 from decimal import Decimal
 from typing import List, Optional
 
+from app.core.decimal_utils import enforce_decimal
 from app.db.models.batch import Batch
 from app.db.models.inventory_txn import InventoryTxn
 from app.db.models.views.inventory_signal import InventorySignal
@@ -80,7 +81,7 @@ def get_inventory_report(
     item_available_map = {}
     for r in results:
         # Default to 0
-        item_available_map[r.item_id] = 0.0
+        item_available_map[r.item_id] = Decimal("0")
 
     # Batch Query for Available Stock
     batches = (
@@ -106,7 +107,7 @@ def get_inventory_report(
                     total_available += b.quantity * factor
                 except Exception:
                     pass
-        item_available_map[r.item_id] = float(total_available)
+        item_available_map[r.item_id] = total_available
 
     # Signal Calculation via Read Model
     sig_q = db.query(InventorySignal).filter(
@@ -114,49 +115,49 @@ def get_inventory_report(
     )
     signals_data = sig_q.all()
 
-    out_last_7d = {s.item_id: float(s.out_last_7d or 0) for s in signals_data}
-    out_prev_7d = {s.item_id: float(s.out_prev_7d or 0) for s in signals_data}
+    out_last_7d = {s.item_id: enforce_decimal(s.out_last_7d or 0) for s in signals_data}
+    out_prev_7d = {s.item_id: enforce_decimal(s.out_prev_7d or 0) for s in signals_data}
 
     final_list = []
     for r in results:
         # Create display object from view
         # We handle mapping manually to satisfy the new truth model
-        avail = item_available_map.get(r.item_id, 0.0)
-        ledger = float(r.current_stock)
+        avail = item_available_map.get(r.item_id, Decimal("0"))
+        ledger = enforce_decimal(r.current_stock)
 
         # Drift Calculation
         delta = avail - ledger
         status = "HEALTHY"
         severity = "NONE"
 
-        if abs(delta) > 0.001:
+        if abs(delta) > Decimal("0.001"):
             status = "DRIFT"
             # Severity Logic
-            denom = abs(ledger) if ledger != 0 else 1.0
+            denom = abs(ledger) if ledger != Decimal("0") else Decimal("1")
             drift_ratio = abs(delta) / denom
-            if ledger < 0 or drift_ratio > 0.05:
+            if ledger < Decimal("0") or drift_ratio > Decimal("0.05"):
                 severity = "CRITICAL"
             else:
                 severity = "MAJOR"
 
         # Signals
         signals = []
-        l7 = out_last_7d.get(r.item_id, 0.0)
-        p7 = out_prev_7d.get(r.item_id, 0.0)
+        l7 = out_last_7d.get(r.item_id, Decimal("0"))
+        p7 = out_prev_7d.get(r.item_id, Decimal("0"))
 
         # Fast Depletion
-        if l7 > (p7 * 1.5) and l7 > 0:
+        if l7 > (p7 * Decimal("1.5")) and l7 > Decimal("0"):
             signals.append("FAST_DEPLETING")
 
         # Low Stock
-        threshold = 10.0
-        if l7 > 0:
-            threshold = l7 * 0.2
+        threshold = Decimal("10.0")
+        if l7 > Decimal("0"):
+            threshold = l7 * Decimal("0.2")
 
-        if avail <= threshold and avail > 0:
+        if avail <= threshold and avail > Decimal("0"):
             signals.append("LOW_STOCK")
 
-        if not signals and abs(delta) < 0.001 and avail > 0:
+        if not signals and abs(delta) < Decimal("0.001") and avail > Decimal("0"):
             signals.append("STABLE")
 
         display_obj = InventorySummaryRead(
@@ -287,7 +288,7 @@ def get_item_signals(db: Session, item_id: int):
         except Exception:
             pass
 
-    available_stock = float(total_available)
+    available_stock = total_available
 
     # 2. Transaction Aggregation via Read Model
     from app.db.models.views.inventory_signal import InventorySignal
@@ -313,13 +314,14 @@ def get_item_signals(db: Session, item_id: int):
     if out_last_7d > 0:
         threshold = out_last_7d * Decimal("0.2")
 
-    if available_stock <= threshold and available_stock > 0:
+    if available_stock <= threshold and available_stock > Decimal("0"):
         signals.append("LOW_STOCK")
 
     if (
         not signals
-        and abs(available_stock - inv_summary.current_stock) < 0.001
-        and available_stock > 0
+        and abs(available_stock - enforce_decimal(inv_summary.current_stock))
+        < Decimal("0.001")
+        and available_stock > Decimal("0")
     ):
         signals.append("STABLE")
 

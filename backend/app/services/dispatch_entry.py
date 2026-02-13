@@ -8,6 +8,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 
+from app.core.decimal_utils import enforce_decimal
 from app.core.exceptions import AppException
 from app.db.models.batch import Batch
 from app.db.models.dispatch_entry import DispatchEntry
@@ -59,14 +60,11 @@ def create_reversal_entry(
         raise AppException("Dispatch entry not found", status_code=404)
 
     # 2. Calculate Remaining Quantity
-    total_reversed = (
-        db.scalar(
-            select(func.sum(DispatchReversal.quantity)).where(
-                DispatchReversal.dispatch_entry_id == dispatch_id
-            )
+    total_reversed = db.scalar(
+        select(func.sum(DispatchReversal.quantity)).where(
+            DispatchReversal.dispatch_entry_id == dispatch_id
         )
-        or 0.0
-    )
+    ) or Decimal("0")
 
     # Use Decimal for precision
     dispatch_qty = Decimal(str(dispatch.quantity))
@@ -89,14 +87,14 @@ def create_reversal_entry(
     if reversal_qty > remaining_qty:
         logger.warning(f"Requested reversal {reversal_qty} > remaining {remaining_qty}")
         raise AppException(
-            f"Cannot reverse {float(reversal_qty)}. Only {float(remaining_qty)} remaining.",
+            f"Cannot reverse {reversal_qty}. Only {remaining_qty} remaining.",
             status_code=409,
         )
 
     # 4. Create Reversal Record
     reversal = DispatchReversal(
         dispatch_entry_id=dispatch_id,
-        quantity=float(reversal_qty),
+        quantity=reversal_qty,
         reason=entry.reason,
         created_by=created_by,
         created_at=datetime.utcnow(),
@@ -127,7 +125,7 @@ def create_reversal_entry(
             item_id=dispatch.item_id,
             batch_id=batch.id,
             txn_type="IN",
-            raw_qty=float(reversal_qty),
+            raw_qty=reversal_qty,
             raw_unit=dispatch.unit,
             base_qty=canonical_qty,
             base_unit=batch.unit,
@@ -173,7 +171,7 @@ def create_reversal_entry(
         )
 
     if order:
-        update_order_status_after_reversal(db, order, float(reversal_qty))
+        update_order_status_after_reversal(db, order, reversal_qty)
         db.commit()
         return reversal
 
@@ -262,8 +260,8 @@ def create_dispatch_entry(
                 status_code=409,
                 extra={
                     "rule_id": "ORD-007",
-                    "requested_quantity": float(dispatch_qty),
-                    "remaining_quantity": float(remaining_qty),
+                    "requested_quantity": dispatch_qty,
+                    "remaining_quantity": remaining_qty,
                     "explanation": "Over-dispatch is not allowed. Reduce quantity or create a new order.",
                 },
             )
@@ -703,7 +701,7 @@ def get_all_dispatch_entries(
     stmt = (
         select(
             DispatchEntry,
-            func.coalesce(func.sum(DispatchReversal.quantity), 0.0).label(
+            func.coalesce(func.sum(DispatchReversal.quantity), Decimal("0")).label(
                 "reversed_qty"
             ),
         )
@@ -728,7 +726,7 @@ def get_all_dispatch_entries(
         stmt = stmt.having(
             (
                 DispatchEntry.quantity
-                - func.coalesce(func.sum(DispatchReversal.quantity), 0.0)
+                - func.coalesce(func.sum(DispatchReversal.quantity), Decimal("0"))
             )
             > 0
         )
@@ -752,16 +750,15 @@ def get_all_dispatch_entries(
         dispatch = row[0]
         reversed_qty = row[1]
 
-        # Calculate Net
-        # Ensure float arithmetic
-        net = float(dispatch.quantity) - float(reversed_qty)
+        # Calculate Net (Decimal arithmetic — G1 governance)
+        net = enforce_decimal(dispatch.quantity) - enforce_decimal(reversed_qty)
         # Clamp to 0 just in case
-        net = max(0.0, net)
+        net = max(Decimal("0"), net)
 
         # Determine Status
-        if net == float(dispatch.quantity):
+        if net == enforce_decimal(dispatch.quantity):
             status = "Active"
-        elif net == 0:
+        elif net == Decimal("0"):
             status = "Fully Reversed"
         else:
             status = "Partially Reversed"

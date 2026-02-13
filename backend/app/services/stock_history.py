@@ -48,7 +48,7 @@ def get_stock_history(db: Session, stock_entry_id: int) -> StockHistoryResponse:
         adjustments.append(
             StockHistoryAdjustment(
                 id=txn.id,
-                quantity_delta=float(txn.raw_qty),
+                quantity_delta=txn.raw_qty,
                 unit=txn.raw_unit,
                 reason=txn.remarks or "Manual Adjustment",
                 created_at=txn.created_at,

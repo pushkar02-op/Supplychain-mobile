@@ -96,7 +96,9 @@ async def save_and_process_mart_bill(
 
     try:
         df, invoice_date, mart_name = process_pdf(upload_path)
-        total_amount = float(df["Total"].sum())
+        from decimal import Decimal as _D
+
+        total_amount = _D(str(df["Total"].sum()))
 
         mart = db.query(Mart).filter(Mart.name == mart_name).first()
         if not mart:

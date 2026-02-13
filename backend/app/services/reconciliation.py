@@ -178,7 +178,7 @@ def resolve_drift(
     event_payload = ReconciliationResolved(
         record_id=record.id,
         batch_id=record.batch_id,
-        drift_resolved=float(adjustment_qty),
+        drift_resolved=adjustment_qty,
         adjustment_txn_id=txn.id,
     ).dict()
 
