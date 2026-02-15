@@ -1,0 +1,67 @@
+# PROVIDER_GRAPH_M0 — Baseline Provider Snapshot
+
+> **Captured**: 2026-02-16  
+> **Source**: `mobile/lib/providers/`  
+> **Phase**: M0 (Pre-Migration)
+
+---
+
+## Provider Inventory
+
+| # | Provider | Type | File | Repository Dependency | Consumed By |
+|---|----------|------|------|-----------------------|-------------|
+| 1 | `authProvider` | `AsyncNotifierProvider<AuthNotifier, AuthState>` | `auth_provider.dart` | None (uses `FlutterSecureStorage` directly) | `app_router.dart`, `OverviewScreen`, `MoreHubScreen`, `InventoryScreen`, `DispatchListScreen`, `DashboardScreen` |
+| 2 | `stockRepositoryProvider` | `Provider<StockRepository>` | `stock_list_provider.dart` | `StockRepository` | `stockListProvider` |
+| 3 | `selectedDateProvider` | `StateProvider<DateTime>` | `stock_list_provider.dart` | None | `StockListScreen`, `stockListProvider` |
+| 4 | `stockListProvider` | `AsyncNotifierProvider<StockListController, List<dynamic>>` | `stock_list_provider.dart` | `StockRepository` (via `stockRepositoryProvider`) | `StockListScreen` |
+| 5 | `adminDiagnosticsRepositoryProvider` | `Provider<AdminDiagnosticsRepository>` | `admin_diagnostics_provider.dart` | `AdminDiagnosticsRepository` | `missingDefaultUOMProvider` |
+| 6 | `missingDefaultUOMProvider` | `FutureProvider.autoDispose<List<Map<String, dynamic>>>` | `admin_diagnostics_provider.dart` | `AdminDiagnosticsRepository` (via #5) | `AdminDiagnosticsScreen` |
+| 7 | `adminLedgerRepositoryProvider` | `Provider<AdminLedgerRepository>` | `admin_ledger_provider.dart` | `AdminLedgerRepository` | `ledgerHealthProvider`, `driftReportProvider`, `reconciliationDetailProvider` |
+| 8 | `ledgerHealthProvider` | `AsyncNotifierProvider<LedgerHealthNotifier, Map<String, dynamic>>` | `admin_ledger_provider.dart` | `AdminLedgerRepository` (via #7) | `AdminInventoryHealthScreen`, `OverviewScreen` |
+| 9 | `driftReportProvider` | `AsyncNotifierProvider<DriftReportNotifier, List<dynamic>>` | `admin_ledger_provider.dart` | `AdminLedgerRepository` (via #7) | `AdminInventoryDriftScreen` |
+| 10 | `reconciliationDetailProvider` | `FutureProvider.family.autoDispose<Map<String, dynamic>, int>` | `admin_ledger_provider.dart` | `AdminLedgerRepository` (via #7) | `AdminReconciliationDetailScreen` |
+
+---
+
+## Dependency Graph
+
+```
+authProvider (AsyncNotifier)
+├── app_router.dart
+├── OverviewScreen
+├── MoreHubScreen
+├── InventoryScreen
+├── DispatchListScreen
+└── DashboardScreen
+
+stockListProvider (AsyncNotifier)
+├── watches: selectedDateProvider
+├── uses: stockRepositoryProvider → StockRepository
+└── consumed by: StockListScreen
+
+adminLedgerRepositoryProvider
+├── ledgerHealthProvider (AsyncNotifier) → AdminInventoryHealthScreen, OverviewScreen
+├── driftReportProvider (AsyncNotifier) → AdminInventoryDriftScreen
+└── reconciliationDetailProvider (FutureProvider.family) → AdminReconciliationDetailScreen
+
+adminDiagnosticsRepositoryProvider
+└── missingDefaultUOMProvider (FutureProvider) → AdminDiagnosticsScreen
+```
+
+---
+
+## Coverage Gap
+
+| Domain | Has Provider? | Has Repository? | Screens Using Direct Service |
+|--------|:---:|:---:|---|
+| Auth | ✅ | ❌ (uses SecureStorage) | `LoginScreen` uses `AuthService` directly |
+| Stock | ✅ | ✅ | `StockEntryScreen` uses `StockService` directly |
+| Orders | ❌ | ❌ | `OrdersScreen`, `OrderEntryScreen` |
+| Dispatch | ❌ | ❌ | `DispatchListScreen`, `DispatchEntryScreen` |
+| Mart Bills | ❌ | ❌ | `MartBillListScreen`, `PdfViewerScreen` |
+| Inventory | ❌ | ❌ | `InventoryScreen` |
+| Items | ❌ | ❌ | `ItemListScreen`, `ItemDetailScreen`, `ItemManagementScreen`, `AliasMappingScreen` |
+| Rejections | ❌ | ❌ | `RejectionListScreen`, `RejectionEntryScreen` |
+| Forecasting | ❌ | ❌ | `ItemDetailScreen` |
+| Admin Ledger | ✅ | ✅ | — (fully migrated) |
+| Admin Diagnostics | ✅ | ✅ | — (fully migrated) |
