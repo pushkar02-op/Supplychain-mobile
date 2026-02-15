@@ -123,7 +123,7 @@ def test_burn_rate_with_flow_data(db_session):
     # Verify
     assert result["avg_daily_outflow_7d"] == 10.0  # 70 / 7 = 10
     assert result["avg_daily_outflow_14d"] == 5.0  # 70 / 14 = 5
-    assert result["avg_daily_outflow_30d"] == pytest.approx(70 / 30, rel=0.01)
+    assert float(result["avg_daily_outflow_30d"]) == pytest.approx(70 / 30, rel=0.01)
 
 
 def test_burn_rate_no_flow_data(db_session):
