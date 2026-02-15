@@ -119,6 +119,7 @@ def compute_depletion_forecast(
         - No division by zero
     """
     ledger_qty = get_current_ledger_qty(db, item_id)
+    avg_daily_outflow = Decimal(str(avg_daily_outflow))
 
     if avg_daily_outflow <= 0:
         # No outflow = stable, no stockout projected

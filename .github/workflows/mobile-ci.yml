@@ -27,6 +27,4 @@ jobs:
         run: flutter analyze
 
       - name: Run tests
-        # Allow failure initially to unblock merge while tests are stabilized
-        continue-on-error: true 
         run: flutter test

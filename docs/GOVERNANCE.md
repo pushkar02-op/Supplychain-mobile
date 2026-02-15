@@ -35,20 +35,78 @@ These documents define **non-negotiable rules**. They are not suggestions.
 
 ---
 
-## 3. Branch Discipline (Effective Immediately)
+## 3. Git Governance Model (HARDENED)
 
-**These rules apply ONLY after the BASELINE tag.**
+### 3.1 Feature Branch Law
 
-### Rules:
-1.  **Feature Branches Only**: All new work MUST happen on feature branches.
-    *   Naming: `feature/<domain>-<short-description>`
-2.  **Single Scope**: One concern per branch. No mixed refactors.
-3.  **No Direct Commits**: No direct commits to `main`, `master`, or `develop` (unless P0 Fix).
-4.  **Documentation Prerequisite**: Completed phases must be documented before merge.
+1.  Each complete workstream must use exactly **ONE** feature branch:
+    ```
+    feature/<feature-slug>
+    ```
+2.  All phases within that workstream must be committed sequentially on the **SAME** branch.
+    ```
+    Example: feature/governance-repair
+
+    Commits:
+      refactor(g1): float purge
+      refactor(g2): error envelope
+      chore(g3): mobile CI hardening
+    ```
+3.  Do **NOT** create separate branches per phase.
+4.  Do **NOT** branch a new governance phase from `develop` if a prior governance phase is unmerged.
+5.  All governance repair phases must remain stacked on the same feature branch until PR.
+
+### 3.2 Branch Origin Verification (MANDATORY)
+
+Before creating any new feature branch:
+
+1.  Confirm current branch is `develop`.
+2.  Confirm `develop` is up to date with `origin/develop`.
+3.  Create branch using:
+    ```bash
+    git checkout develop
+    git pull origin develop
+    git checkout -b feature/<feature-slug>
+    ```
+4.  Agent must **NOT** create branch from any other branch.
+
+### 3.3 Phase Execution Rule
+
+Within a feature branch:
+
+*   Each phase produces exactly **one** logical commit.
+*   Commit message format: `<type>(<phase-id>): <description>`
+*   Examples:
+    ```
+    refactor(g1): remove float arithmetic
+    refactor(g2): structured error envelope
+    chore(g3): remove mobile CI continue-on-error
+    ```
+
+### 3.4 Merge Authority Rule
+
+Agents **NEVER**:
+*   Merge branches
+*   Rebase branches
+*   Push to `develop`
+*   Force push
+
+**Human is sole PR creator and merger.**
+
+### 3.5 Repair Chain Rule
+
+If work is governance repair:
+*   All governance changes must exist on a **single** feature branch.
+*   No new governance feature branch may be created until the previous governance branch is merged or abandoned.
+
+### 3.6 Legacy Rules (Still Active)
+
+1.  **No Direct Commits**: No direct commits to `main`, `master`, or `develop` (unless P0 Fix).
+2.  **Documentation Prerequisite**: Completed phases must be documented before merge.
 
 ---
 
-## 3. Change Control Contract
+## 4. Change Control Contract
 
 ### A. Non-Negotiable Requirement
 **Documentation updates must PRECEDE code changes.**
@@ -80,9 +138,9 @@ To ensure auditability and data integrity:
 
 ---
 
-## 4. Agent Enforcement Contract (MANDATORY)
+## 5. Agent Enforcement Contract (MANDATORY)
 
-This section explicitly governs the behavior of AI Agents (e.g., Cursor, Windsurf, Roo, Copilot) operating on this repository.
+This section explicitly governs the behavior of AI Agents (e.g., Cursor, Windsurf, Roo, Copilot, Antigravity) operating on this repository.
 
 1.  **Single Entry Point Requirement**:
     *   Agents **MUST** read `docs/GOVERNANCE.md` as their first action effectively "booting" their context.
@@ -102,6 +160,20 @@ This section explicitly governs the behavior of AI Agents (e.g., Cursor, Windsur
 
 4.  **Conflict Resolution**:
     *   If a User Prompt contradicts `GOVERNANCE.md`, the Agent **MUST** follow `GOVERNANCE.md`.
+
+5.  **Pre-Execution Verification (MANDATORY)**:
+    *   Before any code execution, agent must confirm:
+        *   Current branch matches declared feature branch.
+        *   Branch was created from `develop`.
+        *   `develop` contains no unmerged governance feature branches.
+    *   If violation → **STOP**.
+
+6.  **Completion Output Format**:
+    *   Every phase completion must include:
+        ```
+        Base Branch: develop
+        Feature Branch Origin Verified: TRUE
+        ```
 
 ---
 **Signed by Agent: Antigravity**  

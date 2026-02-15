@@ -5,6 +5,7 @@ Custom exceptions and global exception handlers for the application.
 import logging
 
 from fastapi import HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
@@ -50,7 +51,9 @@ def register_exception_handlers(app):
             extra = dict(exc.extra)
             rule_id = extra.pop("rule_id", None)
             metadata = extra if extra else None
-        content = {"detail": exc.message, "rule_id": rule_id, "metadata": metadata}
+        content = jsonable_encoder(
+            {"detail": exc.message, "rule_id": rule_id, "metadata": metadata}
+        )
         return JSONResponse(status_code=exc.status_code, content=content)
 
     @app.exception_handler(RequestValidationError)
