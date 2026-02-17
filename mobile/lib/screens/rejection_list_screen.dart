@@ -1,24 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../services/rejection_service.dart';
+import '../providers/rejection_provider.dart';
 import '../ui/widgets/agro_snack_bar.dart';
+import '../ui/widgets/error_state.dart';
 
-class RejectionListScreen extends StatefulWidget {
+class RejectionListScreen extends ConsumerStatefulWidget {
   const RejectionListScreen({super.key});
 
   @override
-  State<RejectionListScreen> createState() => _RejectionListScreenState();
+  ConsumerState<RejectionListScreen> createState() =>
+      _RejectionListScreenState();
 }
 
-class _RejectionListScreenState extends State<RejectionListScreen> {
+class _RejectionListScreenState extends ConsumerState<RejectionListScreen> {
   DateTime _selectedDate = DateTime.now();
   List<Map<String, dynamic>> _items = [];
   int? _selectedItemId;
   List<Map<String, dynamic>> _rejections = [];
 
-  bool _isLoading = false;
+  AsyncValue<void> _itemsState = const AsyncValue.loading();
+  AsyncValue<void> _rejectionsState = const AsyncValue.loading();
+
   int _skip = 0;
   final int _limit = 50;
   bool _hasMore = true;
@@ -26,8 +31,10 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadItems();
-    _loadRejections(reset: true);
+    Future.microtask(() {
+      _loadItems();
+      _loadRejections(reset: true);
+    });
   }
 
   Future<void> _pickDate() async {
@@ -45,34 +52,50 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
   }
 
   Future<void> _loadItems() async {
-    final allItems = await RejectionService.fetchItemsWithBatches();
-    setState(() => _items = allItems);
+    setState(() => _itemsState = const AsyncValue.loading());
+    try {
+      final allItems =
+          await ref
+              .read(rejectionListProvider.notifier)
+              .fetchItemsWithBatches();
+      if (mounted) {
+        setState(() {
+          _items = allItems;
+          _itemsState = const AsyncValue.data(null);
+        });
+      }
+    } catch (e, st) {
+      if (mounted) {
+        setState(() => _itemsState = AsyncValue.error(e, st));
+      }
+    }
   }
 
   Future<void> _loadRejections({bool reset = false}) async {
-    if (_isLoading) return;
+    if (_rejectionsState.isLoading && !reset && _rejections.isNotEmpty) return;
 
     if (reset) {
       setState(() {
         _skip = 0;
         _rejections.clear();
         _hasMore = true;
+        _rejectionsState = const AsyncValue.loading();
       });
     }
 
     if (!_hasMore) return;
 
-    setState(() => _isLoading = true);
-
     try {
       final date = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
-      final result = await RejectionService.fetchRejections(
-        date: date,
-        itemIds: _selectedItemId != null ? [_selectedItemId!] : null,
-        skip: _skip,
-        limit: _limit,
-      );
+      final result = await ref
+          .read(rejectionListProvider.notifier)
+          .fetchRejections(
+            date: date,
+            itemIds: _selectedItemId != null ? [_selectedItemId!] : null,
+            skip: _skip,
+            limit: _limit,
+          );
 
       final newItems = List<Map<String, dynamic>>.from(result['items']);
       final hasMore = result['has_more'] as bool;
@@ -82,15 +105,17 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
           _rejections.addAll(newItems);
           _skip += newItems.length;
           _hasMore = hasMore;
+          _rejectionsState = const AsyncValue.data(null);
         });
       }
-    } catch (e) {
+    } catch (e, st) {
       if (mounted) {
-        AgroSnackBar.error(context, 'Failed to load rejections: $e');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+        if (reset) {
+          setState(() => _rejectionsState = AsyncValue.error(e, st));
+        } else {
+          // Pagination error - show snackbar instead of full error screen
+          AgroSnackBar.error(context, 'Failed to load rejections: $e');
+        }
       }
     }
   }
@@ -105,7 +130,6 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
           onPressed: _pickDate,
         ),
         const SizedBox(width: 12),
-
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
           icon: const Icon(Icons.add),
@@ -117,23 +141,28 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
   }
 
   Widget _buildItemFilter() {
-    return DropdownButtonFormField<int>(
-      decoration: const InputDecoration(labelText: 'Item'),
-      items:
-          _items
-              .map(
-                (item) => DropdownMenuItem<int>(
-                  value: item['id'],
-                  child: Text(item['name']),
-                ),
-              )
-              .toList(),
-      value: _selectedItemId,
-      onChanged: (id) {
-        setState(() => _selectedItemId = id);
-        _loadRejections(reset: true);
-      },
-      isExpanded: true,
+    return _itemsState.when(
+      data:
+          (_) => DropdownButtonFormField<int>(
+            decoration: const InputDecoration(labelText: 'Item'),
+            items:
+                _items
+                    .map(
+                      (item) => DropdownMenuItem<int>(
+                        value: item['id'],
+                        child: Text(item['name']),
+                      ),
+                    )
+                    .toList(),
+            value: _selectedItemId,
+            onChanged: (id) {
+              setState(() => _selectedItemId = id);
+              _loadRejections(reset: true);
+            },
+            isExpanded: true,
+          ),
+      loading: () => const LinearProgressIndicator(),
+      error: (e, _) => Text('Failed to load items: $e'),
     );
   }
 
@@ -178,7 +207,9 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
 
     if (confirmed == true) {
       try {
-        await RejectionService.reverseRejection(rejection['id']);
+        await ref
+            .read(rejectionListProvider.notifier)
+            .reverseRejection(rejection['id']);
         if (mounted) {
           AgroSnackBar.success(
             context,
@@ -195,108 +226,116 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
   }
 
   Widget _buildList() {
-    if (_rejections.isEmpty && !_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.cancel_outlined, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No rejections recorded',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () => context.push('/rejection-entry'),
-              icon: const Icon(Icons.add),
-              label: const Text('Record a rejection'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: _rejections.length + 1,
-      itemBuilder: (_, index) {
-        if (index == _rejections.length) {
-          if (_hasMore) {
-            return Padding(
-              padding: const EdgeInsets.all(16.0),
-              child:
-                  _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : ElevatedButton(
-                        onPressed: () => _loadRejections(),
-                        child: const Text('Load More'),
-                      ),
-            );
-          } else {
-            return const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Center(
-                child: Text(
-                  'End of list',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-            );
-          }
-        }
-
-        final r = _rejections[index];
-        final isActive = r['is_active'] ?? true;
-
-        return Card(
-          elevation: isActive ? 1 : 0,
-          color: isActive ? Colors.white : Colors.grey[200],
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: ListTile(
-            title: Row(
+    return _rejectionsState.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error:
+          (e, _) => AgroErrorState.loadFailed(
+            message: e.toString(),
+            onRetry: () => _loadRejections(reset: true),
+          ),
+      data: (_) {
+        if (_rejections.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Expanded(child: Text(r['batch']['item_name'])),
-                if (!isActive)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[400],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'Reversed',
-                      style: TextStyle(fontSize: 10, color: Colors.white),
-                    ),
-                  ),
+                Icon(Icons.cancel_outlined, size: 64, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  'No rejections recorded',
+                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => context.push('/rejection-entry'),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Record a rejection'),
+                ),
               ],
             ),
-            subtitle: Opacity(
-              opacity: isActive ? 1.0 : 0.6,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Batch received date: ${r['batch']['received_at']}'),
-                  Text('Quantity: ${r['quantity']} ${r['unit'] ?? ''}'),
-                  if (r['reason'] != null && r['reason'].toString().isNotEmpty)
-                    Text('Reason: ${r['reason']}'),
-                  Text(
-                    'Rejected At: ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(r['rejection_date']))}',
+          );
+        }
+
+        return ListView.builder(
+          itemCount: _rejections.length + 1,
+          itemBuilder: (_, index) {
+            if (index == _rejections.length) {
+              if (_hasMore) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: ElevatedButton(
+                    onPressed: () => _loadRejections(),
+                    child: const Text('Load More'),
                   ),
-                ],
+                );
+              } else {
+                return const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(
+                    child: Text(
+                      'End of list',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                );
+              }
+            }
+
+            final r = _rejections[index];
+            final isActive = r['is_active'] ?? true;
+
+            return Card(
+              elevation: isActive ? 1 : 0,
+              color: isActive ? Colors.white : Colors.grey[200],
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: ListTile(
+                title: Row(
+                  children: [
+                    Expanded(child: Text(r['batch']['item_name'])),
+                    if (!isActive)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[400],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Reversed',
+                          style: TextStyle(fontSize: 10, color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+                subtitle: Opacity(
+                  opacity: isActive ? 1.0 : 0.6,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Batch received date: ${r['batch']['received_at']}'),
+                      Text('Quantity: ${r['quantity']} ${r['unit'] ?? ''}'),
+                      if (r['reason'] != null &&
+                          r['reason'].toString().isNotEmpty)
+                        Text('Reason: ${r['reason']}'),
+                      Text(
+                        'Rejected At: ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(r['rejection_date']))}',
+                      ),
+                    ],
+                  ),
+                ),
+                trailing:
+                    isActive
+                        ? IconButton(
+                          icon: const Icon(Icons.restore),
+                          tooltip: 'Reverse rejection',
+                          onPressed: () => _handleReversal(r),
+                        )
+                        : null,
               ),
-            ),
-            trailing:
-                isActive
-                    ? IconButton(
-                      icon: const Icon(Icons.restore),
-                      tooltip: 'Reverse rejection',
-                      onPressed: () => _handleReversal(r),
-                    )
-                    : null,
-          ),
+            );
+          },
         );
       },
     );
