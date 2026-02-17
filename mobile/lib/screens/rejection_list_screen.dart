@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/rejection_provider.dart';
+import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_snack_bar.dart';
-import '../ui/widgets/error_state.dart';
 
 class RejectionListScreen extends ConsumerStatefulWidget {
   const RejectionListScreen({super.key});
