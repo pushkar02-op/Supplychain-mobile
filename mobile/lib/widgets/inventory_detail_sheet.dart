@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../screens/admin_reconciliation_detail_screen.dart';
-import '../services/inventory_service.dart';
+import '../providers/inventory_provider.dart';
 
 /// Full-screen bottom sheet showing inventory item details.
 ///
 /// Includes stock stats, batch breakdown, signals, and recent transactions.
 /// Extracted from `InventoryScreen._showItemDetail` for readability.
-class InventoryDetailSheet extends StatelessWidget {
+class InventoryDetailSheet extends ConsumerWidget {
   final Map<String, dynamic> item;
   final bool isAdmin;
 
@@ -34,10 +35,13 @@ class InventoryDetailSheet extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final itemId = item['item_id'] as int;
     final unit = item['unit'] as String?;
     final name = item['name'] as String;
+    final detailFuture = ref.read(inventoryListProvider.notifier).fetchDetail(
+      itemId,
+    );
     final ledgerStock = (item['ledger_qty'] as num?)?.toDouble() ?? 0.0;
     final availableStock = (item['state_qty'] as num?)?.toDouble() ?? 0.0;
     final status = item['status'] as String? ?? 'HEALTHY';
@@ -147,6 +151,7 @@ class InventoryDetailSheet extends StatelessWidget {
                             onPressed:
                                 () => _showBatchBreakdown(
                                   context,
+                                  ref,
                                   itemId,
                                   name,
                                   unit ?? '',
@@ -194,12 +199,15 @@ class InventoryDetailSheet extends StatelessWidget {
                         const SizedBox(height: 16),
                         // Stock Trend Section
                         FutureBuilder<Map<String, dynamic>>(
-                          future: InventoryService.fetchItemSignals(itemId),
+                          future: detailFuture,
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) {
                               return const SizedBox.shrink();
                             }
-                            final data = snapshot.data!;
+                            final data =
+                                Map<String, dynamic>.from(
+                                  snapshot.data!['signals'] as Map,
+                                );
                             final signals =
                                 (data['signals'] as List<dynamic>?)
                                     ?.map((e) => e.toString())
@@ -346,11 +354,8 @@ class InventoryDetailSheet extends StatelessWidget {
                       ),
                     ),
                   ),
-                  FutureBuilder<List<Map<String, dynamic>>>(
-                    future: InventoryService.fetchTransactions(
-                      itemId: itemId,
-                      unit: null,
-                    ),
+                  FutureBuilder<Map<String, dynamic>>(
+                    future: detailFuture,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const SizedBox(
@@ -364,7 +369,9 @@ class InventoryDetailSheet extends StatelessWidget {
                           child: Text('Error: ${snapshot.error}'),
                         );
                       }
-                      final txns = snapshot.data ?? [];
+                      final txns = List<Map<String, dynamic>>.from(
+                        snapshot.data!['transactions'] as List,
+                      );
                       if (txns.isEmpty) {
                         return const Padding(
                           padding: EdgeInsets.all(16),
@@ -475,6 +482,7 @@ class InventoryDetailSheet extends StatelessWidget {
 
   void _showBatchBreakdown(
     BuildContext context,
+    WidgetRef ref,
     int itemId,
     String itemName,
     String unit,
@@ -527,8 +535,10 @@ class InventoryDetailSheet extends StatelessWidget {
                   ),
                   const Divider(height: 1),
                   Expanded(
-                    child: FutureBuilder<List<Map<String, dynamic>>>(
-                      future: InventoryService.fetchBatches(itemId),
+                    child: FutureBuilder<Map<String, dynamic>>(
+                      future: ref
+                          .read(inventoryListProvider.notifier)
+                          .fetchDetail(itemId),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -541,7 +551,9 @@ class InventoryDetailSheet extends StatelessWidget {
                             child: Text('Error: ${snapshot.error}'),
                           );
                         }
-                        final batches = snapshot.data ?? [];
+                        final batches = List<Map<String, dynamic>>.from(
+                          snapshot.data!['batches'] as List,
+                        );
                         if (batches.isEmpty) {
                           return const Center(child: Text('No batches found'));
                         }
