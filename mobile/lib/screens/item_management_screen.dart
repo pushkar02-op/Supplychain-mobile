@@ -1,25 +1,27 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../services/item_service.dart';
+import '../providers/item_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_section.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
-class ItemManagementScreen extends StatefulWidget {
+class ItemManagementScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? data;
   const ItemManagementScreen({super.key, this.data});
 
   @override
-  State<ItemManagementScreen> createState() => _ItemManagementScreenState();
+  ConsumerState<ItemManagementScreen> createState() =>
+      _ItemManagementScreenState();
 }
 
-class _ItemManagementScreenState extends State<ItemManagementScreen> {
+class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
   final _formKey = GlobalKey<FormState>();
 
   String name = '';
@@ -52,8 +54,9 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
 
   Future<void> _fetchData() async {
     try {
-      final fetchedUoms = await ItemService.fetchUOMs();
-      final unmappedBillItems = await ItemService.fetchUnmappedMartBillItems();
+      final fetchedUoms = await ref.read(itemAliasProvider.notifier).fetchUOMs();
+      final unmappedBillItems =
+          await ref.read(itemAliasProvider.notifier).fetchUnmappedMartBillItems();
 
       // Transform unmapped items to look like aliases for the UI
       final unmappedAsAliases =
@@ -161,7 +164,9 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       uomCode = u['code'];
     }
 
-    final results = await ItemService.checkSimilarity(name, uomCode);
+    final results = await ref
+        .read(itemAliasProvider.notifier)
+        .checkSimilarity(name, uomCode);
     if (!mounted) return;
     setState(() {
       // Filter out self if editing
@@ -199,7 +204,9 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
         'conversions': conversions,
       };
 
-      final newItem = await ItemService.createOrUpdateItem(payload);
+      final newItem = await ref
+          .read(itemAliasProvider.notifier)
+          .createOrUpdateItem(payload);
 
       if (!mounted) return;
       AgroSnackBar.success(context, 'Item saved successfully');
@@ -820,7 +827,7 @@ class _IntentCard extends StatelessWidget {
   }
 }
 
-class _ItemLifecycleActions extends StatelessWidget {
+class _ItemLifecycleActions extends ConsumerWidget {
   final Map<String, dynamic> data;
   final bool isSaving;
   final ValueChanged<bool> onSavingChanged;
@@ -834,13 +841,13 @@ class _ItemLifecycleActions extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final status = data['status'] ?? 'ACTIVE';
     final isActive = status == 'ACTIVE';
 
     if (isActive) {
       return OutlinedButton.icon(
-        onPressed: isSaving ? null : () => _confirmDeactivate(context),
+        onPressed: isSaving ? null : () => _confirmDeactivate(context, ref),
         icon: Icon(Icons.archive, color: AgroColors.critical.text),
         label: Text(
           'Deactivate Item',
@@ -853,7 +860,7 @@ class _ItemLifecycleActions extends StatelessWidget {
       );
     } else {
       return ElevatedButton.icon(
-        onPressed: isSaving ? null : () => _reactivateItem(context),
+        onPressed: isSaving ? null : () => _reactivateItem(context, ref),
         icon: const Icon(Icons.restore_from_trash),
         label: const Text('Reactivate Item'),
         style: ElevatedButton.styleFrom(
@@ -865,7 +872,7 @@ class _ItemLifecycleActions extends StatelessWidget {
     }
   }
 
-  Future<void> _confirmDeactivate(BuildContext context) async {
+  Future<void> _confirmDeactivate(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
@@ -894,7 +901,7 @@ class _ItemLifecycleActions extends StatelessWidget {
     if (confirmed == true) {
       onSavingChanged(true);
       final id = data['id'];
-      final res = await ItemService.deactivateItem(id);
+      final res = await ref.read(itemLifecycleProvider.notifier).deactivate(id);
       if (!context.mounted) return;
       onSavingChanged(false);
 
@@ -906,10 +913,10 @@ class _ItemLifecycleActions extends StatelessWidget {
     }
   }
 
-  Future<void> _reactivateItem(BuildContext context) async {
+  Future<void> _reactivateItem(BuildContext context, WidgetRef ref) async {
     onSavingChanged(true);
     final id = data['id'];
-    final res = await ItemService.reactivateItem(id);
+    final res = await ref.read(itemLifecycleProvider.notifier).reactivate(id);
     if (!context.mounted) return;
     onSavingChanged(false);
 

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../services/item_service.dart';
+import '../providers/item_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
@@ -9,121 +10,101 @@ import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
-class ItemListScreen extends StatefulWidget {
+class ItemListScreen extends ConsumerWidget {
   const ItemListScreen({super.key});
 
-  @override
-  State<ItemListScreen> createState() => _ItemListScreenState();
-}
+  Future<void> _showMappingDialog(
+    BuildContext context,
+    WidgetRef ref,
+    List<Map<String, dynamic>> unmappedBillItems,
+    List<Map<String, dynamic>> items,
+  ) async {
+    int? selectedBillItemId;
+    int? selectedItemId;
 
-class _ItemListScreenState extends State<ItemListScreen> {
-  List<Map<String, dynamic>> items = [];
-  List<Map<String, dynamic>> unmappedBillItems = [];
-  bool isLoading = true;
-  String error = '';
-  int? selectedBillItemId;
-  int? selectedItemId;
-  bool showInactive = false; // Toggle for showing inactive items
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchItems();
-  }
-
-  Future<void> _fetchItems() async {
-    try {
-      final fetchedItems = await ItemService.fetchItems(
-        includeInactive: showInactive,
-      );
-      final billItems = await ItemService.fetchUnmappedMartBillItems();
-      setState(() {
-        items = fetchedItems;
-        unmappedBillItems = billItems;
-      });
-    } catch (e) {
-      setState(() => error = e.toString());
-    } finally {
-      setState(() => isLoading = false);
-    }
-  }
-
-  // PRESERVED EXACTLY: Map bill item to item callback
-  Future<void> _mapBillItemToItem(int billItemId, int itemId) async {
-    await ItemService.mapAlias(billItemId, itemId);
-    _fetchItems();
-    if (!mounted) return;
-    AgroSnackBar.success(context, 'Mart Bill item mapped successfully');
-  }
-
-  // PRESERVED EXACTLY: Mapping dialog
-  void _showMappingDialog() {
-    selectedBillItemId = null;
-    selectedItemId = null;
-
-    showDialog(
+    await showDialog(
       context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text('Map Mart Bill Item to Item'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<int>(
-                value: selectedBillItemId,
-                isExpanded: true,
-                items:
-                    unmappedBillItems.map((inv) {
-                      return DropdownMenuItem<int>(
-                        value: inv['invoice_item_id'],
-                        child: Text(
-                          '${inv['item_name']} (${inv['item_code']})',
+      builder:
+          (_) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  title: const Text('Map Mart Bill Item to Item'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<int>(
+                        value: selectedBillItemId,
+                        isExpanded: true,
+                        items:
+                            unmappedBillItems.map((inv) {
+                              return DropdownMenuItem<int>(
+                                value: inv['invoice_item_id'],
+                                child: Text(
+                                  '${inv['item_name']} (${inv['item_code']})',
+                                ),
+                              );
+                            }).toList(),
+                        onChanged:
+                            (val) => setDialogState(() => selectedBillItemId = val),
+                        decoration: const InputDecoration(
+                          labelText: 'Unmapped Mart Bill Item',
                         ),
-                      );
-                    }).toList(),
-                onChanged: (val) => setState(() => selectedBillItemId = val),
-                decoration: const InputDecoration(
-                  labelText: 'Unmapped Mart Bill Item',
+                      ),
+                      SizedBox(height: AgroSpacing.sm + 2),
+                      DropdownButtonFormField<int>(
+                        value: selectedItemId,
+                        isExpanded: true,
+                        items:
+                            items.map((item) {
+                              return DropdownMenuItem<int>(
+                                value: item['id'],
+                                child: Text(item['name']),
+                              );
+                            }).toList(),
+                        onChanged:
+                            (val) => setDialogState(() => selectedItemId = val),
+                        decoration: const InputDecoration(labelText: 'Select Item'),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        if (selectedBillItemId == null || selectedItemId == null) {
+                          return;
+                        }
+                        await ref
+                            .read(itemAliasProvider.notifier)
+                            .mapAlias(
+                              billItemId: selectedBillItemId!,
+                              masterItemId: selectedItemId!,
+                              itemIdToRefresh: selectedItemId,
+                            );
+                        if (!context.mounted) return;
+                        AgroSnackBar.success(
+                          context,
+                          'Mart Bill item mapped successfully',
+                        );
+                        ref.invalidate(aliasMappingDataProvider);
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Map'),
+                    ),
+                  ],
                 ),
-              ),
-              SizedBox(height: AgroSpacing.sm + 2), // 10px as before
-              DropdownButtonFormField<int>(
-                value: selectedItemId,
-                isExpanded: true,
-                items:
-                    items.map((item) {
-                      return DropdownMenuItem<int>(
-                        value: item['id'],
-                        child: Text(item['name']),
-                      );
-                    }).toList(),
-                onChanged: (val) => setState(() => selectedItemId = val),
-                decoration: const InputDecoration(labelText: 'Select Item'),
-              ),
-            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (selectedBillItemId != null && selectedItemId != null) {
-                  _mapBillItemToItem(selectedBillItemId!, selectedItemId!);
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Map'),
-            ),
-          ],
-        );
-      },
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stateAsync = ref.watch(itemListProvider);
+    final aliasDataAsync = ref.watch(aliasMappingDataProvider);
+
     return Scaffold(
       backgroundColor: AgroColors.background,
       appBar: AppBar(
@@ -132,89 +113,85 @@ class _ItemListScreenState extends State<ItemListScreen> {
         foregroundColor: AgroColors.textPrimary,
         elevation: 1,
         actions: [
-          // Toggle for showing inactive items
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Inactive',
-                style: AgroTypography.caption.copyWith(
-                  color: AgroColors.textSecondary,
+          stateAsync.when(
+            data:
+                (state) => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Inactive',
+                      style: AgroTypography.caption.copyWith(
+                        color: AgroColors.textSecondary,
+                      ),
+                    ),
+                    Switch(
+                      value: state.statusFilter == 'all',
+                      onChanged:
+                          (val) => ref
+                              .read(itemListProvider.notifier)
+                              .setStatusFilter(val ? 'all' : 'active'),
+                      activeColor: AgroColors.primary,
+                    ),
+                  ],
                 ),
-              ),
-              Switch(
-                value: showInactive,
-                onChanged: (val) {
-                  setState(() {
-                    showInactive = val;
-                    isLoading = true;
-                  });
-                  _fetchItems();
-                },
-                activeColor: AgroColors.primary,
-              ),
-            ],
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
           IconButton(
             icon: const Icon(Icons.link),
             tooltip: 'Map Mart Bill Items',
-            onPressed: _showMappingDialog,
+            onPressed: () async {
+              final data = aliasDataAsync.valueOrNull;
+              if (data == null) return;
+              await _showMappingDialog(context, ref, data.aliases, data.items);
+            },
           ),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Add Item',
             onPressed: () async {
-              final ok = await context.push('/item-edit');
-              if (ok == true) _fetchItems();
+              await context.push('/item-edit');
             },
           ),
         ],
       ),
-      body: _buildBody(),
-    );
-  }
+      body: stateAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error:
+            (e, _) => AgroErrorState(
+              title: 'Failed to load items',
+              message: e.toString(),
+              onRetry: () => ref.read(itemListProvider.notifier).refresh(),
+            ),
+        data: (state) {
+          if (state.items.isEmpty) {
+            return AgroEmptyState(
+              icon: Icons.category_outlined,
+              title: 'No items in catalog',
+              actionLabel: 'Add your first item',
+              onAction: () async {
+                await context.push('/item-edit');
+              },
+            );
+          }
 
-  Widget _buildBody() {
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (error.isNotEmpty) {
-      return AgroErrorState(
-        title: 'Failed to load items',
-        message: error,
-        onRetry: _fetchItems,
-      );
-    }
-
-    if (items.isEmpty) {
-      return AgroEmptyState(
-        icon: Icons.category_outlined,
-        title: 'No items in catalog',
-        actionLabel: 'Add your first item',
-        onAction: () async {
-          final ok = await context.push('/item-edit');
-          if (ok == true) _fetchItems();
+          return ListView.builder(
+            itemCount: state.items.length,
+            itemBuilder: (context, index) {
+              final item = state.items[index];
+              return _ItemCard(item: item);
+            },
+          );
         },
-      );
-    }
-
-    return ListView.builder(
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _ItemCard(item: item, onRefresh: _fetchItems);
-      },
+      ),
     );
   }
 }
 
-/// Item card with expansion for aliases and conversions.
 class _ItemCard extends StatelessWidget {
   final Map<String, dynamic> item;
-  final VoidCallback onRefresh;
 
-  const _ItemCard({required this.item, required this.onRefresh});
+  const _ItemCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -277,7 +254,7 @@ class _ItemCard extends StatelessWidget {
                       if (aliases.isNotEmpty) 'Aliases: ${aliases.length}',
                       if (conversions.isNotEmpty)
                         'Conversions: ${conversions.length}',
-                    ].join(' • '),
+                    ].join(' - '),
                     style: AgroTypography.caption.copyWith(
                       color: AgroColors.textSecondary,
                     ),
@@ -294,10 +271,9 @@ class _ItemCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Aliases section
                   Text('Aliases:', style: AgroTypography.emphasis),
                   Wrap(
-                    spacing: AgroSpacing.xs + 2, // 6px as before
+                    spacing: AgroSpacing.xs + 2,
                     children:
                         aliases.isNotEmpty
                             ? aliases
@@ -318,8 +294,6 @@ class _ItemCard extends StatelessWidget {
                             ],
                   ),
                   SizedBox(height: AgroSpacing.sm),
-
-                  // Conversions section
                   Text('Conversions:', style: AgroTypography.emphasis),
                   conversions.isNotEmpty
                       ? Column(
@@ -345,8 +319,6 @@ class _ItemCard extends StatelessWidget {
                         style: AgroTypography.bodySecondary,
                       ),
                   SizedBox(height: AgroSpacing.sm),
-
-                  // PRESERVED EXACTLY: Action buttons row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -364,28 +336,21 @@ class _ItemCard extends StatelessWidget {
                           context.push('/item-detail', extra: item);
                         },
                       ),
-                      // Edit button
                       IconButton(
                         icon: Icon(Icons.edit, color: AgroColors.textSecondary),
                         tooltip: 'Edit',
                         onPressed: () async {
-                          final ok = await context.push(
-                            '/item-edit',
-                            extra: item,
-                          );
-                          if (ok == true) onRefresh();
+                          await context.push('/item-edit', extra: item);
                         },
                       ),
-                      // Delete button REMOVED per governance mandate
-                      // Item deletion is not supported. Use archival instead.
                     ],
                   ),
                 ],
               ),
             ),
-          ], // closes ExpansionTile.children
-        ), // closes ExpansionTile
-      ), // closes Card
-    ); // closes Opacity and return
+          ],
+        ),
+      ),
+    );
   }
 }

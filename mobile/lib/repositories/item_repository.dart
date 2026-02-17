@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../core/app_exceptions.dart';
 import '../core/dio_client.dart';
+import '../services/forecasting_service.dart';
 
 class ItemRepository {
   Future<Map<String, dynamic>?> saveAliasMapping(
@@ -46,6 +47,14 @@ class ItemRepository {
     } on DioException catch (e) {
       throw _handleError(e);
     }
+  }
+
+  Future<Map<String, dynamic>> fetchItemById(int itemId) async {
+    final items = await fetchItems(includeInactive: true);
+    return items.firstWhere(
+      (item) => item['id'] == itemId,
+      orElse: () => throw ServerException('Item not found'),
+    );
   }
 
   /// Deactivate an item (set status to INACTIVE).
@@ -157,6 +166,24 @@ class ItemRepository {
         'high_frequency_aliases': 0,
         'alias_noise_flag': false,
       };
+    }
+  }
+
+  Future<List<ItemForecast>> fetchForecastingSummary() async {
+    try {
+      final resp = await DioClient.instance.get('/admin/forecasting/summary');
+      final items = resp.data['items'] as List<dynamic>? ?? [];
+      return items.map((e) => ItemForecast.fromJson(e)).toList();
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  ItemForecast? getItemForecast(List<ItemForecast> forecasts, int itemId) {
+    try {
+      return forecasts.firstWhere((f) => f.itemId == itemId);
+    } catch (_) {
+      return null;
     }
   }
 
