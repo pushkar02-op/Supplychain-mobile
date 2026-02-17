@@ -1,9 +1,10 @@
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../services/order_service.dart';
+import '../providers/order_provider.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
@@ -14,71 +15,30 @@ import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_error_state.dart';
 import '../widgets/skeleton_loader.dart';
 
-class OrdersScreen extends StatefulWidget {
+class OrdersScreen extends ConsumerWidget {
   const OrdersScreen({super.key});
-  @override
-  State<OrdersScreen> createState() => _OrderListScreenState();
-}
 
-class _OrderListScreenState extends State<OrdersScreen> {
-  DateTime _selectedDate = DateTime.now();
-  String? _selectedMartFilter;
-  List<String> _marts = [];
-  List<Map<String, dynamic>> _orders = [];
-  bool _isLoading = false;
-  String _error = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMarts();
-    _fetchOrders();
-  }
-
-  Future<void> _loadMarts() async {
-    try {
-      final marts = await OrderService.fetchMartList();
-      setState(() {
-        _marts = marts.map((mart) => mart['name'] as String).toList();
-      });
-    } catch (e) {
-      debugPrint('Failed to load marts: $e');
-    }
-  }
-
-  Future<void> _fetchOrders() async {
-    setState(() {
-      _isLoading = true;
-      _error = '';
-    });
-    try {
-      final orders = await OrderService.fetchOrders(
-        _selectedDate,
-        martName: _selectedMartFilter,
-      );
-      if (mounted) setState(() => _orders = orders);
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _pickDate() async {
+  Future<void> _pickDate(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime selectedDate,
+  ) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(_selectedDate.year - 1),
+      initialDate: selectedDate,
+      firstDate: DateTime(selectedDate.year - 1),
       lastDate: DateTime.now(),
     );
     if (picked != null) {
-      setState(() => _selectedDate = picked);
-      _fetchOrders();
+      await ref.read(orderListProvider.notifier).setDate(picked);
     }
   }
 
-  // PRESERVED EXACTLY: Delete confirmation dialog with destructive styling
-  Future<void> _confirmDelete(int id) async {
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    int id,
+  ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder:
@@ -99,15 +59,14 @@ class _OrderListScreenState extends State<OrdersScreen> {
           ),
     );
     if (ok == true) {
-      await OrderService.deleteOrder(id);
-      _fetchOrders();
+      await ref.read(orderListProvider.notifier).deleteOrder(id);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final dateFormatted = DateFormat('EEEE, MMM d').format(_selectedDate);
-    final isToday = DateUtils.isSameDay(_selectedDate, DateTime.now());
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stateAsync = ref.watch(orderListProvider);
+    final martsAsync = ref.watch(orderMartListProvider);
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -118,137 +77,152 @@ class _OrderListScreenState extends State<OrdersScreen> {
         elevation: 1,
         automaticallyImplyLeading: false,
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Date header with semantic meaning
-          Container(
-            color: AgroColors.surface,
-            padding: EdgeInsets.fromLTRB(
-              AgroSpacing.lg,
-              AgroSpacing.md,
-              AgroSpacing.lg,
-              AgroSpacing.sm,
+      body: stateAsync.when(
+        loading: () => const StaticSkeletonList(itemCount: 5),
+        error:
+            (e, _) => AgroErrorState(
+              title: 'Failed to load orders',
+              message: e.toString(),
+              onRetry: () => ref.read(orderListProvider.notifier).refresh(),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        data: (state) {
+          final dateFormatted = DateFormat(
+            'EEEE, MMM d',
+          ).format(state.selectedDate);
+          final isToday = DateUtils.isSameDay(
+            state.selectedDate,
+            DateTime.now(),
+          );
+          final martNames =
+              martsAsync.valueOrNull
+                  ?.map((mart) => mart['name'] as String)
+                  .toList() ??
+              [];
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                color: AgroColors.surface,
+                padding: EdgeInsets.fromLTRB(
+                  AgroSpacing.lg,
+                  AgroSpacing.md,
+                  AgroSpacing.lg,
+                  AgroSpacing.sm,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        isToday ? 'Today — $dateFormatted' : dateFormatted,
-                        style: AgroTypography.cardTitle.copyWith(fontSize: 18),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            isToday ? 'Today — $dateFormatted' : dateFormatted,
+                            style: AgroTypography.cardTitle.copyWith(
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.calendar_today, size: 20),
+                          onPressed:
+                              () => _pickDate(context, ref, state.selectedDate),
+                          tooltip: 'Change date',
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.calendar_today, size: 20),
-                      onPressed: _pickDate,
-                      tooltip: 'Change date',
+                    Text(
+                      'Orders scheduled for this date',
+                      style: AgroTypography.caption,
                     ),
                   ],
                 ),
-                Text(
-                  'Orders scheduled for this date',
-                  style: AgroTypography.caption,
+              ),
+              Container(
+                color: AgroColors.surface,
+                padding: EdgeInsets.fromLTRB(
+                  AgroSpacing.lg,
+                  0,
+                  AgroSpacing.lg,
+                  AgroSpacing.md,
                 ),
-              ],
-            ),
-          ),
-          // Compact filter bar
-          Container(
-            color: AgroColors.surface,
-            padding: EdgeInsets.fromLTRB(
-              AgroSpacing.lg,
-              0,
-              AgroSpacing.lg,
-              AgroSpacing.md,
-            ),
-            child: Row(
-              children: [
-                // Mart filter chip-style
-                Expanded(
-                  child: DropdownButtonFormField2<String>(
-                    isExpanded: true,
-                    value: _selectedMartFilter,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: AgroSpacing.md,
-                        vertical: AgroSpacing.sm,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: AgroShapes.pillRadius,
-                        borderSide: BorderSide(color: AgroColors.divider),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: AgroShapes.pillRadius,
-                        borderSide: BorderSide(color: AgroColors.divider),
-                      ),
-                      filled: true,
-                      fillColor: AgroColors.surfaceVariant,
-                    ),
-                    dropdownStyleData: const DropdownStyleData(maxHeight: 200),
-                    hint: Text('All Marts', style: AgroTypography.body),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: null,
-                        child: Text('All Marts'),
-                      ),
-                      ..._marts.map(
-                        (m) => DropdownMenuItem(value: m, child: Text(m)),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      setState(() {
-                        _selectedMartFilter = v;
-                        _fetchOrders();
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: AgroColors.divider),
-          // Orders list
-          Expanded(
-            child:
-                _isLoading
-                    ? const StaticSkeletonList(itemCount: 5)
-                    : _error.isNotEmpty
-                    ? AgroErrorState(
-                      title: 'Failed to load orders',
-                      message: _error,
-                      onRetry: _fetchOrders,
-                    )
-                    : _orders.isEmpty
-                    ? AgroEmptyState(
-                      icon: Icons.assignment_outlined,
-                      title: 'No orders for this date',
-                      message: 'Tap + to create an order',
-                    )
-                    : RefreshIndicator(
-                      onRefresh: _fetchOrders,
-                      child: ListView.builder(
-                        padding: EdgeInsets.all(AgroSpacing.lg),
-                        itemCount: _orders.length,
-                        itemBuilder:
-                            (_, i) => _OrderCard(
-                              order: _orders[i],
-                              onRefresh: _fetchOrders,
-                              onDelete: _confirmDelete,
-                            ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField2<String>(
+                        isExpanded: true,
+                        value: state.selectedMart,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: AgroSpacing.md,
+                            vertical: AgroSpacing.sm,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: AgroShapes.pillRadius,
+                            borderSide: BorderSide(color: AgroColors.divider),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: AgroShapes.pillRadius,
+                            borderSide: BorderSide(color: AgroColors.divider),
+                          ),
+                          filled: true,
+                          fillColor: AgroColors.surfaceVariant,
+                        ),
+                        dropdownStyleData: const DropdownStyleData(
+                          maxHeight: 200,
+                        ),
+                        hint: Text('All Marts', style: AgroTypography.body),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: null,
+                            child: Text('All Marts'),
+                          ),
+                          ...martNames.map(
+                            (m) => DropdownMenuItem(value: m, child: Text(m)),
+                          ),
+                        ],
+                        onChanged:
+                            (v) =>
+                                ref.read(orderListProvider.notifier).setMart(v),
                       ),
                     ),
-          ),
-        ],
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: AgroColors.divider),
+              Expanded(
+                child:
+                    state.orders.isEmpty
+                        ? AgroEmptyState(
+                          icon: Icons.assignment_outlined,
+                          title: 'No orders for this date',
+                          message: 'Tap + to create an order',
+                        )
+                        : RefreshIndicator(
+                          onRefresh:
+                              () =>
+                                  ref
+                                      .read(orderListProvider.notifier)
+                                      .refresh(),
+                          child: ListView.builder(
+                            padding: EdgeInsets.all(AgroSpacing.lg),
+                            itemCount: state.orders.length,
+                            itemBuilder:
+                                (_, i) => _OrderCard(
+                                  order: state.orders[i],
+                                  onDelete:
+                                      (id) => _confirmDelete(context, ref, id),
+                                ),
+                          ),
+                        ),
+              ),
+            ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final ok = await context.push('/order-entry');
-          if (ok == true) _fetchOrders();
-        },
+        onPressed: () => context.push('/order-entry'),
         backgroundColor: AgroColors.success.text,
         icon: const Icon(Icons.add),
         label: const Text('Add Order'),
@@ -258,18 +232,11 @@ class _OrderListScreenState extends State<OrdersScreen> {
   }
 }
 
-/// Order card displaying order details with status-based left border.
-/// Preserves all navigation and action callbacks exactly.
 class _OrderCard extends StatelessWidget {
   final Map<String, dynamic> order;
-  final VoidCallback onRefresh;
   final Future<void> Function(int) onDelete;
 
-  const _OrderCard({
-    required this.order,
-    required this.onRefresh,
-    required this.onDelete,
-  });
+  const _OrderCard({required this.order, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -280,7 +247,6 @@ class _OrderCard extends StatelessWidget {
     final remaining = ordered - dispatched;
     final unit = order['unit'] ?? '';
 
-    // Derive status using semantic parser
     final status = AgroStatusParser.fromOrderDispatchProgress(
       ordered,
       dispatched,
@@ -308,9 +274,8 @@ class _OrderCard extends StatelessWidget {
         ],
       ),
       child: InkWell(
-        // PRESERVED EXACTLY: Dispatch navigation on card tap
-        onTap: () async {
-          final ok = await context.push(
+        onTap: () {
+          context.push(
             '/dispatch-entry',
             extra: {
               'order_id': order['id'],
@@ -324,11 +289,10 @@ class _OrderCard extends StatelessWidget {
               'item_name': order['item']?['name'],
             },
           );
-          if (ok == true) onRefresh();
         },
         borderRadius: AgroShapes.containerRadius,
         child: Padding(
-          padding: EdgeInsets.all(AgroSpacing.md + 2), // 14px as before
+          padding: EdgeInsets.all(AgroSpacing.md + 2),
           child: Row(
             children: [
               Expanded(
@@ -339,7 +303,7 @@ class _OrderCard extends StatelessWidget {
                       itemName,
                       style: AgroTypography.cardTitle.copyWith(fontSize: 15),
                     ),
-                    SizedBox(height: AgroSpacing.xs / 2), // 2px
+                    SizedBox(height: AgroSpacing.xs / 2),
                     Text(martName, style: AgroTypography.caption),
                     SizedBox(height: AgroSpacing.sm),
                     Row(
@@ -394,14 +358,12 @@ class _OrderCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // PRESERVED EXACTLY: PopupMenuButton with edit/dispatch/delete actions
               PopupMenuButton<String>(
-                onSelected: (v) async {
+                onSelected: (v) {
                   if (v == 'edit') {
-                    final ok = await context.push('/order-entry', extra: order);
-                    if (ok == true) onRefresh();
+                    context.push('/order-entry', extra: order);
                   } else if (v == 'dispatch') {
-                    final ok = await context.push(
+                    context.push(
                       '/dispatch-entry',
                       extra: {
                         'order_id': order['id'],
@@ -415,7 +377,6 @@ class _OrderCard extends StatelessWidget {
                         'item_name': order['item']?['name'],
                       },
                     );
-                    if (ok == true) onRefresh();
                   } else {
                     onDelete(order['id']);
                   }
@@ -435,7 +396,6 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-/// Quantity chip displaying a value with label.
 class _QuantityChip extends StatelessWidget {
   final String label;
   final num value;

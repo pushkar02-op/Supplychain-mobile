@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 
 import '../providers/admin_ledger_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/order_provider.dart';
 import '../services/dispatch_service.dart';
-import '../services/order_service.dart';
 import '../services/stock_service.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
@@ -50,7 +50,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
 
     try {
       final results = await Future.wait([
-        OrderService.fetchOrders(DateTime.now()),
+        ref.read(orderListProvider.notifier).fetchOrdersForDate(DateTime.now()),
         DispatchService.fetchDispatches(dispatchDate: todayStr),
         StockService.fetchStockEntries(date: todayStr),
       ]);
