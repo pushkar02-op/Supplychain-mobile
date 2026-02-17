@@ -1,10 +1,11 @@
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../services/mart_bill_service.dart';
+import '../providers/mart_bill_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_shapes.dart';
 import '../ui/theme/agro_spacing.dart';
@@ -13,184 +14,59 @@ import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 import '../ui/widgets/agro_status_badge.dart';
 
-class MartBillListScreen extends StatefulWidget {
-  const MartBillListScreen({Key? key}) : super(key: key);
-  @override
-  State<MartBillListScreen> createState() => _MartBillListScreenState();
-}
+class MartBillListScreen extends ConsumerWidget {
+  const MartBillListScreen({super.key});
 
-class _MartBillListScreenState extends State<MartBillListScreen> {
-  DateTime? _filterDate;
-  String? _filterMart;
-  String _search = '';
-  List<Map<String, dynamic>> _martBills = [];
-  List<String> _marts = [];
-  bool _loading = true, _uploading = false;
-  String? _error;
-  List<String> _pickedPaths = [];
-  List<Map<String, dynamic>> _uploadResults = [];
-  bool _showUploadSection = false;
-  int _skip = 0;
-  final int _limit = 20;
-  bool _hasMore = true;
-  bool _isLoadingMore = false;
-  int _totalBills = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMarts();
-    _fetchMartBills();
-  }
-
-  Future<void> _loadMarts() async {
-    try {
-      final list = await MartBillService.fetchMartNames();
-      setState(() => _marts = list);
-    } catch (_) {}
-  }
-
-  // PRESERVED EXACTLY: Pagination logic
-  Future<void> _fetchMartBills({bool loadMore = false}) async {
-    if (loadMore) {
-      if (_isLoadingMore || !_hasMore) return;
-      setState(() {
-        _isLoadingMore = true;
-        _error = null;
-      });
-    } else {
-      setState(() {
-        _loading = true;
-        _error = null;
-        _skip = 0; // Reset
-        _hasMore = true;
-        _martBills.clear();
-      });
-    }
-    try {
-      final result = await MartBillService.fetchMartBills(
-        date: _filterDate,
-        martName: _filterMart,
-        search: _search.isNotEmpty ? _search : null,
-        skip:
-            loadMore
-                ? _skip + _limit
-                : 0, // Calculate next skip if loading more
-        limit: _limit,
-      );
-
-      final list = List<Map<String, dynamic>>.from(result['items']);
-      final fetchedSkip = result['skip'] as int;
-      final fetchedTotal = result['total'] as int;
-      final fetchedHasMore = result['has_more'] as bool;
-
-      setState(() {
-        if (loadMore) {
-          _martBills.addAll(list);
-          _skip = fetchedSkip; // Update current skip
-        } else {
-          _martBills = list;
-          _skip = 0;
-        }
-        _totalBills = fetchedTotal;
-        _hasMore = fetchedHasMore;
-      });
-    } catch (e) {
-      setState(() => _error = e.toString());
-    } finally {
-      if (loadMore) {
-        setState(() => _isLoadingMore = false);
-      } else {
-        setState(() => _loading = false);
-      }
-    }
-  }
-
-  // PRESERVED EXACTLY: File picking
-  Future<void> _pickFiles() async {
+  Future<void> _pickFiles(WidgetRef ref) async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.any,
     );
+    if (result == null || result.files.isEmpty) return;
 
-    if (result != null && result.files.isNotEmpty) {
-      final pdfFiles =
-          result.files
-              .where(
-                (file) =>
-                    file.path != null &&
-                    file.path!.toLowerCase().endsWith('.pdf'),
-              )
-              .toList();
-
-      setState(() {
-        _pickedPaths =
-            pdfFiles.map((file) => file.path!).toList().cast<String>();
-        _showUploadSection = true;
-        _uploadResults.clear();
-      });
-    }
+    final pdfPaths =
+        result.files
+            .where(
+              (file) =>
+                  file.path != null &&
+                  file.path!.toLowerCase().endsWith('.pdf'),
+            )
+            .map((file) => file.path!)
+            .toList();
+    ref.read(martBillProvider.notifier).setPickedPaths(pdfPaths);
   }
 
-  // PRESERVED EXACTLY: Upload logic
-  Future<void> _uploadFiles() async {
-    if (_pickedPaths.isEmpty) return;
-
-    setState(() {
-      _uploading = true;
-      _uploadResults.clear();
-      _error = null;
-    });
-
+  Future<void> _uploadFiles(BuildContext context, WidgetRef ref) async {
     try {
-      final responses = await MartBillService.uploadMartBills(_pickedPaths);
-
-      for (final resp in responses) {
-        if (resp['unmapped_items'] != null &&
-            resp['unmapped_items'].isNotEmpty) {
-          final billId =
-              resp['invoice_id']; // field name might still be invoice_id in response for now
-          final unmappedItems = List<Map<String, dynamic>>.from(
-            resp['unmapped_items'],
-          );
-          // Navigation to mapping screen currently commented out in original code
-        }
-      }
-
-      setState(() {
-        _uploadResults = responses;
-        _pickedPaths.clear();
-        _showUploadSection = false;
-      });
-
-      await _fetchMartBills();
+      await ref.read(martBillProvider.notifier).uploadBills();
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-      });
-    } finally {
-      setState(() {
-        _uploading = false;
-      });
+      if (!context.mounted) return;
+      AgroSnackBar.error(context, e.toString());
     }
   }
 
-  Future<void> _selectDate() async {
+  Future<void> _selectDate(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime? selectedDate,
+  ) async {
     final today = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _filterDate ?? today,
+      initialDate: selectedDate ?? today,
       firstDate: DateTime(today.year - 1),
       lastDate: today,
     );
     if (picked != null) {
-      setState(() => _filterDate = picked);
-      _fetchMartBills();
+      await ref.read(martBillProvider.notifier).setDate(picked);
     }
   }
 
-  // PRESERVED EXACTLY: Delete confirmation dialog
-  Future<void> _confirmDelete(int id) async {
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    int billId,
+  ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder:
@@ -210,94 +86,88 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
           ),
     );
     if (ok == true) {
-      await MartBillService.deleteMartBill(id);
-      _fetchMartBills();
+      await ref.read(martBillProvider.notifier).deleteBill(billId);
     }
   }
 
-  // PRESERVED EXACTLY: Edit item dialog
-  Future<void> _showEditItemDialog(Map<String, dynamic> item) async {
-    final qtyController = TextEditingController(
-      text: item['quantity'].toString(),
-    );
-    final priceController = TextEditingController(
-      text: item['price'].toString(),
-    );
+  Future<void> _showEditItemDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> item,
+  ) async {
+    final qtyController = TextEditingController(text: item['quantity'].toString());
+    final priceController = TextEditingController(text: item['price'].toString());
     final totalController = TextEditingController();
 
     void calculateTotal() {
       final qty = double.tryParse(qtyController.text) ?? 0;
       final price = double.tryParse(priceController.text) ?? 0;
-      final total = qty * price;
-      totalController.text = total.toStringAsFixed(2);
+      totalController.text = (qty * price).toStringAsFixed(2);
     }
 
     calculateTotal();
-
     qtyController.addListener(calculateTotal);
     priceController.addListener(calculateTotal);
 
     await showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Edit Bill Item'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: qtyController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Quantity'),
+      builder:
+          (_) => AlertDialog(
+            title: const Text('Edit Bill Item'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: qtyController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Quantity'),
+                ),
+                TextField(
+                  controller: priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Price'),
+                ),
+                TextField(
+                  controller: totalController,
+                  readOnly: true,
+                  decoration: const InputDecoration(labelText: 'Total'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
               ),
-              TextField(
-                controller: priceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Price'),
-              ),
-              TextField(
-                controller: totalController,
-                readOnly: true,
-                decoration: const InputDecoration(labelText: 'Total'),
+              ElevatedButton(
+                onPressed: () async {
+                  final qty = double.tryParse(qtyController.text);
+                  final price = double.tryParse(priceController.text);
+                  final total = double.tryParse(totalController.text);
+                  if (qty == null || price == null || total == null) {
+                    AgroSnackBar.error(context, 'Invalid input');
+                    return;
+                  }
+
+                  await ref.read(martBillProvider.notifier).updateBillItem(
+                    item['id'],
+                    {'quantity': qty, 'price': price, 'total': total},
+                  );
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                },
+                child: const Text('Save'),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final updatedQty = double.tryParse(qtyController.text);
-                final updatedPrice = double.tryParse(priceController.text);
-                final updatedTotal = double.tryParse(totalController.text);
-
-                if (updatedQty == null ||
-                    updatedPrice == null ||
-                    updatedTotal == null) {
-                  AgroSnackBar.error(context, 'Invalid input');
-                  return;
-                }
-
-                await MartBillService.updateMartBillItem(item['id'], {
-                  'quantity': updatedQty,
-                  'price': updatedPrice,
-                  'total': updatedTotal,
-                });
-                Navigator.pop(context);
-                await _fetchMartBills();
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncState = ref.watch(martBillProvider);
+    final martsAsync = ref.watch(martBillMartListProvider);
+
     return Scaffold(
       backgroundColor: AgroColors.background,
       appBar: AppBar(
@@ -309,102 +179,197 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
           IconButton(
             icon: const Icon(Icons.upload_file),
             tooltip: 'Upload Mart Bill',
-            onPressed: _pickFiles,
+            onPressed: () => _pickFiles(ref),
           ),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.all(AgroSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Filter row
-            Row(
+      body: asyncState.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error:
+            (e, _) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    e.toString(),
+                    style: TextStyle(color: AgroColors.critical.text),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AgroSpacing.md),
+                  ElevatedButton.icon(
+                    onPressed: () => ref.read(martBillProvider.notifier).refresh(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+        data: (state) {
+          final marts = martsAsync.valueOrNull ?? const <String>[];
+
+          return Padding(
+            padding: EdgeInsets.all(AgroSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ElevatedButton.icon(
-                  onPressed: _selectDate,
-                  icon: const Icon(Icons.calendar_today),
-                  label: Text(
-                    _filterDate == null
-                        ? 'All Dates'
-                        : DateFormat('yyyy-MM-dd').format(_filterDate!),
-                  ),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => _selectDate(context, ref, state.selectedDate),
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(
+                        state.selectedDate == null
+                            ? 'All Dates'
+                            : DateFormat('yyyy-MM-dd').format(state.selectedDate!),
+                      ),
+                    ),
+                    const SizedBox(width: AgroSpacing.md),
+                    Expanded(
+                      child: DropdownButtonFormField2<String>(
+                        isExpanded: true,
+                        value: state.selectedMart,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: AgroSpacing.md,
+                            vertical: AgroSpacing.sm + 2,
+                          ),
+                          border: OutlineInputBorder(),
+                        ),
+                        dropdownStyleData: const DropdownStyleData(
+                          maxHeight: 200,
+                          width: 200,
+                        ),
+                        hint: const Text('All Marts'),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: null,
+                            child: Text('All Marts'),
+                          ),
+                          ...marts.map(
+                            (m) => DropdownMenuItem(value: m, child: Text(m)),
+                          ),
+                        ],
+                        onChanged:
+                            (v) => ref.read(martBillProvider.notifier).setMart(v),
+                      ),
+                    ),
+                    const SizedBox(width: AgroSpacing.md),
+                    Expanded(
+                      child: TextField(
+                        decoration: const InputDecoration(hintText: 'Search...'),
+                        onSubmitted:
+                            (v) =>
+                                ref.read(martBillProvider.notifier).setSearch(v),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: AgroSpacing.md),
-                Expanded(
-                  child: DropdownButtonFormField2<String>(
-                    isExpanded: true,
-                    value: _filterMart,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: AgroSpacing.md,
-                        vertical: AgroSpacing.sm + 2, // 10px
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
-                    dropdownStyleData: const DropdownStyleData(
-                      maxHeight: 200,
-                      width: 200,
-                    ),
-                    hint: const Text('All Marts'),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: null,
-                        child: Text('All Marts'),
-                      ),
-                      ..._marts.map(
-                        (m) => DropdownMenuItem(value: m, child: Text(m)),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      setState(() {
-                        _filterMart = v;
-                        _fetchMartBills();
-                      });
+                const SizedBox(height: AgroSpacing.md),
+                if (state.pickedPaths.isNotEmpty)
+                  _UploadFormCard(
+                    pickedPaths: state.pickedPaths,
+                    uploading: state.isUploading,
+                    onCancel:
+                        () => ref.read(martBillProvider.notifier).setPickedPaths(
+                          const [],
+                        ),
+                    onUpload: () => _uploadFiles(context, ref),
+                  ),
+                if (state.uploadResults.isNotEmpty)
+                  _UploadResultsCard(
+                    uploadResults: state.uploadResults,
+                    onDismiss:
+                        () =>
+                            ref.read(martBillProvider.notifier).clearUploadResults(),
+                    onAddMore: () async {
+                      ref.read(martBillProvider.notifier).clearUploadResults();
+                      await _pickFiles(ref);
                     },
                   ),
-                ),
-                const SizedBox(width: AgroSpacing.md),
                 Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(hintText: 'Search…'),
-                    onSubmitted: (v) {
-                      _search = v;
-                      _fetchMartBills();
-                    },
+                  child: _buildBillList(
+                    context,
+                    ref,
+                    state,
                   ),
                 ),
               ],
             ),
-
-            const SizedBox(height: AgroSpacing.md),
-
-            if (_error != null)
-              Center(
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: AgroColors.critical.text),
-                ),
-              ),
-
-            const SizedBox(height: AgroSpacing.md),
-
-            // 1) UPLOAD FORM CARD
-            if (_showUploadSection) _buildUploadFormCard(),
-
-            // 2) UPLOAD RESULTS CARD
-            if (_uploadResults.isNotEmpty) _buildUploadResultsCard(),
-
-            // List
-            Expanded(child: _buildBillList()),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildUploadFormCard() {
+  Widget _buildBillList(
+    BuildContext context,
+    WidgetRef ref,
+    MartBillState state,
+  ) {
+    if (state.bills.isEmpty) {
+      return AgroEmptyState(
+        icon: Icons.receipt_long_outlined,
+        title: 'No mart bills found',
+        actionLabel: 'Upload your first bill',
+        onAction: () => _pickFiles(ref),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.only(top: AgroSpacing.md, bottom: AgroSpacing.xl),
+      itemCount: state.bills.length + (state.hasMore ? 1 : 0),
+      itemBuilder: (ctx, i) {
+        if (i == state.bills.length) {
+          return Padding(
+            padding: EdgeInsets.all(AgroSpacing.lg),
+            child: Center(
+              child:
+                  state.isLoadingMore
+                      ? const CircularProgressIndicator()
+                      : ElevatedButton.icon(
+                        onPressed:
+                            () => ref.read(martBillProvider.notifier).loadMore(),
+                        icon: const Icon(Icons.arrow_downward),
+                        label: const Text('Load More'),
+                      ),
+            ),
+          );
+        }
+
+        final bill = state.bills[i];
+        return _BillCard(
+          bill: bill,
+          onDelete: (id) => _confirmDelete(context, ref, id),
+          onEditItem: (item) => _showEditItemDialog(context, ref, item),
+          onVerify: (id) => ref.read(martBillProvider.notifier).verifyBill(id),
+          onUnverify:
+              (id) => ref.read(martBillProvider.notifier).unverifyBill(id),
+          onFetchItems:
+              (id) => ref.read(martBillProvider.notifier).fetchBillItems(id),
+          onDeleteItem:
+              (id) => ref.read(martBillProvider.notifier).deleteBillItem(id),
+        );
+      },
+    );
+  }
+}
+
+class _UploadFormCard extends StatelessWidget {
+  final List<String> pickedPaths;
+  final bool uploading;
+  final VoidCallback onCancel;
+  final VoidCallback onUpload;
+
+  const _UploadFormCard({
+    required this.pickedPaths,
+    required this.uploading,
+    required this.onCancel,
+    required this.onUpload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
       elevation: 2,
       margin: EdgeInsets.only(bottom: AgroSpacing.md),
@@ -421,25 +386,20 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                 IconButton(
                   icon: const Icon(Icons.close),
                   tooltip: 'Cancel Upload',
-                  onPressed: () {
-                    setState(() {
-                      _pickedPaths.clear();
-                      _showUploadSection = false;
-                    });
-                  },
+                  onPressed: onCancel,
                 ),
               ],
             ),
             const SizedBox(height: AgroSpacing.sm),
-            ..._pickedPaths.map(
-              (p) => Text('• ${p.split('/').last}', style: AgroTypography.body),
+            ...pickedPaths.map(
+              (p) => Text('* ${p.split('/').last}', style: AgroTypography.body),
             ),
             const SizedBox(height: AgroSpacing.md),
             Align(
               alignment: Alignment.centerRight,
               child: ElevatedButton.icon(
                 icon:
-                    _uploading
+                    uploading
                         ? SizedBox(
                           width: 16,
                           height: 16,
@@ -450,7 +410,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                         )
                         : const Icon(Icons.cloud_upload),
                 label: const Text('Upload'),
-                onPressed: _uploading ? null : _uploadFiles,
+                onPressed: uploading ? null : onUpload,
               ),
             ),
           ],
@@ -458,8 +418,21 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
       ),
     );
   }
+}
 
-  Widget _buildUploadResultsCard() {
+class _UploadResultsCard extends StatelessWidget {
+  final List<Map<String, dynamic>> uploadResults;
+  final VoidCallback onDismiss;
+  final VoidCallback onAddMore;
+
+  const _UploadResultsCard({
+    required this.uploadResults,
+    required this.onDismiss,
+    required this.onAddMore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
       elevation: 2,
       margin: EdgeInsets.only(bottom: AgroSpacing.md),
@@ -476,16 +449,12 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                 IconButton(
                   icon: const Icon(Icons.close),
                   tooltip: 'Dismiss Results',
-                  onPressed: () {
-                    setState(() {
-                      _uploadResults.clear();
-                    });
-                  },
+                  onPressed: onDismiss,
                 ),
               ],
             ),
             const SizedBox(height: AgroSpacing.sm),
-            for (final result in _uploadResults)
+            for (final result in uploadResults)
               ListTile(
                 dense: true,
                 leading: Icon(
@@ -509,14 +478,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.add),
                 label: const Text('Add More Files'),
-                onPressed: () {
-                  setState(() {
-                    _uploadResults.clear();
-                    _pickedPaths.clear();
-                    _showUploadSection = true;
-                  });
-                  _pickFiles();
-                },
+                onPressed: onAddMore,
               ),
             ),
           ],
@@ -524,82 +486,25 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
       ),
     );
   }
-
-  Widget _buildBillList() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_martBills.isEmpty) {
-      return AgroEmptyState(
-        icon: Icons.receipt_long_outlined,
-        title: 'No mart bills found',
-        actionLabel: 'Upload your first bill',
-        onAction: _pickFiles,
-      );
-    }
-
-    // PRESERVED EXACTLY: ListView with pagination
-    return ListView.builder(
-      padding: EdgeInsets.only(top: AgroSpacing.md, bottom: AgroSpacing.xl),
-      itemCount: _martBills.length + (_hasMore ? 1 : 0),
-      itemBuilder: (ctx, i) {
-        if (i == _martBills.length) {
-          return Padding(
-            padding: EdgeInsets.all(AgroSpacing.lg),
-            child: Center(
-              child:
-                  _isLoadingMore
-                      ? const CircularProgressIndicator()
-                      : _error != null
-                      ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Failed to load more items',
-                            style: TextStyle(color: AgroColors.critical.text),
-                          ),
-                          const SizedBox(height: AgroSpacing.sm),
-                          ElevatedButton.icon(
-                            onPressed: () => _fetchMartBills(loadMore: true),
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retry'),
-                          ),
-                        ],
-                      )
-                      : ElevatedButton.icon(
-                        onPressed: () => _fetchMartBills(loadMore: true),
-                        icon: const Icon(Icons.arrow_downward),
-                        label: const Text('Load More'),
-                      ),
-            ),
-          );
-        }
-        final bill = _martBills[i];
-        return _BillCard(
-          bill: bill,
-          onRefresh: _fetchMartBills,
-          onDelete: _confirmDelete,
-          onEditItem: _showEditItemDialog,
-        );
-      },
-    );
-  }
 }
 
-/// Bill card with expansion tile displaying bill details and items.
-/// Preserves all verify/unverify and delete callbacks exactly.
 class _BillCard extends StatelessWidget {
   final Map<String, dynamic> bill;
-  final Future<void> Function() onRefresh;
   final Future<void> Function(int) onDelete;
   final Future<void> Function(Map<String, dynamic>) onEditItem;
+  final Future<void> Function(int) onVerify;
+  final Future<void> Function(int) onUnverify;
+  final Future<List<Map<String, dynamic>>> Function(int) onFetchItems;
+  final Future<void> Function(int) onDeleteItem;
 
   const _BillCard({
     required this.bill,
-    required this.onRefresh,
     required this.onDelete,
     required this.onEditItem,
+    required this.onVerify,
+    required this.onUnverify,
+    required this.onFetchItems,
+    required this.onDeleteItem,
   });
 
   @override
@@ -621,13 +526,12 @@ class _BillCard extends StatelessWidget {
         ],
       ),
       subtitle: Text(
-        '${DateFormat('MMM dd, yyyy').format(DateTime.parse(bill['invoice_date']))}   ₹ ${bill['total_amount'].toStringAsFixed(2)}',
+        '${DateFormat('MMM dd, yyyy').format(DateTime.parse(bill['invoice_date']))}   \u20b9 ${bill['total_amount'].toStringAsFixed(2)}',
         style: AgroTypography.caption,
       ),
       trailing: Wrap(
         spacing: AgroSpacing.xs,
         children: [
-          // PRESERVED EXACTLY: Verify/Unverify button
           if (!isProcessing)
             Tooltip(
               message: isVerified ? 'Unlock Bill' : 'Verify Bill',
@@ -642,18 +546,16 @@ class _BillCard extends StatelessWidget {
                 onPressed: () async {
                   try {
                     if (isVerified) {
-                      await MartBillService.unverifyMartBill(bill['id']);
+                      await onUnverify(bill['id']);
                     } else {
-                      await MartBillService.verifyMartBill(bill['id']);
+                      await onVerify(bill['id']);
                     }
-                    onRefresh();
                   } catch (e) {
                     AgroSnackBar.error(context, e.toString());
                   }
                 },
               ),
             ),
-          // PRESERVED EXACTLY: Delete button
           Tooltip(
             message: 'Delete Bill',
             child: IconButton(
@@ -675,7 +577,6 @@ class _BillCard extends StatelessWidget {
           ),
         ],
       ),
-
       children: [
         ListTile(
           title: Text(
@@ -684,16 +585,13 @@ class _BillCard extends StatelessWidget {
           ),
           trailing: TextButton(
             onPressed: () {
-              context.push(
-                '/pdf-viewer',
-                extra: int.parse(bill['id'].toString()),
-              );
+              context.push('/pdf-viewer', extra: int.parse(bill['id'].toString()));
             },
             child: const Text('View'),
           ),
         ),
         FutureBuilder<List<Map<String, dynamic>>>(
-          future: MartBillService.fetchMartBillItems(bill['id']),
+          future: onFetchItems(bill['id']),
           builder: (ctx, snap) {
             if (!snap.hasData) {
               return const LinearProgressIndicator();
@@ -717,14 +615,9 @@ class _BillCard extends StatelessWidget {
                           DataCell(Text(it['item_name'] ?? '')),
                           DataCell(Text(it['quantity'].toString())),
                           DataCell(Text(it['uom'] ?? '')),
+                          DataCell(Text((it['price'] as num).toStringAsFixed(2))),
+                          DataCell(Text((it['total'] as num).toStringAsFixed(2))),
                           DataCell(
-                            Text((it['price'] as num).toStringAsFixed(2)),
-                          ),
-                          DataCell(
-                            Text((it['total'] as num).toStringAsFixed(2)),
-                          ),
-                          DataCell(
-                            // PRESERVED EXACTLY: Item actions with edit/delete
                             isVerified
                                 ? Icon(
                                   Icons.lock,
@@ -737,7 +630,6 @@ class _BillCard extends StatelessWidget {
                                     if (value == 'edit') {
                                       await onEditItem(it);
                                     } else if (value == 'delete') {
-                                      // PRESERVED EXACTLY: Item delete confirmation
                                       final confirmed = await showDialog<bool>(
                                         context: context,
                                         builder:
@@ -767,10 +659,7 @@ class _BillCard extends StatelessWidget {
                                             ),
                                       );
                                       if (confirmed == true) {
-                                        await MartBillService.deleteMartBillItem(
-                                          it['id'],
-                                        );
-                                        onRefresh();
+                                        await onDeleteItem(it['id']);
                                       }
                                     }
                                   },

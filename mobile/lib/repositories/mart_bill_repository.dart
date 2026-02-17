@@ -233,6 +233,20 @@ class MartBillRepository {
     }
   }
 
+  /// Process stock for a verified mart bill.
+  Future<void> processStock(int billId) async {
+    try {
+      final resp = await DioClient.instance.post('/mart-bills/$billId/process');
+      if (resp.statusCode != 200) {
+        throw ServerException(
+          'Process failed: ${resp.data['detail'] ?? resp.statusMessage}',
+        );
+      }
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Fetch distinct mart names (reuse orders endpoint)
   Future<List<String>> fetchMartNames() async {
     try {

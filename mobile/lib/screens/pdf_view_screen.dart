@@ -6,7 +6,7 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/mart_bill.dart';
-import '../services/mart_bill_service.dart';
+import '../providers/mart_bill_provider.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
@@ -38,11 +38,10 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
     });
 
     try {
-      // Fetch bill details first to get status
-      final bill = await MartBillService.getMartBillById(widget.invoiceId);
+      final notifier = ref.read(martBillProvider.notifier);
+      final bill = await notifier.getBillById(widget.invoiceId);
 
-      // Attempt download
-      final path = await MartBillService.downloadMartBillPdf(widget.invoiceId);
+      final path = await notifier.downloadPdf(widget.invoiceId);
 
       if (!mounted) return;
       setState(() {
@@ -74,10 +73,9 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
 
       if (result != null && result.files.single.path != null) {
         setState(() => _loading = true);
-        await MartBillService.replaceBillPdf(
-          widget.invoiceId,
-          result.files.single.path!,
-        );
+        await ref
+            .read(martBillProvider.notifier)
+            .replacePdf(widget.invoiceId, result.files.single.path!);
 
         if (!mounted) return;
         AgroSnackBar.success(context, 'File re-uploaded successfully!');
