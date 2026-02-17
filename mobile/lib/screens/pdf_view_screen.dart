@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/mart_bill.dart';
 import '../services/mart_bill_service.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
   final int invoiceId;
@@ -79,21 +80,14 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
         );
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('File re-uploaded successfully!')),
-        );
+        AgroSnackBar.success(context, 'File re-uploaded successfully!');
         // Reload data
         _loadData();
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Re-upload failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AgroSnackBar.error(context, 'Re-upload failed: $e');
     }
   }
 

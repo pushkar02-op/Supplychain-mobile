@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import '../services/rejection_service.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class RejectionEntryScreen extends StatefulWidget {
   const RejectionEntryScreen({Key? key}) : super(key: key);
@@ -100,9 +101,7 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
         rejectedBy: 'currentUser',
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Rejection saved')));
+      AgroSnackBar.success(context, 'Rejection saved');
       context.pop(true);
     } catch (e) {
       setState(() => _error = e.toString());

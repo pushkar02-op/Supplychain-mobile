@@ -10,6 +10,7 @@ import '../ui/theme/agro_shapes.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_empty_state.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 import '../ui/widgets/agro_status_badge.dart';
 
 class MartBillListScreen extends StatefulWidget {
@@ -275,9 +276,7 @@ class _MartBillListScreenState extends State<MartBillListScreen> {
                 if (updatedQty == null ||
                     updatedPrice == null ||
                     updatedTotal == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Invalid input')),
-                  );
+                  AgroSnackBar.error(context, 'Invalid input');
                   return;
                 }
 
@@ -649,9 +648,7 @@ class _BillCard extends StatelessWidget {
                     }
                     onRefresh();
                   } catch (e) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(e.toString())));
+                    AgroSnackBar.error(context, e.toString());
                   }
                 },
               ),
@@ -668,12 +665,9 @@ class _BillCard extends StatelessWidget {
               onPressed:
                   isVerified
                       ? () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Cannot delete a verified bill. Unlock it first.',
-                            ),
-                          ),
+                        AgroSnackBar.error(
+                          context,
+                          'Cannot delete a verified bill. Unlock it first.',
                         );
                       }
                       : () => onDelete(bill['id']),

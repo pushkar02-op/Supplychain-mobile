@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/providers/auth_provider.dart';
+
 import '../services/auth_service.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -25,36 +26,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
-        debugPrint('[LOGIN_SCREEN] Calling AuthService.login...');
-        final result = await AuthService.login(email, password);
-        debugPrint('[LOGIN_SCREEN] AuthService.login result: $result');
+      debugPrint('[LOGIN_SCREEN] Calling AuthService.login...');
+      final result = await AuthService.login(email, password);
+      debugPrint('[LOGIN_SCREEN] AuthService.login result: $result');
 
-        if (!mounted) {
-            debugPrint('[LOGIN_SCREEN] Widget unmounted after login call.');
-            return;
-        }
+      if (!mounted) {
+        debugPrint('[LOGIN_SCREEN] Widget unmounted after login call.');
+        return;
+      }
 
-        if (result == true) {
-          debugPrint('[LOGIN_SCREEN] Login SUCCESS. Triggering AuthNotifier...');
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Login successful')));
-          
-          await ref.read(authProvider.notifier).login();
-          debugPrint('[LOGIN_SCREEN] AuthNotifier.login() returned.');
-          return;
-        } else {
-          debugPrint('[LOGIN_SCREEN] Login FAILED. Result: $result');
-          setState(() => errorMessage = result.toString());
-        }
+      if (result == true) {
+        debugPrint('[LOGIN_SCREEN] Login SUCCESS. Triggering AuthNotifier...');
+        AgroSnackBar.success(context, 'Login successful');
+
+        await ref.read(authProvider.notifier).login();
+        debugPrint('[LOGIN_SCREEN] AuthNotifier.login() returned.');
+        return;
+      } else {
+        debugPrint('[LOGIN_SCREEN] Login FAILED. Result: $result');
+        setState(() => errorMessage = result.toString());
+      }
     } catch (e, st) {
-        debugPrint('[LOGIN_SCREEN] Exception during login: $e');
-        debugPrint(st.toString());
-        setState(() => errorMessage = 'An error occurred: $e');
+      debugPrint('[LOGIN_SCREEN] Exception during login: $e');
+      debugPrint(st.toString());
+      setState(() => errorMessage = 'An error occurred: $e');
     }
 
     if (mounted) {
-       setState(() => isLoading = false);
+      setState(() => isLoading = false);
     }
   }
 
@@ -77,11 +76,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             children: [
               const SizedBox(height: 32),
               // App Branding
-              Icon(
-                Icons.agriculture,
-                size: 64,
-                color: Colors.green[600],
-              ),
+              Icon(Icons.agriculture, size: 64, color: Colors.green[600]),
               const SizedBox(height: 16),
               const Text(
                 'AGRO Supply Chain',
@@ -96,10 +91,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Text(
                 'Vendor Management Portal',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
               const SizedBox(height: 48),
               // Form Fields
@@ -135,7 +127,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   obscureText: true,
                   onChanged: (val) => password = val.trim(),
                   validator:
-                      (val) => val!.isEmpty ? 'Please enter your password' : null,
+                      (val) =>
+                          val!.isEmpty ? 'Please enter your password' : null,
                 ),
               ),
               const SizedBox(height: 24),
@@ -169,7 +162,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 color: Colors.white,
                               ),
                             )
-                            : const Text('Login', style: TextStyle(fontSize: 16)),
+                            : const Text(
+                              'Login',
+                              style: TextStyle(fontSize: 16),
+                            ),
                   ),
                 ),
               ),

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../services/order_service.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class OrderEntryScreen extends StatefulWidget {
   const OrderEntryScreen({super.key});
@@ -166,11 +167,9 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       setState(() => _isLoading = false);
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isEdit ? 'Order adjusted' : 'Order created'),
-            behavior: SnackBarBehavior.floating,
-          ),
+        AgroSnackBar.success(
+          context,
+          _isEdit ? 'Order adjusted' : 'Order created',
         );
         context.pop(true);
       }

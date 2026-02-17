@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../services/rejection_service.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class RejectionListScreen extends StatefulWidget {
   const RejectionListScreen({super.key});
@@ -85,12 +86,7 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load rejections: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AgroSnackBar.error(context, 'Failed to load rejections: $e');
       }
     } finally {
       if (mounted) {
@@ -184,18 +180,15 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
       try {
         await RejectionService.reverseRejection(rejection['id']);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Rejection reversed. Stock has been restored.'),
-            ),
+          AgroSnackBar.success(
+            context,
+            'Rejection reversed. Stock has been restored.',
           );
           _loadRejections(reset: true);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-          );
+          AgroSnackBar.error(context, 'Error: $e');
         }
       }
     }

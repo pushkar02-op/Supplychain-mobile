@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../services/dispatch_service.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class CreateOrEditDispatchScreen extends StatefulWidget {
   final Map<String, dynamic>? data;
@@ -197,9 +198,7 @@ class _CreateOrEditDispatchScreenState
       }
       await DispatchService.createDispatch(payload);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dispatch saved successfully')),
-      );
+      AgroSnackBar.success(context, 'Dispatch saved successfully');
       context.pop(true);
     } catch (e) {
       if (mounted) {

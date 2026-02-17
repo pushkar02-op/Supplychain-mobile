@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../ui/widgets/agro_snack_bar.dart';
+
 class ReversalDialog extends StatefulWidget {
   final int dispatchId;
   final double? maxQuantity;
@@ -173,9 +175,7 @@ class _ReversalDialogState extends State<ReversalDialog> {
               if (finalQty == null ||
                   finalQty <= 0 ||
                   finalQty > (widget.maxQuantity ?? 0)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Invalid quantity')),
-                );
+                AgroSnackBar.error(context, 'Invalid quantity');
                 return;
               }
             } else {

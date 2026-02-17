@@ -7,6 +7,7 @@ import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_error_state.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class ItemListScreen extends StatefulWidget {
   const ItemListScreen({super.key});
@@ -52,9 +53,7 @@ class _ItemListScreenState extends State<ItemListScreen> {
     await ItemService.mapAlias(billItemId, itemId);
     _fetchItems();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Mart Bill item mapped successfully')),
-    );
+    AgroSnackBar.success(context, 'Mart Bill item mapped successfully');
   }
 
   // PRESERVED EXACTLY: Mapping dialog

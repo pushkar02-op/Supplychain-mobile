@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../services/stock_service.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 import '../widgets/form/custom_date_picker.dart';
 
 /// Screen mode for StockEntryScreen
@@ -146,9 +147,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     if (!mounted) return;
 
     if (result == true) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Stock receipt saved')));
+      AgroSnackBar.success(context, 'Stock receipt saved');
       context.pop(true);
     } else {
       setState(() {
@@ -218,9 +217,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     if (!mounted) return;
 
     if (result == true) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Stock corrected')));
+      AgroSnackBar.success(context, 'Stock corrected');
       context.pop(true);
     } else {
       setState(() {

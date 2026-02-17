@@ -8,6 +8,7 @@ import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_card.dart';
 import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_error_state.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class AliasMappingScreen extends StatefulWidget {
   const AliasMappingScreen({super.key});
@@ -59,9 +60,7 @@ class _AliasMappingScreenState extends State<AliasMappingScreen> {
 
     await ItemService.mapAlias(row.id, row.selectedItemId!);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Mapped ${row.aliasName} successfully")),
-    );
+    AgroSnackBar.success(context, 'Mapped ${row.aliasName} successfully');
     setState(() {
       rows.remove(row);
     });

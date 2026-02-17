@@ -9,6 +9,7 @@ import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_section.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class ItemManagementScreen extends StatefulWidget {
   final Map<String, dynamic>? data;
@@ -201,9 +202,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       final newItem = await ItemService.createOrUpdateItem(payload);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Item saved successfully')));
+      AgroSnackBar.success(context, 'Item saved successfully');
       context.pop(newItem);
     } catch (e) {
       setState(() {
@@ -222,7 +221,9 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
     // Phase 1 Guardrail: Intent Selection for NEW items
     if ((widget.data == null || widget.data?['id'] == null) &&
         creationIntent == null) {
-      return _buildIntentSelection();
+      return _IntentSelectionScreen(
+        onIntentSelected: (value) => setState(() => creationIntent = value),
+      );
     }
 
     return Scaffold(
@@ -685,7 +686,12 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
               // LIFECYCLE ACTIONS — Only for existing items (Edit mode)
               // ═══════════════════════════════════════════════════════════════
               if (widget.data != null && widget.data?['id'] != null) ...[
-                _buildLifecycleActions(),
+                _ItemLifecycleActions(
+                  data: widget.data!,
+                  isSaving: isSaving,
+                  onSavingChanged: (v) => setState(() => isSaving = v),
+                  onError: (e) => setState(() => error = e),
+                ),
                 SizedBox(height: AgroSpacing.md),
               ],
 
@@ -705,8 +711,17 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       ),
     );
   }
+}
 
-  Widget _buildIntentSelection() {
+// ── Private Extracted Widgets ────────────────────────────────────────
+
+class _IntentSelectionScreen extends StatelessWidget {
+  final ValueChanged<String> onIntentSelected;
+
+  const _IntentSelectionScreen({required this.onIntentSelected});
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Create Item")),
       body: Padding(
@@ -726,41 +741,46 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-
-            _buildIntentCard(
+            _IntentCard(
               title: "Regular Item",
               subtitle: "Used frequently in stock and dispatch.",
               icon: Icons.inventory_2,
-              value: "REGULAR",
+              onTap: () => onIntentSelected("REGULAR"),
             ),
             const SizedBox(height: 16),
-            _buildIntentCard(
+            _IntentCard(
               title: "One-off Item",
               subtitle: "Unlikely to appear again.",
               icon: Icons.filter_1,
-              value: "ONE_OFF",
+              onTap: () => onIntentSelected("ONE_OFF"),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildIntentCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required String value,
-  }) {
+class _IntentCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _IntentCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () {
-          setState(() {
-            creationIntent = value;
-          });
-        },
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -798,15 +818,29 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       ),
     );
   }
+}
 
-  // 6️⃣ Lifecycle Actions
-  Widget _buildLifecycleActions() {
-    final status = widget.data?['status'] ?? 'ACTIVE';
+class _ItemLifecycleActions extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final bool isSaving;
+  final ValueChanged<bool> onSavingChanged;
+  final ValueChanged<String> onError;
+
+  const _ItemLifecycleActions({
+    required this.data,
+    required this.isSaving,
+    required this.onSavingChanged,
+    required this.onError,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final status = data['status'] ?? 'ACTIVE';
     final isActive = status == 'ACTIVE';
 
     if (isActive) {
       return OutlinedButton.icon(
-        onPressed: _confirmDeactivate,
+        onPressed: isSaving ? null : () => _confirmDeactivate(context),
         icon: Icon(Icons.archive, color: AgroColors.critical.text),
         label: Text(
           'Deactivate Item',
@@ -819,7 +853,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       );
     } else {
       return ElevatedButton.icon(
-        onPressed: _reactivateItem,
+        onPressed: isSaving ? null : () => _reactivateItem(context),
         icon: const Icon(Icons.restore_from_trash),
         label: const Text('Reactivate Item'),
         style: ElevatedButton.styleFrom(
@@ -831,14 +865,15 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
     }
   }
 
-  Future<void> _confirmDeactivate() async {
+  Future<void> _confirmDeactivate(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (ctx) => AlertDialog(
             title: const Text('Deactivate Item?'),
             content: const Text(
-              'This will mark the item as inactive. It will be hidden from default lists but history is preserved. You can reactivate it later.',
+              'This will mark the item as inactive. It will be hidden from '
+              'default lists but history is preserved. You can reactivate it later.',
             ),
             actions: [
               TextButton(
@@ -857,36 +892,32 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
     );
 
     if (confirmed == true) {
-      setState(() => isSaving = true);
-      // Validated by call site
-      final id = widget.data!['id'];
+      onSavingChanged(true);
+      final id = data['id'];
       final res = await ItemService.deactivateItem(id);
-      if (!mounted) return;
-      setState(() => isSaving = false);
+      if (!context.mounted) return;
+      onSavingChanged(false);
 
       if (res != null) {
         Navigator.pop(context, true);
       } else {
-        setState(() => error = 'Failed to deactivate item');
+        onError('Failed to deactivate item');
       }
     }
   }
 
-  Future<void> _reactivateItem() async {
-    setState(() => isSaving = true);
-    // Validated by call site
-    final id = widget.data!['id'];
+  Future<void> _reactivateItem(BuildContext context) async {
+    onSavingChanged(true);
+    final id = data['id'];
     final res = await ItemService.reactivateItem(id);
-    if (!mounted) return;
-    setState(() => isSaving = false);
+    if (!context.mounted) return;
+    onSavingChanged(false);
 
     if (res != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item reactivated successfully')),
-      );
+      AgroSnackBar.success(context, 'Item reactivated successfully');
       Navigator.pop(context, true);
     } else {
-      setState(() => error = 'Failed to reactivate item');
+      onError('Failed to reactivate item');
     }
   }
 }

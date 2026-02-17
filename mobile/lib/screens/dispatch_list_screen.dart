@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../services/dispatch_service.dart';
 import '../widgets/reversal_dialog.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 import '../widgets/skeleton_loader.dart';
 
 class DispatchListScreen extends ConsumerStatefulWidget {
@@ -100,15 +101,11 @@ class _DispatchListScreenState extends ConsumerState<DispatchListScreen> {
           result['reason'],
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Dispatch reversed successfully')),
-        );
+        AgroSnackBar.success(context, 'Dispatch reversed successfully');
         _fetch();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        AgroSnackBar.error(context, 'Error: $e');
         setState(() => _isLoading = false);
       }
     }
