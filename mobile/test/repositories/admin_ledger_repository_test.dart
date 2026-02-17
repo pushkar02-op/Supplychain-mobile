@@ -46,9 +46,16 @@ void main() {
     });
 
     test('fetchDriftReport returns list on success', () async {
-      when(mockDio.get('/admin/ledger/reconcile')).thenAnswer(
+      when(
+        mockDio.get(
+          '/reports/inventory/reconciliation',
+          queryParameters: anyNamed('queryParameters'),
+        ),
+      ).thenAnswer(
         (_) async => Response(
-          requestOptions: RequestOptions(path: '/admin/ledger/reconcile'),
+          requestOptions: RequestOptions(
+            path: '/reports/inventory/reconciliation',
+          ),
           statusCode: 200,
           data: [
             {'batch_id': 1, 'drift': 0.5}
