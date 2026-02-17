@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:dropdown_search/dropdown_search.dart';
-import '../services/rejection_service.dart';
+import '../providers/rejection_provider.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
-class RejectionEntryScreen extends StatefulWidget {
+class RejectionEntryScreen extends ConsumerStatefulWidget {
   const RejectionEntryScreen({Key? key}) : super(key: key);
 
   @override
-  State<RejectionEntryScreen> createState() => _RejectionEntryScreenState();
+  ConsumerState<RejectionEntryScreen> createState() =>
+      _RejectionEntryScreenState();
 }
 
-class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
+class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // form fields
@@ -40,7 +42,10 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
 
   Future<void> _loadItems() async {
     try {
-      final items = await RejectionService.fetchItemsWithBatches();
+      final items =
+          await ref
+              .read(rejectionListProvider.notifier)
+              .fetchItemsWithBatches();
       setState(() => _items = items);
     } catch (e) {
       setState(() => _error = e.toString());
@@ -56,7 +61,9 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
       _unit = '';
     });
     try {
-      final all = await RejectionService.fetchBatches(itemId: itemId);
+      final all = await ref
+          .read(rejectionListProvider.notifier)
+          .fetchBatches(itemId: itemId);
       // sort FCFS by received_at
       all.sort((a, b) {
         return DateTime.parse(
@@ -91,15 +98,17 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
 
     setState(() => _submitting = true);
     try {
-      await RejectionService.createRejection(
-        itemId: _selectedItem!['id'] as int,
-        batchId: _selectedBatchId!,
-        quantity: _quantity,
-        unit: _unit,
-        reason: _reason,
-        rejectionDate: DateFormat('yyyy-MM-dd').format(_rejectionDate),
-        rejectedBy: 'currentUser',
-      );
+      await ref
+          .read(rejectionListProvider.notifier)
+          .createRejection(
+            itemId: _selectedItem!['id'] as int,
+            batchId: _selectedBatchId!,
+            quantity: _quantity,
+            unit: _unit,
+            reason: _reason,
+            rejectionDate: DateFormat('yyyy-MM-dd').format(_rejectionDate),
+            rejectedBy: 'currentUser',
+          );
       if (!mounted) return;
       AgroSnackBar.success(context, 'Rejection saved');
       context.pop(true);
