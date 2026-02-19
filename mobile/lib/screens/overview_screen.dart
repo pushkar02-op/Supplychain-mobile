@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 
 import '../providers/admin_ledger_provider.dart';
 import '../providers/auth_provider.dart';
-import '../services/dispatch_service.dart';
-import '../services/order_service.dart';
+import '../providers/dispatch_provider.dart';
+import '../providers/order_provider.dart';
 import '../services/stock_service.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
@@ -50,8 +50,10 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
 
     try {
       final results = await Future.wait([
-        OrderService.fetchOrders(DateTime.now()),
-        DispatchService.fetchDispatches(dispatchDate: todayStr),
+        ref.read(orderListProvider.notifier).fetchOrdersForDate(DateTime.now()),
+        ref
+            .read(dispatchListProvider.notifier)
+            .fetchDispatchesForDate(DateTime.now()),
         StockService.fetchStockEntries(date: todayStr),
       ]);
 
@@ -107,7 +109,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
               : RefreshIndicator(
                 onRefresh: _loadTodayData,
                 child: ListView(
-                  padding: EdgeInsets.all(AgroSpacing.screenPadding),
+                  padding: const EdgeInsets.all(AgroSpacing.screenPadding),
                   children: [
                     // Decision Strip (Available to all users if data exists)
                     if (healthAsync.hasValue && healthAsync.value != null)
@@ -115,27 +117,27 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
 
                     // Date Header
                     Text(todayFormatted, style: AgroTypography.captionEmphasis),
-                    SizedBox(height: AgroSpacing.lg),
+                    const SizedBox(height: AgroSpacing.lg),
 
                     // Today's Operations
-                    Text(
+                    const Text(
                       "Today's Operations",
                       style: AgroTypography.sectionTitle,
                     ),
-                    SizedBox(height: AgroSpacing.sm),
+                    const SizedBox(height: AgroSpacing.sm),
                     _buildOperationsGrid(),
-                    SizedBox(height: AgroSpacing.xl),
+                    const SizedBox(height: AgroSpacing.xl),
 
                     // Quick Actions
-                    Text('Quick Actions', style: AgroTypography.sectionTitle),
-                    SizedBox(height: AgroSpacing.sm),
+                    const Text('Quick Actions', style: AgroTypography.sectionTitle),
+                    const SizedBox(height: AgroSpacing.sm),
                     _buildQuickActions(),
 
                     // Admin Summary (Admin only)
                     if (isAdmin) ...[
-                      SizedBox(height: AgroSpacing.xl),
-                      Text('System Health', style: AgroTypography.sectionTitle),
-                      SizedBox(height: AgroSpacing.sm),
+                      const SizedBox(height: AgroSpacing.xl),
+                      const Text('System Health', style: AgroTypography.sectionTitle),
+                      const SizedBox(height: AgroSpacing.sm),
                       _buildAdminSummary(),
                     ],
                   ],
@@ -170,7 +172,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     const source = 'Ledger Health';
 
     return Padding(
-      padding: EdgeInsets.only(bottom: AgroSpacing.lg),
+      padding: const EdgeInsets.only(bottom: AgroSpacing.lg),
       child: AgroDecisionCard(
         status: agroStatus,
         primaryMessage: primary,
@@ -194,7 +196,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
             onTap: () => context.push('/orders'),
           ),
         ),
-        SizedBox(width: AgroSpacing.md),
+        const SizedBox(width: AgroSpacing.md),
         Expanded(
           child: _MetricCard(
             label: 'Dispatches',
@@ -204,7 +206,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
             onTap: () => context.push('/dispatch-entries'),
           ),
         ),
-        SizedBox(width: AgroSpacing.md),
+        const SizedBox(width: AgroSpacing.md),
         Expanded(
           child: _MetricCard(
             label: 'Stock In',
@@ -252,10 +254,10 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
 
     return healthAsync.when(
       loading:
-          () => AgroCard(
+          () => const AgroCard(
             child: Padding(
               padding: EdgeInsets.all(AgroSpacing.lg),
-              child: const Center(child: CircularProgressIndicator()),
+              child: Center(child: CircularProgressIndicator()),
             ),
           ),
       error: (e, _) {
@@ -287,7 +289,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
           child: Row(
             children: [
               Icon(severity.icon, color: severity.iconColor, size: 32),
-              SizedBox(width: AgroSpacing.lg),
+              const SizedBox(width: AgroSpacing.lg),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,7 +308,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: AgroColors.textDisabled),
+              const Icon(Icons.chevron_right, color: AgroColors.textDisabled),
             ],
           ),
         );
@@ -338,9 +340,9 @@ class _MetricCard extends StatelessWidget {
       child: Column(
         children: [
           Icon(icon, color: color, size: 28),
-          SizedBox(height: AgroSpacing.sm),
+          const SizedBox(height: AgroSpacing.sm),
           Text(value, style: AgroTypography.metricValue.copyWith(color: color)),
-          SizedBox(height: AgroSpacing.xs),
+          const SizedBox(height: AgroSpacing.xs),
           Text(label, style: AgroTypography.metricLabel),
         ],
       ),
@@ -367,7 +369,7 @@ class _ActionChip extends StatelessWidget {
       label: Text(label),
       onPressed: onTap,
       backgroundColor: AgroColors.surface,
-      side: BorderSide(color: AgroColors.divider),
+      side: const BorderSide(color: AgroColors.divider),
     );
   }
 }

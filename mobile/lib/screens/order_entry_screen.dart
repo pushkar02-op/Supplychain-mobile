@@ -1,21 +1,22 @@
 // lib/screens/order_entry_screen.dart
 
-import 'package:dio/dio.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../services/order_service.dart';
+import '../providers/order_provider.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
-class OrderEntryScreen extends StatefulWidget {
+class OrderEntryScreen extends ConsumerStatefulWidget {
   const OrderEntryScreen({super.key});
 
   @override
-  State<OrderEntryScreen> createState() => _OrderEntryScreenState();
+  ConsumerState<OrderEntryScreen> createState() => _OrderEntryScreenState();
 }
 
-class _OrderEntryScreenState extends State<OrderEntryScreen> {
+class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   final _formKey = GlobalKey<FormState>();
 
   DateTime _orderDate = DateTime.now();
@@ -92,7 +93,9 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
       _error = '';
     });
     try {
-      final items = await OrderService.fetchDistinctItemsForMart(martName);
+      final items = await ref
+          .read(orderListProvider.notifier)
+          .fetchDistinctItemsForMart(martName);
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -105,7 +108,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
 
   Future<void> _loadMarts() async {
     try {
-      final marts = await OrderService.fetchMartList();
+      final marts = await ref.read(orderListProvider.notifier).fetchMartList();
       if (!mounted) return;
       setState(() {
         _marts = marts;
@@ -151,45 +154,37 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
 
     try {
       if (_isEdit) {
-        await OrderService.updateOrder(_editingOrder!['id'], payload);
+        await ref
+            .read(orderListProvider.notifier)
+            .updateOrder(_editingOrder!['id'], payload);
       } else {
-        await OrderService.createOrder(
-          itemId: payload['item_id'],
-          martName: payload['mart_name'],
-          orderDate: payload['order_date'],
-          quantityOrdered: payload['quantity_ordered'],
-          unit: payload['unit'],
-        );
+        await ref
+            .read(orderListProvider.notifier)
+            .createOrder(
+              itemId: payload['item_id'],
+              martName: payload['mart_name'],
+              orderDate: payload['order_date'],
+              quantityOrdered: payload['quantity_ordered'],
+              unit: payload['unit'],
+            );
       }
 
       if (!mounted) return;
       setState(() => _isLoading = false);
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isEdit ? 'Order adjusted' : 'Order created'),
-            behavior: SnackBarBehavior.floating,
-          ),
+        AgroSnackBar.success(
+          context,
+          _isEdit ? 'Order adjusted' : 'Order created',
         );
-        context.pop(true);
+        Navigator.pop(context);
       }
-    } on DioException catch (dioErr) {
-      debugPrint('Order create error: ${dioErr.response?.data}');
+    } catch (e) {
+      debugPrint('Order create error: $e');
       setState(() => _isLoading = false);
 
-      final data = dioErr.response?.data['detail'];
-      String msg = 'Something went wrong. Please try again.';
-
-      if (data is String) {
-        msg = data;
-      } else if (data is Map && data['message'] is String) {
-        msg = data['message'];
-      }
-
-      final isDup =
-          dioErr.response?.statusCode == 400 &&
-          msg.toLowerCase().contains('duplicate order');
+      final msg = e.toString();
+      final isDup = msg.toLowerCase().contains('duplicate order');
 
       setState(() {
         _submitError =
@@ -197,11 +192,6 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                 ? "An order for this item, mart, and date already exists."
                 : msg;
         _isDuplicate = isDup;
-      });
-    } catch (e) {
-      setState(() {
-        _submitError = 'Something went wrong. Please try again.';
-        _isLoading = false;
       });
     }
   }
@@ -341,6 +331,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                     // --- Destination Section ---
                     _sectionHeader('Destination'),
                     DropdownButtonFormField<int>(
+                      // ignore: deprecated_member_use
                       value: _selectedMartId,
                       decoration: InputDecoration(
                         labelText: 'Mart',
@@ -430,9 +421,9 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                             fillColor: Colors.white,
                           ),
                         ),
-                        popupProps: PopupProps.dialog(
+                        popupProps: const PopupProps.dialog(
                           showSearchBox: true,
-                          searchFieldProps: const TextFieldProps(
+                          searchFieldProps: TextFieldProps(
                             decoration: InputDecoration(
                               hintText: 'Search item...',
                             ),
@@ -458,6 +449,7 @@ class _OrderEntryScreenState extends State<OrderEntryScreen> {
                       ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
+                      // ignore: deprecated_member_use
                       value: _unit.isNotEmpty ? _unit : null,
                       decoration: InputDecoration(
                         labelText: 'Unit',

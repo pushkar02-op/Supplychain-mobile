@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/stock_list_provider.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/stock_history_sheet.dart';
 
@@ -305,7 +306,7 @@ class StockListScreen extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('You are about to void this receipt:'),
+                const Text('You are about to void this receipt:'),
                 const SizedBox(height: 8),
                 Text(
                   '$itemName — $qty $unit',
@@ -336,14 +337,12 @@ class StockListScreen extends ConsumerWidget {
       try {
         await ref.read(stockListProvider.notifier).deleteStock(stock['id']);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Stock entry voided successfully')),
-          );
+          AgroSnackBar.success(context, 'Stock entry voided successfully');
         }
       } catch (e) {
         if (context.mounted) {
           // Extract message if it's a known format, otherwise show generic
-          String message = e.toString().replaceAll('Exception: ', '');
+          final String message = e.toString().replaceAll('Exception: ', '');
           if (message.contains('Deletion would orphan')) {
             await showDialog(
               context: context,
@@ -365,13 +364,7 @@ class StockListScreen extends ConsumerWidget {
                   ),
             );
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(message),
-                backgroundColor: Colors.red,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            AgroSnackBar.error(context, message);
           }
         }
       }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../services/stock_service.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 import '../widgets/form/custom_date_picker.dart';
 
 /// Screen mode for StockEntryScreen
@@ -44,7 +45,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   // State
   bool _isLoading = false;
   String _error = '';
-  bool _is409Error = false;
+  final bool _is409Error = false;
   List<dynamic> _items = [];
   List<String> _unitOptions = [];
 
@@ -110,16 +111,9 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   }
 
   void _submitReceive() async {
-    if (!_formKey.currentState!.validate() ||
-        _receivedDate == null ||
-        _selectedItem == null) {
+    if (!_formKey.currentState!.validate() || _selectedItem == null) {
       setState(() {
-        _error =
-            _receivedDate == null
-                ? 'Please pick a date'
-                : _selectedItem == null
-                ? 'Please select an item'
-                : '';
+        _error = _selectedItem == null ? 'Please select an item' : '';
       });
       return;
     }
@@ -146,9 +140,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     if (!mounted) return;
 
     if (result == true) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Stock receipt saved')));
+      AgroSnackBar.success(context, 'Stock receipt saved');
       context.pop(true);
     } else {
       setState(() {
@@ -218,9 +210,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     if (!mounted) return;
 
     if (result == true) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Stock corrected')));
+      AgroSnackBar.success(context, 'Stock corrected');
       context.pop(true);
     } else {
       setState(() {
@@ -466,6 +456,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
             // Reason Dropdown
             DropdownButtonFormField<String>(
               decoration: InputDecoration(label: _requiredLabel('Reason')),
+              // ignore: deprecated_member_use
               value: _selectedReason,
               items: const [
                 DropdownMenuItem(
@@ -668,9 +659,9 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                   label: _requiredLabel('Select Item'),
                 ),
               ),
-              popupProps: PopupProps.dialog(
+              popupProps: const PopupProps.dialog(
                 showSearchBox: true,
-                searchFieldProps: const TextFieldProps(
+                searchFieldProps: TextFieldProps(
                   decoration: InputDecoration(hintText: 'Search item...'),
                 ),
               ),
@@ -700,6 +691,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              // ignore: deprecated_member_use
               value: _unit.isNotEmpty ? _unit : null,
               decoration: InputDecoration(label: _requiredLabel('Unit')),
               items:

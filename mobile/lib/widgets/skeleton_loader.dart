@@ -6,11 +6,7 @@ class SkeletonLoader extends StatefulWidget {
   final int itemCount;
   final double itemHeight;
 
-  const SkeletonLoader({
-    super.key,
-    this.itemCount = 5,
-    this.itemHeight = 80,
-  });
+  const SkeletonLoader({super.key, this.itemCount = 5, this.itemHeight = 80});
 
   @override
   State<SkeletonLoader> createState() => _SkeletonLoaderState();
@@ -56,7 +52,7 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
+                    color: Colors.grey.withValues(alpha: 0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -90,7 +86,11 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
     );
   }
 
-  Widget _buildShimmerBox(double width, double height, {bool isCircle = false}) {
+  Widget _buildShimmerBox(
+    double width,
+    double height, {
+    bool isCircle = false,
+  }) {
     return Container(
       width: width,
       height: height,
@@ -100,11 +100,7 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
         gradient: LinearGradient(
           begin: Alignment(_animation.value - 1, 0),
           end: Alignment(_animation.value, 0),
-          colors: [
-            Colors.grey[200]!,
-            Colors.grey[100]!,
-            Colors.grey[200]!,
-          ],
+          colors: [Colors.grey[200]!, Colors.grey[100]!, Colors.grey[200]!],
           stops: const [0.0, 0.5, 1.0],
         ),
       ),

@@ -6,7 +6,8 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/mart_bill.dart';
-import '../services/mart_bill_service.dart';
+import '../providers/mart_bill_provider.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
   final int invoiceId;
@@ -37,11 +38,10 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
     });
 
     try {
-      // Fetch bill details first to get status
-      final bill = await MartBillService.getMartBillById(widget.invoiceId);
+      final notifier = ref.read(martBillProvider.notifier);
+      final bill = await notifier.getBillById(widget.invoiceId);
 
-      // Attempt download
-      final path = await MartBillService.downloadMartBillPdf(widget.invoiceId);
+      final path = await notifier.downloadPdf(widget.invoiceId);
 
       if (!mounted) return;
       setState(() {
@@ -73,27 +73,19 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
 
       if (result != null && result.files.single.path != null) {
         setState(() => _loading = true);
-        await MartBillService.replaceBillPdf(
-          widget.invoiceId,
-          result.files.single.path!,
-        );
+        await ref
+            .read(martBillProvider.notifier)
+            .replacePdf(widget.invoiceId, result.files.single.path!);
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('File re-uploaded successfully!')),
-        );
+        AgroSnackBar.success(context, 'File re-uploaded successfully!');
         // Reload data
         _loadData();
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Re-upload failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AgroSnackBar.error(context, 'Re-upload failed: $e');
     }
   }
 
@@ -184,8 +176,8 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
               width: double.infinity,
               color: Colors.green.shade100,
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              child: Row(
-                children: const [
+              child: const Row(
+                children: [
                   Icon(Icons.lock, size: 16, color: Colors.green),
                   SizedBox(width: 8),
                   Text(

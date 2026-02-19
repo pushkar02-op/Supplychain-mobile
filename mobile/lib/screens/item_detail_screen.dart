@@ -1,111 +1,87 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../services/forecasting_service.dart';
-import '../services/item_service.dart';
+import '../providers/item_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_card.dart';
 import '../widgets/item_forecast_section.dart';
 
-/// Item Detail Screen showing full item information including forecasting.
-///
-/// This screen is READ-ONLY with respect to forecasting data.
-/// All forecasting values come directly from backend, no calculations here.
-class ItemDetailScreen extends StatefulWidget {
+class ItemDetailScreen extends ConsumerWidget {
   final Map<String, dynamic> item;
 
   const ItemDetailScreen({super.key, required this.item});
 
   @override
-  State<ItemDetailScreen> createState() => _ItemDetailScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final itemId = item['id'] as int;
+    final detailAsync = ref.watch(itemDetailProvider(itemId));
 
-class _ItemDetailScreenState extends State<ItemDetailScreen> {
-  List<ItemForecast> forecasts = [];
-  bool isForecastLoading = true;
-  String? forecastError;
-
-  // Alias metrics (Read-Only, Observational)
-  List<Map<String, dynamic>> aliasMetrics = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchForecasts();
-    _fetchAliasMetrics();
-  }
-
-  Future<void> _fetchAliasMetrics() async {
-    final metrics = await ItemService.fetchAliasMetrics();
-    if (!mounted) return;
-    setState(() => aliasMetrics = metrics);
-  }
-
-  Future<void> _fetchForecasts() async {
-    try {
-      final fetchedForecasts =
-          await ForecastingService.fetchForecastingSummary();
-      if (!mounted) return;
-      setState(() {
-        forecasts = fetchedForecasts;
-        isForecastLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        forecastError = e.toString();
-        isForecastLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final item = widget.item;
-
-    return Scaffold(
-      backgroundColor: AgroColors.background,
-      appBar: AppBar(
-        title: Text(item['name'] ?? 'Item Detail'),
-        backgroundColor: AgroColors.surface,
-        foregroundColor: AgroColors.textPrimary,
-        elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(color: AgroColors.dividerLight, height: 1.0),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AgroSpacing.screenPadding,
-          vertical: AgroSpacing.lg,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Lifecycle Panel (Status indicator)
-            _buildLifecyclePanel(item),
-            const SizedBox(height: AgroSpacing.sectionGap),
-
-            _buildIdentitySection(item),
-            const SizedBox(height: AgroSpacing.sectionGap),
-
-            _buildAliasesSection(item),
-            const SizedBox(height: AgroSpacing.sectionGap),
-
-            _buildConversionsSection(item),
-            const SizedBox(height: AgroSpacing.sectionGap),
-
-            _buildForecastingSection(item),
-            const SizedBox(height: AgroSpacing.xl),
-          ],
-        ),
-      ),
+    return detailAsync.when(
+      loading:
+          () => Scaffold(
+            backgroundColor: AgroColors.background,
+            appBar: AppBar(
+              title: Text(item['name'] ?? 'Item Detail'),
+              backgroundColor: AgroColors.surface,
+              foregroundColor: AgroColors.textPrimary,
+              elevation: 0,
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(1.0),
+                child: Container(color: AgroColors.dividerLight, height: 1.0),
+              ),
+            ),
+            body: const Center(child: CircularProgressIndicator()),
+          ),
+      error:
+          (e, _) => Scaffold(
+            appBar: AppBar(title: Text(item['name'] ?? 'Item Detail')),
+            body: Center(child: Text(e.toString())),
+          ),
+      data: (state) {
+        final detailItem = state.item;
+        return Scaffold(
+          backgroundColor: AgroColors.background,
+          appBar: AppBar(
+            title: Text(detailItem['name'] ?? 'Item Detail'),
+            backgroundColor: AgroColors.surface,
+            foregroundColor: AgroColors.textPrimary,
+            elevation: 0,
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1.0),
+              child: Container(color: AgroColors.dividerLight, height: 1.0),
+            ),
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AgroSpacing.screenPadding,
+              vertical: AgroSpacing.lg,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildLifecyclePanel(detailItem),
+                const SizedBox(height: AgroSpacing.sectionGap),
+                _buildIdentitySection(detailItem),
+                const SizedBox(height: AgroSpacing.sectionGap),
+                _buildAliasesSection(state.aliases, state.aliasMetrics),
+                const SizedBox(height: AgroSpacing.sectionGap),
+                _buildConversionsSection(
+                  state.conversions,
+                  detailItem['default_uom_code'] ?? '',
+                ),
+                const SizedBox(height: AgroSpacing.sectionGap),
+                _buildForecastingSection(state),
+                const SizedBox(height: AgroSpacing.xl),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  // 0️⃣ Lifecycle Panel (Status display)
   Widget _buildLifecyclePanel(Map<String, dynamic> item) {
     final status = item['status'] ?? 'ACTIVE';
     final isActive = status == 'ACTIVE';
@@ -155,7 +131,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     );
   }
 
-  // 1️⃣ Identity Section (Top)
   Widget _buildIdentitySection(Map<String, dynamic> item) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,16 +178,16 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     );
   }
 
-  // 2️⃣ Aliases Section — “Naming Memory”
-  Widget _buildAliasesSection(Map<String, dynamic> item) {
-    final aliases = List<Map<String, dynamic>>.from(item['aliases'] ?? []);
-
+  Widget _buildAliasesSection(
+    List<Map<String, dynamic>> aliases,
+    List<Map<String, dynamic>> aliasMetrics,
+  ) {
     if (aliases.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Aliases', style: AgroTypography.sectionTitle),
+        const Text('Aliases', style: AgroTypography.sectionTitle),
         const SizedBox(height: AgroSpacing.sectionHeaderGap),
         AgroCard.outlined(
           padding: EdgeInsets.zero,
@@ -222,8 +197,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                   final index = entry.key;
                   final a = entry.value;
                   final isLast = index == aliases.length - 1;
-
-                  // Find seen_count from aliasMetrics
                   final metric = aliasMetrics.firstWhere(
                     (m) => m['alias_id'] == a['id'],
                     orElse: () => {'seen_count': null},
@@ -285,18 +258,16 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     );
   }
 
-  // 3️⃣ Conversions Section — “Unit Memory”
-  Widget _buildConversionsSection(Map<String, dynamic> item) {
-    final conversions = List<Map<String, dynamic>>.from(
-      item['conversions'] ?? [],
-    );
-
+  Widget _buildConversionsSection(
+    List<Map<String, dynamic>> conversions,
+    String defaultUom,
+  ) {
     if (conversions.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Conversions', style: AgroTypography.sectionTitle),
+        const Text('Conversions', style: AgroTypography.sectionTitle),
         const SizedBox(height: AgroSpacing.sectionHeaderGap),
         AgroCard(
           child: Column(
@@ -313,7 +284,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                         child: Row(
                           children: [
                             Text(
-                              '1 ${item['default_uom_code'] ?? ''}',
+                              '1 $defaultUom',
                               style: AgroTypography.bodySecondary,
                             ),
                             const Padding(
@@ -345,19 +316,16 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     );
   }
 
-  // 4️⃣ Forecasting / Decision Section
-  // Visually separated operational signal
-  Widget _buildForecastingSection(Map<String, dynamic> item) {
-    final itemId = item['id'] as int;
+  Widget _buildForecastingSection(ItemDetailState state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Operational Signal', style: AgroTypography.sectionTitle),
+        const Text('Operational Signal', style: AgroTypography.sectionTitle),
         const SizedBox(height: AgroSpacing.sectionHeaderGap),
         ItemForecastSection(
-          forecast: ForecastingService.getItemForecast(forecasts, itemId),
-          isLoading: isForecastLoading,
-          error: forecastError,
+          forecast: state.forecast,
+          isLoading: state.isLoading,
+          error: state.forecastError,
         ),
       ],
     );

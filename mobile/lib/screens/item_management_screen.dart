@@ -2,23 +2,26 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../services/item_service.dart';
+import '../providers/item_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_section.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
-class ItemManagementScreen extends StatefulWidget {
+class ItemManagementScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? data;
   const ItemManagementScreen({super.key, this.data});
 
   @override
-  State<ItemManagementScreen> createState() => _ItemManagementScreenState();
+  ConsumerState<ItemManagementScreen> createState() =>
+      _ItemManagementScreenState();
 }
 
-class _ItemManagementScreenState extends State<ItemManagementScreen> {
+class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
   final _formKey = GlobalKey<FormState>();
 
   String name = '';
@@ -51,8 +54,12 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
 
   Future<void> _fetchData() async {
     try {
-      final fetchedUoms = await ItemService.fetchUOMs();
-      final unmappedBillItems = await ItemService.fetchUnmappedMartBillItems();
+      final fetchedUoms =
+          await ref.read(itemAliasProvider.notifier).fetchUOMs();
+      final unmappedBillItems =
+          await ref
+              .read(itemAliasProvider.notifier)
+              .fetchUnmappedMartBillItems();
 
       // Transform unmapped items to look like aliases for the UI
       final unmappedAsAliases =
@@ -70,7 +77,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       creationIntent = currentItem?['creation_intent'];
 
       // Use code for UOM if available, else id
-      String? defaultUomCode = currentItem?['default_uom_code'];
+      final String? defaultUomCode = currentItem?['default_uom_code'];
       defaultUomId =
           defaultUomCode != null
               ? fetchedUoms.firstWhere(
@@ -104,8 +111,9 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       });
 
       // Generate conversions only for new item
-      if (widget.data == null || widget.data?['id'] == null)
+      if (widget.data == null || widget.data?['id'] == null) {
         _generateConversions();
+      }
     } catch (e) {
       setState(() {
         error = e.toString();
@@ -160,7 +168,9 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       uomCode = u['code'];
     }
 
-    final results = await ItemService.checkSimilarity(name, uomCode);
+    final results = await ref
+        .read(itemAliasProvider.notifier)
+        .checkSimilarity(name, uomCode);
     if (!mounted) return;
     setState(() {
       // Filter out self if editing
@@ -198,12 +208,12 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
         'conversions': conversions,
       };
 
-      final newItem = await ItemService.createOrUpdateItem(payload);
+      final newItem = await ref
+          .read(itemAliasProvider.notifier)
+          .createOrUpdateItem(payload);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Item saved successfully')));
+      AgroSnackBar.success(context, 'Item saved successfully');
       context.pop(newItem);
     } catch (e) {
       setState(() {
@@ -222,7 +232,9 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
     // Phase 1 Guardrail: Intent Selection for NEW items
     if ((widget.data == null || widget.data?['id'] == null) &&
         creationIntent == null) {
-      return _buildIntentSelection();
+      return _IntentSelectionScreen(
+        onIntentSelected: (value) => setState(() => creationIntent = value),
+      );
     }
 
     return Scaffold(
@@ -289,88 +301,86 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            ...similarItems
-                                .map(
-                                  (item) => Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 4,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item['name'],
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                              Text(
-                                                "${item['default_unit']} • ${item['alias_count']} aliases",
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        if (item['has_stock'] == true)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.green.shade100,
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              "In Stock",
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: Colors.green.shade800,
-                                              ),
-                                            ),
-                                          )
-                                        else
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey.shade200,
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              "Never Used",
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: Colors.grey.shade600,
-                                              ),
+                            ...similarItems.map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item['name'],
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w500,
                                             ),
                                           ),
-                                        TextButton(
-                                          child: const Text("View"),
-                                          onPressed: () {
-                                            context.push(
-                                              '/items/${item['id']}',
-                                            );
-                                          },
-                                        ),
-                                      ],
+                                          Text(
+                                            "${item['default_unit']} • ${item['alias_count']} aliases",
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                )
-                                .toList(),
+                                    if (item['has_stock'] == true)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade100,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          "In Stock",
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.green.shade800,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          "Never Used",
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ),
+                                    TextButton(
+                                      child: const Text("View"),
+                                      onPressed: () {
+                                        context.push('/items/${item['id']}');
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -381,6 +391,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Default UOM',
                       ),
+                      // ignore: deprecated_member_use
                       value: defaultUomId,
                       items:
                           uoms
@@ -402,7 +413,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                 ),
               ),
 
-              SizedBox(height: AgroSpacing.sectionGap),
+              const SizedBox(height: AgroSpacing.sectionGap),
 
               // ═══════════════════════════════════════════════════════════════
               // SECTION 2: UNITS & CONVERSIONS — How is it measured?
@@ -487,7 +498,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
+                                    const Text(
                                       "Existing conversions for this item:",
                                       style: AgroTypography.captionEmphasis,
                                     ),
@@ -581,7 +592,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                 ),
               ),
 
-              SizedBox(height: AgroSpacing.sectionGap),
+              const SizedBox(height: AgroSpacing.sectionGap),
 
               // ═══════════════════════════════════════════════════════════════
               // SECTION 3: NAMING & ALIASES — How does it appear externally?
@@ -626,6 +637,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                             return AlertDialog(
                               title: const Text('Select Unmapped Alias'),
                               content: DropdownButtonFormField<int>(
+                                // ignore: deprecated_member_use
                                 value: tempSelected,
                                 items:
                                     fetchedAliases
@@ -679,14 +691,19 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
                 ),
               ),
 
-              SizedBox(height: AgroSpacing.sectionGap),
+              const SizedBox(height: AgroSpacing.sectionGap),
 
               // ═══════════════════════════════════════════════════════════════
               // LIFECYCLE ACTIONS — Only for existing items (Edit mode)
               // ═══════════════════════════════════════════════════════════════
               if (widget.data != null && widget.data?['id'] != null) ...[
-                _buildLifecycleActions(),
-                SizedBox(height: AgroSpacing.md),
+                _ItemLifecycleActions(
+                  data: widget.data!,
+                  isSaving: isSaving,
+                  onSavingChanged: (v) => setState(() => isSaving = v),
+                  onError: (e) => setState(() => error = e),
+                ),
+                const SizedBox(height: AgroSpacing.md),
               ],
 
               // ═══════════════════════════════════════════════════════════════
@@ -705,8 +722,17 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       ),
     );
   }
+}
 
-  Widget _buildIntentSelection() {
+// ── Private Extracted Widgets ────────────────────────────────────────
+
+class _IntentSelectionScreen extends StatelessWidget {
+  final ValueChanged<String> onIntentSelected;
+
+  const _IntentSelectionScreen({required this.onIntentSelected});
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Create Item")),
       body: Padding(
@@ -726,41 +752,46 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-
-            _buildIntentCard(
+            _IntentCard(
               title: "Regular Item",
               subtitle: "Used frequently in stock and dispatch.",
               icon: Icons.inventory_2,
-              value: "REGULAR",
+              onTap: () => onIntentSelected("REGULAR"),
             ),
             const SizedBox(height: 16),
-            _buildIntentCard(
+            _IntentCard(
               title: "One-off Item",
               subtitle: "Unlikely to appear again.",
               icon: Icons.filter_1,
-              value: "ONE_OFF",
+              onTap: () => onIntentSelected("ONE_OFF"),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildIntentCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required String value,
-  }) {
+class _IntentCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _IntentCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () {
-          setState(() {
-            creationIntent = value;
-          });
-        },
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -798,15 +829,29 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       ),
     );
   }
+}
 
-  // 6️⃣ Lifecycle Actions
-  Widget _buildLifecycleActions() {
-    final status = widget.data?['status'] ?? 'ACTIVE';
+class _ItemLifecycleActions extends ConsumerWidget {
+  final Map<String, dynamic> data;
+  final bool isSaving;
+  final ValueChanged<bool> onSavingChanged;
+  final ValueChanged<String> onError;
+
+  const _ItemLifecycleActions({
+    required this.data,
+    required this.isSaving,
+    required this.onSavingChanged,
+    required this.onError,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = data['status'] ?? 'ACTIVE';
     final isActive = status == 'ACTIVE';
 
     if (isActive) {
       return OutlinedButton.icon(
-        onPressed: _confirmDeactivate,
+        onPressed: isSaving ? null : () => _confirmDeactivate(context, ref),
         icon: Icon(Icons.archive, color: AgroColors.critical.text),
         label: Text(
           'Deactivate Item',
@@ -819,7 +864,7 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
       );
     } else {
       return ElevatedButton.icon(
-        onPressed: _reactivateItem,
+        onPressed: isSaving ? null : () => _reactivateItem(context, ref),
         icon: const Icon(Icons.restore_from_trash),
         label: const Text('Reactivate Item'),
         style: ElevatedButton.styleFrom(
@@ -831,14 +876,15 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
     }
   }
 
-  Future<void> _confirmDeactivate() async {
+  Future<void> _confirmDeactivate(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (ctx) => AlertDialog(
             title: const Text('Deactivate Item?'),
             content: const Text(
-              'This will mark the item as inactive. It will be hidden from default lists but history is preserved. You can reactivate it later.',
+              'This will mark the item as inactive. It will be hidden from '
+              'default lists but history is preserved. You can reactivate it later.',
             ),
             actions: [
               TextButton(
@@ -857,36 +903,32 @@ class _ItemManagementScreenState extends State<ItemManagementScreen> {
     );
 
     if (confirmed == true) {
-      setState(() => isSaving = true);
-      // Validated by call site
-      final id = widget.data!['id'];
-      final res = await ItemService.deactivateItem(id);
-      if (!mounted) return;
-      setState(() => isSaving = false);
+      onSavingChanged(true);
+      final id = data['id'];
+      final res = await ref.read(itemLifecycleProvider.notifier).deactivate(id);
+      if (!context.mounted) return;
+      onSavingChanged(false);
 
       if (res != null) {
         Navigator.pop(context, true);
       } else {
-        setState(() => error = 'Failed to deactivate item');
+        onError('Failed to deactivate item');
       }
     }
   }
 
-  Future<void> _reactivateItem() async {
-    setState(() => isSaving = true);
-    // Validated by call site
-    final id = widget.data!['id'];
-    final res = await ItemService.reactivateItem(id);
-    if (!mounted) return;
-    setState(() => isSaving = false);
+  Future<void> _reactivateItem(BuildContext context, WidgetRef ref) async {
+    onSavingChanged(true);
+    final id = data['id'];
+    final res = await ref.read(itemLifecycleProvider.notifier).reactivate(id);
+    if (!context.mounted) return;
+    onSavingChanged(false);
 
     if (res != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item reactivated successfully')),
-      );
+      AgroSnackBar.success(context, 'Item reactivated successfully');
       Navigator.pop(context, true);
     } else {
-      setState(() => error = 'Failed to reactivate item');
+      onError('Failed to reactivate item');
     }
   }
 }

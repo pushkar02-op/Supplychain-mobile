@@ -1,17 +1,18 @@
 // lib/screens/dispatch_entry_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../services/dispatch_service.dart';
+import '../providers/dispatch_provider.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
-class CreateOrEditDispatchScreen extends StatefulWidget {
+class CreateOrEditDispatchScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? data;
   const CreateOrEditDispatchScreen({super.key, this.data});
 
   @override
-  State<CreateOrEditDispatchScreen> createState() =>
+  ConsumerState<CreateOrEditDispatchScreen> createState() =>
       _CreateOrEditDispatchScreenState();
 }
 
@@ -33,7 +34,7 @@ class _BatchRow {
 }
 
 class _CreateOrEditDispatchScreenState
-    extends State<CreateOrEditDispatchScreen> {
+    extends ConsumerState<CreateOrEditDispatchScreen> {
   final _formKey = GlobalKey<FormState>();
   final _remarksCtl = TextEditingController();
 
@@ -68,7 +69,9 @@ class _CreateOrEditDispatchScreenState
 
   Future<void> _loadBatches() async {
     try {
-      final all = await DispatchService.fetchBatches(itemId: _itemId);
+      final all = await ref
+          .read(dispatchListProvider.notifier)
+          .fetchBatches(itemId: _itemId);
       final remaining = (_orderQuantity - _alreadyDispatched).clamp(
         0.0,
         double.infinity,
@@ -195,12 +198,10 @@ class _CreateOrEditDispatchScreenState
       if (widget.data!['id'] != null) {
         throw Exception('Editing dispatch entries is not allowed.');
       }
-      await DispatchService.createDispatch(payload);
+      await ref.read(dispatchListProvider.notifier).createDispatch(payload);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dispatch saved successfully')),
-      );
-      context.pop(true);
+      AgroSnackBar.success(context, 'Dispatch saved successfully');
+      Navigator.pop(context);
     } catch (e) {
       if (mounted) {
         setState(() {

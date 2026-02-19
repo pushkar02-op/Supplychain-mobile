@@ -9,7 +9,7 @@ class StockService {
     try {
       final resp = await DioClient.instance.get('/item/');
       return resp.data as List<dynamic>;
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       throw Exception(
         'Failed to load items: ${e.response?.statusMessage ?? e.message}',
       );
@@ -47,7 +47,7 @@ class StockService {
       );
       if (resp.statusCode == 201) return true;
       return resp.data['detail'] ?? 'Unknown error';
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       return e.response?.data['detail'] ?? 'Error: ${e.message}';
     }
   }
@@ -60,7 +60,7 @@ class StockService {
         queryParameters: {'date': date, 'skip': 0, 'limit': 100},
       );
       return resp.data as List<dynamic>;
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       throw Exception(
         'Failed to load stock entries: ${e.response?.statusMessage ?? e.message}',
       );
@@ -71,7 +71,7 @@ class StockService {
   static Future<void> deleteStockEntry(int stockEntryId) async {
     try {
       await DioClient.instance.delete('/stock-entry/$stockEntryId');
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       throw Exception(
         'Failed to delete stock entry: ${e.response?.statusMessage ?? e.message}',
       );
@@ -101,7 +101,7 @@ class StockService {
       );
       if (resp.statusCode == 200 || resp.statusCode == 201) return true;
       return resp.data['detail'] ?? 'Unknown error';
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       return e.response?.data['detail'] ?? 'Error: ${e.message}';
     }
   }
@@ -113,7 +113,7 @@ class StockService {
         '/stock-entry/$stockEntryId/history',
       );
       return StockHistoryResponse.fromJson(resp.data);
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       throw Exception(
         'Failed to load history: ${e.response?.statusMessage ?? e.message}',
       );

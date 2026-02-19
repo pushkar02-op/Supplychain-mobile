@@ -41,10 +41,10 @@ class AdminInventoryDriftScreen extends ConsumerWidget {
             );
           }
           return ListView.separated(
-            padding: EdgeInsets.all(AgroSpacing.sm),
+            padding: const EdgeInsets.all(AgroSpacing.sm),
             itemCount: report.length,
             separatorBuilder:
-                (context, index) => SizedBox(height: AgroSpacing.sm),
+                (context, index) => const SizedBox(height: AgroSpacing.sm),
             itemBuilder: (context, index) {
               final item = report[index];
               return _DriftItemCard(item: item);
@@ -103,7 +103,7 @@ class _DriftItemCard extends StatelessWidget {
           },
           borderRadius: AgroShapes.cardRadius,
           child: Padding(
-            padding: EdgeInsets.all(AgroSpacing.md),
+            padding: const EdgeInsets.all(AgroSpacing.md),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -117,21 +117,21 @@ class _DriftItemCard extends StatelessWidget {
                     AgroStatusBadge.fromDriftSeverity(severity),
                   ],
                 ),
-                Divider(color: AgroColors.divider),
+                const Divider(color: AgroColors.divider),
                 // Available (Batch) row
                 AgroKeyValueRow(
                   label: 'Available (Batch)',
                   value: '$available',
                 ),
-                SizedBox(height: AgroSpacing.xs),
+                const SizedBox(height: AgroSpacing.xs),
                 // Ledger row
                 AgroKeyValueRow(label: 'Ledger', value: '$ledger'),
-                Divider(color: AgroColors.divider),
+                const Divider(color: AgroColors.divider),
                 // Net Drift row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('NET DRIFT:', style: AgroTypography.emphasis),
+                    const Text('NET DRIFT:', style: AgroTypography.emphasis),
                     Text(
                       delta > 0
                           ? '+${delta.toStringAsFixed(3)}'

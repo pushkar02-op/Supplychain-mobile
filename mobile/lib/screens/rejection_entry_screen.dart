@@ -1,17 +1,21 @@
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:dropdown_search/dropdown_search.dart';
-import '../services/rejection_service.dart';
 
-class RejectionEntryScreen extends StatefulWidget {
-  const RejectionEntryScreen({Key? key}) : super(key: key);
+import '../providers/rejection_provider.dart';
+import '../ui/widgets/agro_snack_bar.dart';
+
+class RejectionEntryScreen extends ConsumerStatefulWidget {
+  const RejectionEntryScreen({super.key});
 
   @override
-  State<RejectionEntryScreen> createState() => _RejectionEntryScreenState();
+  ConsumerState<RejectionEntryScreen> createState() =>
+      _RejectionEntryScreenState();
 }
 
-class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
+class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // form fields
@@ -39,7 +43,10 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
 
   Future<void> _loadItems() async {
     try {
-      final items = await RejectionService.fetchItemsWithBatches();
+      final items =
+          await ref
+              .read(rejectionListProvider.notifier)
+              .fetchItemsWithBatches();
       setState(() => _items = items);
     } catch (e) {
       setState(() => _error = e.toString());
@@ -55,7 +62,9 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
       _unit = '';
     });
     try {
-      final all = await RejectionService.fetchBatches(itemId: itemId);
+      final all = await ref
+          .read(rejectionListProvider.notifier)
+          .fetchBatches(itemId: itemId);
       // sort FCFS by received_at
       all.sort((a, b) {
         return DateTime.parse(
@@ -84,25 +93,26 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() ||
         _selectedItem == null ||
-        _selectedBatchId == null)
+        _selectedBatchId == null) {
       return;
+    }
     _formKey.currentState!.save();
 
     setState(() => _submitting = true);
     try {
-      await RejectionService.createRejection(
-        itemId: _selectedItem!['id'] as int,
-        batchId: _selectedBatchId!,
-        quantity: _quantity,
-        unit: _unit,
-        reason: _reason,
-        rejectionDate: DateFormat('yyyy-MM-dd').format(_rejectionDate),
-        rejectedBy: 'currentUser',
-      );
+      await ref
+          .read(rejectionListProvider.notifier)
+          .createRejection(
+            itemId: _selectedItem!['id'] as int,
+            batchId: _selectedBatchId!,
+            quantity: _quantity,
+            unit: _unit,
+            reason: _reason,
+            rejectionDate: DateFormat('yyyy-MM-dd').format(_rejectionDate),
+            rejectedBy: 'currentUser',
+          );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Rejection saved')));
+      AgroSnackBar.success(context, 'Rejection saved');
       context.pop(true);
     } catch (e) {
       setState(() => _error = e.toString());
@@ -133,8 +143,8 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
                       DropdownSearch<Map<String, dynamic>>(
                         items: _items,
                         itemAsString: (i) => i['name'] as String,
-                        dropdownDecoratorProps: DropDownDecoratorProps(
-                          dropdownSearchDecoration: const InputDecoration(
+                        dropdownDecoratorProps: const DropDownDecoratorProps(
+                          dropdownSearchDecoration: InputDecoration(
                             labelText: 'Item *',
                             border: OutlineInputBorder(),
                           ),
@@ -160,6 +170,7 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
                       _loadingBatches
                           ? const Center(child: CircularProgressIndicator())
                           : DropdownButtonFormField<int>(
+                            // ignore: deprecated_member_use
                             value: _selectedBatchId,
                             decoration: const InputDecoration(
                               labelText: 'Batch *',
@@ -208,10 +219,12 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
                         ),
                         validator: (v) {
                           final val = double.tryParse(v ?? '');
-                          if (val == null || val <= 0)
+                          if (val == null || val <= 0) {
                             return 'Enter a valid qty';
-                          if (val > _available)
+                          }
+                          if (val > _available) {
                             return 'Cannot exceed available';
+                          }
                           return null;
                         },
                         onSaved: (v) => _quantity = double.parse(v!),
@@ -250,15 +263,15 @@ class _RejectionEntryScreenState extends State<RejectionEntryScreen> {
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _submitting ? null : _submit,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
                           child:
                               _submitting
                                   ? const CircularProgressIndicator(
                                     color: Colors.white,
                                   )
                                   : const Text('Submit'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
                         ),
                       ),
                     ],

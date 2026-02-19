@@ -22,7 +22,7 @@ class AdminDiagnosticsRepository {
   AppException _handleError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {
-      return NetworkException('Connection timed out');
+      return const NetworkException('Connection timed out');
     }
 
     if (error.response != null) {
@@ -36,7 +36,7 @@ class AdminDiagnosticsRepository {
         return UnauthorizedException(message);
       }
       if (statusCode == 403) {
-        return UnauthorizedException('Access Denied: Admin privileges required.');
+        return const UnauthorizedException('Access Denied: Admin privileges required.');
       }
       if (statusCode! >= 500) {
         return ServerException('Server Error: $message');

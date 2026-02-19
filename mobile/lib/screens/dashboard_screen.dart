@@ -35,66 +35,66 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(AgroSpacing.screenPadding),
+        padding: const EdgeInsets.all(AgroSpacing.screenPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Daily Operations Section
-            Text('Daily Operations', style: AgroTypography.sectionTitle),
-            SizedBox(height: AgroSpacing.md),
-            _NavCard(
+            const Text('Daily Operations', style: AgroTypography.sectionTitle),
+            const SizedBox(height: AgroSpacing.md),
+            const _NavCard(
               icon: Icons.inventory_2,
               label: 'Stock',
               subtitle: 'Add and manage stock entries',
               route: '/stock-list',
               color: Colors.green,
             ),
-            SizedBox(height: AgroSpacing.md),
-            _NavCard(
+            const SizedBox(height: AgroSpacing.md),
+            const _NavCard(
               icon: Icons.assignment,
               label: 'Orders',
               subtitle: 'View and create daily orders',
               route: '/orders',
               color: Colors.blue,
             ),
-            SizedBox(height: AgroSpacing.md),
-            _NavCard(
+            const SizedBox(height: AgroSpacing.md),
+            const _NavCard(
               icon: Icons.local_shipping,
               label: 'Dispatch',
               subtitle: 'Track dispatch entries',
               route: '/dispatch-entries',
               color: Colors.orange,
             ),
-            SizedBox(height: AgroSpacing.md),
-            _NavCard(
+            const SizedBox(height: AgroSpacing.md),
+            const _NavCard(
               icon: Icons.receipt_long,
               label: 'Mart Bills',
               subtitle: 'Upload and manage mart bills',
               route: '/mart-bills',
               color: Colors.purple,
             ),
-            SizedBox(height: AgroSpacing.xl),
+            const SizedBox(height: AgroSpacing.xl),
 
             // Reference Section
-            Text('Reference', style: AgroTypography.sectionTitle),
-            SizedBox(height: AgroSpacing.md),
-            _NavCard(
+            const Text('Reference', style: AgroTypography.sectionTitle),
+            const SizedBox(height: AgroSpacing.md),
+            const _NavCard(
               icon: Icons.warehouse,
               label: 'Inventory',
               subtitle: 'View current stock levels',
               route: '/inventory',
               color: Colors.teal,
             ),
-            SizedBox(height: AgroSpacing.md),
-            _NavCard(
+            const SizedBox(height: AgroSpacing.md),
+            const _NavCard(
               icon: Icons.category,
               label: 'Items',
               subtitle: 'Manage item catalog',
               route: '/items',
               color: Colors.indigo,
             ),
-            SizedBox(height: AgroSpacing.md),
-            _NavCard(
+            const SizedBox(height: AgroSpacing.md),
+            const _NavCard(
               icon: Icons.cancel,
               label: 'Rejections',
               subtitle: 'Track rejected items',
@@ -110,7 +110,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
                 if (!isAdmin) return const SizedBox.shrink();
 
-                return Column(
+                return const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(height: AgroSpacing.xl),
@@ -191,7 +191,7 @@ class _NavCard extends StatelessWidget {
         children: [
           // Icon container with color tint
           Container(
-            padding: EdgeInsets.all(AgroSpacing.md),
+            padding: const EdgeInsets.all(AgroSpacing.md),
             decoration: BoxDecoration(
               color: Color.fromRGBO(
                 (color.r * 255).round(),
@@ -203,7 +203,7 @@ class _NavCard extends StatelessWidget {
             ),
             child: Icon(icon, color: color, size: 28),
           ),
-          SizedBox(width: AgroSpacing.lg),
+          const SizedBox(width: AgroSpacing.lg),
           // Text content
           Expanded(
             child: Column(
@@ -215,7 +215,7 @@ class _NavCard extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.chevron_right, color: AgroColors.textDisabled),
+          const Icon(Icons.chevron_right, color: AgroColors.textDisabled),
         ],
       ),
     );

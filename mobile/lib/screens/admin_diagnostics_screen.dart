@@ -34,12 +34,12 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.all(AgroSpacing.screenPadding),
+          padding: const EdgeInsets.all(AgroSpacing.screenPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(),
-              SizedBox(height: AgroSpacing.xl),
+              const SizedBox(height: AgroSpacing.xl),
               _buildUOMSection(context, ref, missingItemsAsync),
             ],
           ),
@@ -52,7 +52,7 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
     final severity = AgroSeverity.fromStatus(AgroStatus.info);
 
     return Container(
-      padding: EdgeInsets.all(AgroSpacing.lg),
+      padding: const EdgeInsets.all(AgroSpacing.lg),
       decoration: BoxDecoration(
         color: severity.backgroundColor,
         borderRadius: AgroShapes.cardRadius,
@@ -65,7 +65,7 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
             color: severity.iconColor,
             size: 28,
           ),
-          SizedBox(width: AgroSpacing.lg),
+          const SizedBox(width: AgroSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,7 +76,7 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
                     color: severity.textColor,
                   ),
                 ),
-                SizedBox(height: AgroSpacing.xs),
+                const SizedBox(height: AgroSpacing.xs),
                 Text(
                   'Read-only diagnostic data. Contact support to resolve configuration issues.',
                   style: AgroTypography.caption.copyWith(
@@ -114,16 +114,16 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: items.length,
-            separatorBuilder: (_, __) => SizedBox(height: AgroSpacing.md),
+            separatorBuilder: (_, __) => const SizedBox(height: AgroSpacing.md),
             itemBuilder: (context, index) {
               return _DiagnosticItemCard(item: items[index]);
             },
           );
         },
         loading:
-            () => Padding(
+            () => const Padding(
               padding: EdgeInsets.all(AgroSpacing.xxl),
-              child: const Center(child: CircularProgressIndicator()),
+              child: Center(child: CircularProgressIndicator()),
             ),
         error:
             (err, stack) => AgroErrorState(
@@ -148,13 +148,13 @@ class _DiagnosticItemCard extends StatelessWidget {
 
     return AgroCard.outlined(
       borderColor: warningSeverity.borderColor,
-      padding: EdgeInsets.all(AgroSpacing.lg),
+      padding: const EdgeInsets.all(AgroSpacing.lg),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Warning icon container
           Container(
-            padding: EdgeInsets.all(AgroSpacing.sm + 2), // 10px
+            padding: const EdgeInsets.all(AgroSpacing.sm + 2), // 10px
             decoration: BoxDecoration(
               color: warningSeverity.backgroundColor,
               borderRadius: AgroShapes.containerRadius,
@@ -165,7 +165,7 @@ class _DiagnosticItemCard extends StatelessWidget {
               size: 24,
             ),
           ),
-          SizedBox(width: AgroSpacing.lg),
+          const SizedBox(width: AgroSpacing.lg),
           // Content
           Expanded(
             child: Column(
@@ -175,17 +175,17 @@ class _DiagnosticItemCard extends StatelessWidget {
                   item['name'] ?? 'Unknown Item',
                   style: AgroTypography.cardTitle,
                 ),
-                SizedBox(height: AgroSpacing.xs),
+                const SizedBox(height: AgroSpacing.xs),
                 Text(
                   'ID: ${item['id']} • Code: ${item['item_code'] ?? 'N/A'}',
                   style: AgroTypography.caption.copyWith(
                     fontFamily: 'Monospace',
                   ),
                 ),
-                SizedBox(height: AgroSpacing.sm),
+                const SizedBox(height: AgroSpacing.sm),
                 // Blocked badge
                 Container(
-                  padding: EdgeInsets.symmetric(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: AgroSpacing.sm,
                     vertical: AgroSpacing.xs,
                   ),

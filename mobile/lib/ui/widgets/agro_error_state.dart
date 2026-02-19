@@ -76,13 +76,13 @@ class AgroErrorState extends StatelessWidget {
 
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(AgroSpacing.lg),
+        padding: const EdgeInsets.all(AgroSpacing.lg),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: iconSize, color: severity.iconColor),
-            SizedBox(height: AgroSpacing.md),
+            const SizedBox(height: AgroSpacing.md),
             Text(
               title,
               style: AgroTypography.cardTitle.copyWith(
@@ -91,7 +91,7 @@ class AgroErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             if (message != null) ...[
-              SizedBox(height: AgroSpacing.sm),
+              const SizedBox(height: AgroSpacing.sm),
               Text(
                 message!,
                 style: AgroTypography.bodySecondary,
@@ -99,7 +99,7 @@ class AgroErrorState extends StatelessWidget {
               ),
             ],
             if (onRetry != null) ...[
-              SizedBox(height: AgroSpacing.lg),
+              const SizedBox(height: AgroSpacing.lg),
               TextButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh, size: 18),

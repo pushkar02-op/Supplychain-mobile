@@ -225,7 +225,7 @@ class _StockHistorySheetState extends State<StockHistorySheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Time Column
-        SizedBox(
+        const SizedBox(
           width: 0,
           // Actually, let's put date inside content for density on mobile
         ),

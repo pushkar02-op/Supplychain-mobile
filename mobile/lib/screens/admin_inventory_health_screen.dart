@@ -51,7 +51,7 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
     final severityStyle = AgroSeverity.fromStatus(healthStatus);
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(AgroSpacing.screenPadding),
+      padding: const EdgeInsets.all(AgroSpacing.screenPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -61,7 +61,7 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
             isHealthy: isHealthy,
             severityStyle: severityStyle,
           ),
-          SizedBox(height: AgroSpacing.xl),
+          const SizedBox(height: AgroSpacing.xl),
 
           // Metrics Grid
           GridView.count(
@@ -94,7 +94,7 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
             ],
           ),
 
-          SizedBox(height: AgroSpacing.xxl),
+          const SizedBox(height: AgroSpacing.xxl),
 
           // Action Button
           if (!isHealthy)
@@ -105,11 +105,11 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: AgroColors.critical.background,
                 foregroundColor: AgroColors.critical.text,
-                padding: EdgeInsets.all(AgroSpacing.lg),
+                padding: const EdgeInsets.all(AgroSpacing.lg),
               ),
             )
           else
-            Center(
+            const Center(
               child: Text(
                 'All systems nominal. No reconciliation actions required.',
                 style: AgroTypography.caption,
@@ -141,7 +141,7 @@ class _HealthStatusCard extends StatelessWidget {
         borderRadius: AgroShapes.cardRadius,
         border: Border.all(color: severityStyle.borderColor),
       ),
-      padding: EdgeInsets.all(AgroSpacing.xl),
+      padding: const EdgeInsets.all(AgroSpacing.xl),
       child: Column(
         children: [
           Icon(
@@ -149,7 +149,7 @@ class _HealthStatusCard extends StatelessWidget {
             size: 48,
             color: severityStyle.iconColor,
           ),
-          SizedBox(height: AgroSpacing.lg),
+          const SizedBox(height: AgroSpacing.lg),
           Text(
             'System Status: ${status.toUpperCase()}',
             style: AgroTypography.cardTitle.copyWith(
@@ -184,14 +184,14 @@ class _HealthMetricCard extends StatelessWidget {
     return AgroCard.outlined(
       borderColor: severityStyle.borderColor,
       child: Padding(
-        padding: EdgeInsets.all(AgroSpacing.lg),
+        padding: const EdgeInsets.all(AgroSpacing.lg),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 32, color: severityStyle.iconColor),
-            SizedBox(height: AgroSpacing.sm),
+            const SizedBox(height: AgroSpacing.sm),
             Text(value, style: AgroTypography.metricValue),
-            SizedBox(height: AgroSpacing.xs),
+            const SizedBox(height: AgroSpacing.xs),
             Text(
               title,
               textAlign: TextAlign.center,

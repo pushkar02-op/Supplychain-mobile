@@ -78,7 +78,7 @@ class AgroMetricsGrid extends StatelessWidget {
     }
 
     return Container(
-      padding: EdgeInsets.all(AgroSpacing.md),
+      padding: const EdgeInsets.all(AgroSpacing.md),
       decoration: BoxDecoration(
         color: AgroColors.surfaceVariant,
         borderRadius: AgroShapes.containerRadius,

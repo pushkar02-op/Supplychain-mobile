@@ -1,115 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../services/rejection_service.dart';
+import '../providers/rejection_provider.dart';
+import '../ui/widgets/agro_error_state.dart';
+import '../ui/widgets/agro_snack_bar.dart';
 
-class RejectionListScreen extends StatefulWidget {
+class RejectionListScreen extends ConsumerStatefulWidget {
   const RejectionListScreen({super.key});
 
   @override
-  State<RejectionListScreen> createState() => _RejectionListScreenState();
+  ConsumerState<RejectionListScreen> createState() =>
+      _RejectionListScreenState();
 }
 
-class _RejectionListScreenState extends State<RejectionListScreen> {
-  DateTime _selectedDate = DateTime.now();
-  List<Map<String, dynamic>> _items = [];
-  int? _selectedItemId;
-  List<Map<String, dynamic>> _rejections = [];
-
-  bool _isLoading = false;
-  int _skip = 0;
-  final int _limit = 50;
-  bool _hasMore = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadItems();
-    _loadRejections(reset: true);
-  }
-
-  Future<void> _pickDate() async {
+class _RejectionListScreenState extends ConsumerState<RejectionListScreen> {
+  Future<void> _pickDate(DateTime selectedDate) async {
     final today = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
+      initialDate: selectedDate,
       firstDate: DateTime(today.year - 1),
       lastDate: today,
     );
     if (picked != null) {
-      setState(() => _selectedDate = picked);
-      _loadRejections(reset: true);
+      await ref.read(rejectionListProvider.notifier).setDate(picked);
     }
   }
 
-  Future<void> _loadItems() async {
-    final allItems = await RejectionService.fetchItemsWithBatches();
-    setState(() => _items = allItems);
-  }
-
-  Future<void> _loadRejections({bool reset = false}) async {
-    if (_isLoading) return;
-
-    if (reset) {
-      setState(() {
-        _skip = 0;
-        _rejections.clear();
-        _hasMore = true;
-      });
-    }
-
-    if (!_hasMore) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final date = DateFormat('yyyy-MM-dd').format(_selectedDate);
-
-      final result = await RejectionService.fetchRejections(
-        date: date,
-        itemIds: _selectedItemId != null ? [_selectedItemId!] : null,
-        skip: _skip,
-        limit: _limit,
-      );
-
-      final newItems = List<Map<String, dynamic>>.from(result['items']);
-      final hasMore = result['has_more'] as bool;
-
-      if (mounted) {
-        setState(() {
-          _rejections.addAll(newItems);
-          _skip += newItems.length;
-          _hasMore = hasMore;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load rejections: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Widget _buildDateFilter() {
+  Widget _buildDateFilter(RejectionListState state) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         ElevatedButton.icon(
           icon: const Icon(Icons.calendar_today),
-          label: Text(DateFormat('MMM d, yyyy').format(_selectedDate)),
-          onPressed: _pickDate,
+          label: Text(DateFormat('MMM d, yyyy').format(state.selectedDate)),
+          onPressed: () => _pickDate(state.selectedDate),
         ),
         const SizedBox(width: 12),
-
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
           icon: const Icon(Icons.add),
@@ -120,11 +49,11 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
     );
   }
 
-  Widget _buildItemFilter() {
+  Widget _buildItemFilter(RejectionListState state) {
     return DropdownButtonFormField<int>(
       decoration: const InputDecoration(labelText: 'Item'),
       items:
-          _items
+          state.filterItems
               .map(
                 (item) => DropdownMenuItem<int>(
                   value: item['id'],
@@ -132,23 +61,21 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
                 ),
               )
               .toList(),
-      value: _selectedItemId,
-      onChanged: (id) {
-        setState(() => _selectedItemId = id);
-        _loadRejections(reset: true);
-      },
+      // ignore: deprecated_member_use
+      value: state.selectedItemId,
+      onChanged: (id) => ref.read(rejectionListProvider.notifier).setItem(id),
       isExpanded: true,
     );
   }
 
-  Widget _buildFilters() {
+  Widget _buildFilters(RejectionListState state) {
     return Padding(
       padding: const EdgeInsets.all(12.0),
       child: Column(
         children: [
-          _buildDateFilter(),
+          _buildDateFilter(state),
           const SizedBox(height: 10),
-          _buildItemFilter(),
+          _buildItemFilter(state),
         ],
       ),
     );
@@ -182,27 +109,25 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
 
     if (confirmed == true) {
       try {
-        await RejectionService.reverseRejection(rejection['id']);
+        await ref
+            .read(rejectionListProvider.notifier)
+            .reverseRejection(rejection['id']);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Rejection reversed. Stock has been restored.'),
-            ),
+          AgroSnackBar.success(
+            context,
+            'Rejection reversed. Stock has been restored.',
           );
-          _loadRejections(reset: true);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-          );
+          AgroSnackBar.error(context, 'Error: $e');
         }
       }
     }
   }
 
-  Widget _buildList() {
-    if (_rejections.isEmpty && !_isLoading) {
+  Widget _buildList(RejectionListState state) {
+    if (state.items.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -225,19 +150,38 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
     }
 
     return ListView.builder(
-      itemCount: _rejections.length + 1,
+      itemCount: state.items.length + 1,
       itemBuilder: (_, index) {
-        if (index == _rejections.length) {
-          if (_hasMore) {
+        if (index == state.items.length) {
+          if (state.hasMore) {
             return Padding(
               padding: const EdgeInsets.all(16.0),
-              child:
-                  _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : ElevatedButton(
-                        onPressed: () => _loadRejections(),
-                        child: const Text('Load More'),
-                      ),
+              child: ElevatedButton(
+                onPressed:
+                    state.isLoadingMore
+                        ? null
+                        : () async {
+                          try {
+                            await ref
+                                .read(rejectionListProvider.notifier)
+                                .loadMore();
+                          } catch (e) {
+                            if (!mounted) return;
+                            AgroSnackBar.error(
+                              context,
+                              'Failed to load rejections: $e',
+                            );
+                          }
+                        },
+                child:
+                    state.isLoadingMore
+                        ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Text('Load More'),
+              ),
             );
           } else {
             return const Padding(
@@ -252,7 +196,7 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
           }
         }
 
-        final r = _rejections[index];
+        final r = state.items[index];
         final isActive = r['is_active'] ?? true;
 
         return Card(
@@ -311,6 +255,8 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final stateAsync = ref.watch(rejectionListProvider);
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -319,12 +265,21 @@ class _RejectionListScreenState extends State<RejectionListScreen> {
         foregroundColor: Colors.black,
         elevation: 1,
       ),
-      body: Column(
-        children: [
-          _buildFilters(),
-          const Divider(),
-          Expanded(child: _buildList()),
-        ],
+      body: stateAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error:
+            (e, _) => AgroErrorState.loadFailed(
+              message: e.toString(),
+              onRetry: () => ref.read(rejectionListProvider.notifier).refresh(),
+            ),
+        data:
+            (state) => Column(
+              children: [
+                _buildFilters(state),
+                const Divider(),
+                Expanded(child: _buildList(state)),
+              ],
+            ),
       ),
     );
   }

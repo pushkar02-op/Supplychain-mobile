@@ -7,7 +7,7 @@ import 'api_config.dart';
 import '../services/auth_service.dart';
 
 class DioClient {
-  static final _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage();
   static late Dio instance;
 
   /// Callback for when a 401 occurs.
