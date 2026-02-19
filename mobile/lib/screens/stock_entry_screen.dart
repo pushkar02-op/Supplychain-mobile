@@ -45,7 +45,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   // State
   bool _isLoading = false;
   String _error = '';
-  bool _is409Error = false;
+  final bool _is409Error = false;
   List<dynamic> _items = [];
   List<String> _unitOptions = [];
 
@@ -111,16 +111,9 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   }
 
   void _submitReceive() async {
-    if (!_formKey.currentState!.validate() ||
-        _receivedDate == null ||
-        _selectedItem == null) {
+    if (!_formKey.currentState!.validate() || _selectedItem == null) {
       setState(() {
-        _error =
-            _receivedDate == null
-                ? 'Please pick a date'
-                : _selectedItem == null
-                ? 'Please select an item'
-                : '';
+        _error = _selectedItem == null ? 'Please select an item' : '';
       });
       return;
     }
@@ -665,9 +658,9 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                   label: _requiredLabel('Select Item'),
                 ),
               ),
-              popupProps: PopupProps.dialog(
+              popupProps: const PopupProps.dialog(
                 showSearchBox: true,
-                searchFieldProps: const TextFieldProps(
+                searchFieldProps: TextFieldProps(
                   decoration: InputDecoration(hintText: 'Search item...'),
                 ),
               ),

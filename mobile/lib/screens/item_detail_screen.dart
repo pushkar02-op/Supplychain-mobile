@@ -187,7 +187,7 @@ class ItemDetailScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Aliases', style: AgroTypography.sectionTitle),
+        const Text('Aliases', style: AgroTypography.sectionTitle),
         const SizedBox(height: AgroSpacing.sectionHeaderGap),
         AgroCard.outlined(
           padding: EdgeInsets.zero,
@@ -267,7 +267,7 @@ class ItemDetailScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Conversions', style: AgroTypography.sectionTitle),
+        const Text('Conversions', style: AgroTypography.sectionTitle),
         const SizedBox(height: AgroSpacing.sectionHeaderGap),
         AgroCard(
           child: Column(
@@ -320,7 +320,7 @@ class ItemDetailScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Operational Signal', style: AgroTypography.sectionTitle),
+        const Text('Operational Signal', style: AgroTypography.sectionTitle),
         const SizedBox(height: AgroSpacing.sectionHeaderGap),
         ItemForecastSection(
           forecast: state.forecast,

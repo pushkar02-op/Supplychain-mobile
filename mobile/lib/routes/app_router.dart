@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile/providers/auth_state.dart';
 import 'package:mobile/screens/admin_diagnostics_screen.dart';
 import 'package:mobile/screens/admin_inventory_drift_screen.dart';
 import 'package:mobile/screens/admin_inventory_health_screen.dart';
@@ -172,5 +171,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 // Helper to convert AsyncValue to Listenable for GoRouter
 class _AuthStateListenable extends ChangeNotifier {
   _AuthStateListenable(this._state);
-  final AsyncValue<AuthState> _state;
+  // ignore: unused_field
+  final Object? _state;
 }

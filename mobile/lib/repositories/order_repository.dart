@@ -19,7 +19,7 @@ class OrderRepository {
         queryParameters: params,
       );
       if (resp.statusCode != 200) {
-        throw ServerException('Failed to fetch orders');
+        throw const ServerException('Failed to fetch orders');
       }
       return List<Map<String, dynamic>>.from(resp.data);
     } on DioException catch (e) {
@@ -32,12 +32,12 @@ class OrderRepository {
     try {
       final resp = await DioClient.instance.get('/orders/mart-names');
       if (resp.statusCode != 200) {
-        throw ServerException('Failed to fetch mart list');
+        throw const ServerException('Failed to fetch mart list');
       }
       if (resp.data is List) {
         return List<Map<String, dynamic>>.from(resp.data);
       } else {
-        throw ServerException('Unexpected mart list response format');
+        throw const ServerException('Unexpected mart list response format');
       }
     } on DioException catch (e) {
       throw _handleError(e);
@@ -95,7 +95,7 @@ class OrderRepository {
     try {
       final resp = await DioClient.instance.get('/item-alias/distinct');
       if (resp.statusCode != 200) {
-        throw ServerException('Failed to fetch item aliases');
+        throw const ServerException('Failed to fetch item aliases');
       }
       return List<Map<String, dynamic>>.from(resp.data);
     } on DioException catch (e) {
@@ -113,7 +113,7 @@ class OrderRepository {
         queryParameters: {'mart_name': martName},
       );
       if (resp.statusCode != 200) {
-        throw ServerException('Failed to fetch items for mart');
+        throw const ServerException('Failed to fetch items for mart');
       }
       return List<Map<String, dynamic>>.from(resp.data);
     } on DioException catch (e) {
@@ -124,7 +124,7 @@ class OrderRepository {
   AppException _handleError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {
-      return NetworkException('Connection timed out');
+      return const NetworkException('Connection timed out');
     }
 
     if (error.response != null) {
@@ -147,7 +147,7 @@ class OrderRepository {
         );
       }
       if (statusCode == 409) {
-        return ConfigurationException(
+        return const ConfigurationException(
           'This item is not fully configured. Please contact an admin to set its default unit of measure.',
         );
       }

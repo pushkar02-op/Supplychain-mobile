@@ -56,7 +56,7 @@ class AdminReconciliationDetailScreen extends ConsumerWidget {
     final severityStyle = AgroSeverity.fromStatus(status);
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(AgroSpacing.screenPadding),
+      padding: const EdgeInsets.all(AgroSpacing.screenPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -68,14 +68,14 @@ class AdminReconciliationDetailScreen extends ConsumerWidget {
             unit: unit,
             severityStyle: severityStyle,
           ),
-          SizedBox(height: AgroSpacing.xl),
+          const SizedBox(height: AgroSpacing.xl),
 
           // Batch Snapshot Section
           AgroSection(
             title: 'Batch Snapshot (Available)',
             child:
                 batches.isEmpty
-                    ? Text(
+                    ? const Text(
                       'No active batches found.',
                       style: AgroTypography.caption,
                     )
@@ -87,14 +87,14 @@ class AdminReconciliationDetailScreen extends ConsumerWidget {
                     ),
           ),
 
-          SizedBox(height: AgroSpacing.xl),
+          const SizedBox(height: AgroSpacing.xl),
 
           // Recent Transactions Section
           AgroSection(
             title: 'Recent Transactions (Ledger)',
             child:
                 txns.isEmpty
-                    ? Text(
+                    ? const Text(
                       'No transactions found.',
                       style: AgroTypography.caption,
                     )
@@ -135,16 +135,16 @@ class _SummaryCard extends StatelessWidget {
         borderRadius: AgroShapes.cardRadius,
         border: Border.all(color: severityStyle.borderColor),
       ),
-      padding: EdgeInsets.all(AgroSpacing.lg),
+      padding: const EdgeInsets.all(AgroSpacing.lg),
       child: Column(
         children: [
           AgroKeyValueRow(label: 'State (Batches)', value: '$stateQty $unit'),
-          SizedBox(height: AgroSpacing.sm),
+          const SizedBox(height: AgroSpacing.sm),
           AgroKeyValueRow(
             label: 'Ledger (Transactions)',
             value: '$ledgerQty $unit',
           ),
-          Divider(color: AgroColors.divider),
+          const Divider(color: AgroColors.divider),
           AgroKeyValueRow(
             label: 'Net Drift',
             value: '${drift > 0 ? "+" : ""}$drift $unit',
@@ -169,7 +169,7 @@ class _BatchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: AgroSpacing.sm),
+      padding: const EdgeInsets.only(bottom: AgroSpacing.sm),
       child: AgroCard.outlined(
         padding: EdgeInsets.zero,
         child: ListTile(
@@ -204,7 +204,7 @@ class _TransactionCard extends StatelessWidget {
     final isOut = transaction['type'] == 'OUT';
 
     return Padding(
-      padding: EdgeInsets.only(bottom: AgroSpacing.sm),
+      padding: const EdgeInsets.only(bottom: AgroSpacing.sm),
       child: AgroCard.outlined(
         padding: EdgeInsets.zero,
         child: ListTile(

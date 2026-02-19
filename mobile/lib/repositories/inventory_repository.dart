@@ -19,7 +19,7 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw ServerException('Failed to load inventory');
+      throw const ServerException('Failed to load inventory');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -40,7 +40,7 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw ServerException('Failed to load transactions');
+      throw const ServerException('Failed to load transactions');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -52,7 +52,7 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw ServerException('Failed to load batches');
+      throw const ServerException('Failed to load batches');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -66,7 +66,7 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return Map<String, dynamic>.from(resp.data);
       }
-      throw ServerException('Failed to load item signals');
+      throw const ServerException('Failed to load item signals');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -78,7 +78,7 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw ServerException('Failed to load items');
+      throw const ServerException('Failed to load items');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -90,7 +90,7 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<String>.from(resp.data.map((u) => u['code']));
       }
-      throw ServerException('Failed to load units');
+      throw const ServerException('Failed to load units');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -99,7 +99,7 @@ class InventoryRepository {
   AppException _handleError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {
-      return NetworkException('Connection timed out');
+      return const NetworkException('Connection timed out');
     }
 
     if (error.response != null) {
@@ -122,7 +122,7 @@ class InventoryRepository {
         );
       }
       if (statusCode == 409) {
-        return ConfigurationException(
+        return const ConfigurationException(
           'This item is not fully configured. Please contact an admin to set its default unit of measure.',
         );
       }

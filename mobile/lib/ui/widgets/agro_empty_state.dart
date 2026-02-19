@@ -66,13 +66,13 @@ class AgroEmptyState extends StatelessWidget {
 
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(AgroSpacing.lg),
+        padding: const EdgeInsets.all(AgroSpacing.lg),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: iconSize, color: effectiveIconColor),
-            SizedBox(height: AgroSpacing.lg),
+            const SizedBox(height: AgroSpacing.lg),
             Text(
               title,
               style: AgroTypography.cardTitle.copyWith(
@@ -81,7 +81,7 @@ class AgroEmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             if (message != null) ...[
-              SizedBox(height: AgroSpacing.sm),
+              const SizedBox(height: AgroSpacing.sm),
               Text(
                 message!,
                 style: AgroTypography.bodySecondary,
@@ -89,7 +89,7 @@ class AgroEmptyState extends StatelessWidget {
               ),
             ],
             if (actionLabel != null && onAction != null) ...[
-              SizedBox(height: AgroSpacing.lg),
+              const SizedBox(height: AgroSpacing.lg),
               TextButton.icon(
                 onPressed: onAction,
                 icon: Icon(actionIcon ?? Icons.add, size: 18),

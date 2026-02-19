@@ -50,7 +50,7 @@ class ItemListScreen extends ConsumerWidget {
                           labelText: 'Unmapped Mart Bill Item',
                         ),
                       ),
-                      SizedBox(height: AgroSpacing.sm + 2),
+                      const SizedBox(height: AgroSpacing.sm + 2),
                       DropdownButtonFormField<int>(
                         value: selectedItemId,
                         isExpanded: true,
@@ -204,7 +204,7 @@ class _ItemCard extends StatelessWidget {
     return Opacity(
       opacity: isInactive ? 0.6 : 1.0,
       child: Card(
-        margin: EdgeInsets.all(AgroSpacing.sm),
+        margin: const EdgeInsets.all(AgroSpacing.sm),
         elevation: 0,
         color: isInactive ? AgroColors.surfaceVariant : null,
         shape: RoundedRectangleBorder(
@@ -221,7 +221,7 @@ class _ItemCard extends StatelessWidget {
               ),
               if (isInactive)
                 Container(
-                  padding: EdgeInsets.symmetric(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: AgroSpacing.xs,
                     vertical: 2,
                   ),
@@ -264,14 +264,14 @@ class _ItemCard extends StatelessWidget {
           ),
           children: [
             Padding(
-              padding: EdgeInsets.symmetric(
+              padding: const EdgeInsets.symmetric(
                 horizontal: AgroSpacing.lg,
                 vertical: AgroSpacing.sm,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Aliases:', style: AgroTypography.emphasis),
+                  const Text('Aliases:', style: AgroTypography.emphasis),
                   Wrap(
                     spacing: AgroSpacing.xs + 2,
                     children:
@@ -287,14 +287,14 @@ class _ItemCard extends StatelessWidget {
                                 )
                                 .toList()
                             : [
-                              Text(
+                              const Text(
                                 'No aliases',
                                 style: AgroTypography.bodySecondary,
                               ),
                             ],
                   ),
-                  SizedBox(height: AgroSpacing.sm),
-                  Text('Conversions:', style: AgroTypography.emphasis),
+                  const SizedBox(height: AgroSpacing.sm),
+                  const Text('Conversions:', style: AgroTypography.emphasis),
                   conversions.isNotEmpty
                       ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,21 +314,21 @@ class _ItemCard extends StatelessWidget {
                               );
                             }).toList(),
                       )
-                      : Text(
+                      : const Text(
                         'No conversions',
                         style: AgroTypography.bodySecondary,
                       ),
-                  SizedBox(height: AgroSpacing.sm),
+                  const SizedBox(height: AgroSpacing.sm),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton.icon(
-                        icon: Icon(
+                        icon: const Icon(
                           Icons.visibility,
                           size: 18,
                           color: AgroColors.primary,
                         ),
-                        label: Text(
+                        label: const Text(
                           'View Details',
                           style: TextStyle(color: AgroColors.primary),
                         ),
@@ -337,7 +337,7 @@ class _ItemCard extends StatelessWidget {
                         },
                       ),
                       IconButton(
-                        icon: Icon(Icons.edit, color: AgroColors.textSecondary),
+                        icon: const Icon(Icons.edit, color: AgroColors.textSecondary),
                         tooltip: 'Edit',
                         onPressed: () async {
                           await context.push('/item-edit', extra: item);

@@ -60,7 +60,7 @@ abstract class AgroShapes {
   static final BorderRadius bannerRadius = BorderRadius.circular(_radiusSm);
 
   /// Bottom sheet top radius — 16px.
-  static final BorderRadius bottomSheetRadius = BorderRadius.vertical(
+  static const BorderRadius bottomSheetRadius = BorderRadius.vertical(
     top: Radius.circular(_radiusXl),
   );
 

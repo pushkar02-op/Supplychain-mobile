@@ -126,7 +126,7 @@ class AgroInfoBanner extends StatelessWidget {
     final effectiveIcon = icon ?? defaultIcon;
 
     return Container(
-      padding: EdgeInsets.all(AgroSpacing.sm + 2), // 10px as per original
+      padding: const EdgeInsets.all(AgroSpacing.sm + 2), // 10px as per original
       decoration: BoxDecoration(
         color: severity.backgroundColor,
         borderRadius: AgroShapes.bannerRadius,

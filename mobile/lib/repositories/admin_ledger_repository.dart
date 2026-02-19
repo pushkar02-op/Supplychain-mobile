@@ -57,7 +57,7 @@ class AdminLedgerRepository {
   AppException _handleError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {
-      return NetworkException('Connection timed out');
+      return const NetworkException('Connection timed out');
     }
 
     if (error.response != null) {
@@ -73,7 +73,7 @@ class AdminLedgerRepository {
       }
       if (statusCode == 403) {
         // Explicitly handle forbidden access for admin routes
-        return UnauthorizedException(
+        return const UnauthorizedException(
           'Access Denied: Admin privileges required.',
         );
       }

@@ -306,7 +306,7 @@ class StockListScreen extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('You are about to void this receipt:'),
+                const Text('You are about to void this receipt:'),
                 const SizedBox(height: 8),
                 Text(
                   '$itemName — $qty $unit',
@@ -342,7 +342,7 @@ class StockListScreen extends ConsumerWidget {
       } catch (e) {
         if (context.mounted) {
           // Extract message if it's a known format, otherwise show generic
-          String message = e.toString().replaceAll('Exception: ', '');
+          final String message = e.toString().replaceAll('Exception: ', '');
           if (message.contains('Deletion would orphan')) {
             await showDialog(
               context: context,

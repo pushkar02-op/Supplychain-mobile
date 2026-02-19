@@ -43,7 +43,7 @@ class AgroDecisionCard extends StatelessWidget {
   final DateTime lastUpdated;
 
   const AgroDecisionCard({
-    Key? key,
+    super.key,
     required this.status,
     required this.primaryMessage,
     this.secondaryMessage,
@@ -55,8 +55,7 @@ class AgroDecisionCard extends StatelessWidget {
        assert(
          secondaryMessage == null || secondaryMessage != primaryMessage,
          'Secondary message must not equal primary message',
-       ),
-       super(key: key);
+       );
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +75,7 @@ class AgroDecisionCard extends StatelessWidget {
             Expanded(
               child: Container(
                 color: severity.backgroundColor,
-                padding: EdgeInsets.all(AgroSpacing.md),
+                padding: const EdgeInsets.all(AgroSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

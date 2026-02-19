@@ -7,7 +7,7 @@ import '../providers/rejection_provider.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
 class RejectionEntryScreen extends ConsumerStatefulWidget {
-  const RejectionEntryScreen({Key? key}) : super(key: key);
+  const RejectionEntryScreen({super.key});
 
   @override
   ConsumerState<RejectionEntryScreen> createState() =>
@@ -92,8 +92,9 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() ||
         _selectedItem == null ||
-        _selectedBatchId == null)
+        _selectedBatchId == null) {
       return;
+    }
     _formKey.currentState!.save();
 
     setState(() => _submitting = true);
@@ -141,8 +142,8 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
                       DropdownSearch<Map<String, dynamic>>(
                         items: _items,
                         itemAsString: (i) => i['name'] as String,
-                        dropdownDecoratorProps: DropDownDecoratorProps(
-                          dropdownSearchDecoration: const InputDecoration(
+                        dropdownDecoratorProps: const DropDownDecoratorProps(
+                          dropdownSearchDecoration: InputDecoration(
                             labelText: 'Item *',
                             border: OutlineInputBorder(),
                           ),
@@ -216,10 +217,12 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
                         ),
                         validator: (v) {
                           final val = double.tryParse(v ?? '');
-                          if (val == null || val <= 0)
+                          if (val == null || val <= 0) {
                             return 'Enter a valid qty';
-                          if (val > _available)
+                          }
+                          if (val > _available) {
                             return 'Cannot exceed available';
+                          }
                           return null;
                         },
                         onSaved: (v) => _quantity = double.parse(v!),
@@ -258,15 +261,15 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _submitting ? null : _submit,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
                           child:
                               _submitting
                                   ? const CircularProgressIndicator(
                                     color: Colors.white,
                                   )
                                   : const Text('Submit'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
                         ),
                       ),
                     ],

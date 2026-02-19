@@ -95,8 +95,12 @@ class MartBillListScreen extends ConsumerWidget {
     WidgetRef ref,
     Map<String, dynamic> item,
   ) async {
-    final qtyController = TextEditingController(text: item['quantity'].toString());
-    final priceController = TextEditingController(text: item['price'].toString());
+    final qtyController = TextEditingController(
+      text: item['quantity'].toString(),
+    );
+    final priceController = TextEditingController(
+      text: item['price'].toString(),
+    );
     final totalController = TextEditingController();
 
     void calculateTotal() {
@@ -109,6 +113,7 @@ class MartBillListScreen extends ConsumerWidget {
     qtyController.addListener(calculateTotal);
     priceController.addListener(calculateTotal);
 
+    // ignore: use_build_context_synchronously
     await showDialog<void>(
       context: context,
       builder:
@@ -197,7 +202,8 @@ class MartBillListScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AgroSpacing.md),
                   ElevatedButton.icon(
-                    onPressed: () => ref.read(martBillProvider.notifier).refresh(),
+                    onPressed:
+                        () => ref.read(martBillProvider.notifier).refresh(),
                     icon: const Icon(Icons.refresh),
                     label: const Text('Retry'),
                   ),
@@ -208,19 +214,22 @@ class MartBillListScreen extends ConsumerWidget {
           final marts = martsAsync.valueOrNull ?? const <String>[];
 
           return Padding(
-            padding: EdgeInsets.all(AgroSpacing.lg),
+            padding: const EdgeInsets.all(AgroSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     ElevatedButton.icon(
-                      onPressed: () => _selectDate(context, ref, state.selectedDate),
+                      onPressed:
+                          () => _selectDate(context, ref, state.selectedDate),
                       icon: const Icon(Icons.calendar_today),
                       label: Text(
                         state.selectedDate == null
                             ? 'All Dates'
-                            : DateFormat('yyyy-MM-dd').format(state.selectedDate!),
+                            : DateFormat(
+                              'yyyy-MM-dd',
+                            ).format(state.selectedDate!),
                       ),
                     ),
                     const SizedBox(width: AgroSpacing.md),
@@ -251,16 +260,20 @@ class MartBillListScreen extends ConsumerWidget {
                           ),
                         ],
                         onChanged:
-                            (v) => ref.read(martBillProvider.notifier).setMart(v),
+                            (v) =>
+                                ref.read(martBillProvider.notifier).setMart(v),
                       ),
                     ),
                     const SizedBox(width: AgroSpacing.md),
                     Expanded(
                       child: TextField(
-                        decoration: const InputDecoration(hintText: 'Search...'),
+                        decoration: const InputDecoration(
+                          hintText: 'Search...',
+                        ),
                         onSubmitted:
-                            (v) =>
-                                ref.read(martBillProvider.notifier).setSearch(v),
+                            (v) => ref
+                                .read(martBillProvider.notifier)
+                                .setSearch(v),
                       ),
                     ),
                   ],
@@ -271,9 +284,9 @@ class MartBillListScreen extends ConsumerWidget {
                     pickedPaths: state.pickedPaths,
                     uploading: state.isUploading,
                     onCancel:
-                        () => ref.read(martBillProvider.notifier).setPickedPaths(
-                          const [],
-                        ),
+                        () => ref
+                            .read(martBillProvider.notifier)
+                            .setPickedPaths(const []),
                     onUpload: () => _uploadFiles(context, ref),
                   ),
                 if (state.uploadResults.isNotEmpty)
@@ -281,19 +294,15 @@ class MartBillListScreen extends ConsumerWidget {
                     uploadResults: state.uploadResults,
                     onDismiss:
                         () =>
-                            ref.read(martBillProvider.notifier).clearUploadResults(),
+                            ref
+                                .read(martBillProvider.notifier)
+                                .clearUploadResults(),
                     onAddMore: () async {
                       ref.read(martBillProvider.notifier).clearUploadResults();
                       await _pickFiles(ref);
                     },
                   ),
-                Expanded(
-                  child: _buildBillList(
-                    context,
-                    ref,
-                    state,
-                  ),
-                ),
+                Expanded(child: _buildBillList(context, ref, state)),
               ],
             ),
           );
@@ -317,19 +326,23 @@ class MartBillListScreen extends ConsumerWidget {
     }
 
     return ListView.builder(
-      padding: EdgeInsets.only(top: AgroSpacing.md, bottom: AgroSpacing.xl),
+      padding: const EdgeInsets.only(
+        top: AgroSpacing.md,
+        bottom: AgroSpacing.xl,
+      ),
       itemCount: state.bills.length + (state.hasMore ? 1 : 0),
       itemBuilder: (ctx, i) {
         if (i == state.bills.length) {
           return Padding(
-            padding: EdgeInsets.all(AgroSpacing.lg),
+            padding: const EdgeInsets.all(AgroSpacing.lg),
             child: Center(
               child:
                   state.isLoadingMore
                       ? const CircularProgressIndicator()
                       : ElevatedButton.icon(
                         onPressed:
-                            () => ref.read(martBillProvider.notifier).loadMore(),
+                            () =>
+                                ref.read(martBillProvider.notifier).loadMore(),
                         icon: const Icon(Icons.arrow_downward),
                         label: const Text('Load More'),
                       ),
@@ -372,17 +385,17 @@ class _UploadFormCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      margin: EdgeInsets.only(bottom: AgroSpacing.md),
+      margin: const EdgeInsets.only(bottom: AgroSpacing.md),
       shape: RoundedRectangleBorder(borderRadius: AgroShapes.containerRadius),
       child: Padding(
-        padding: EdgeInsets.all(AgroSpacing.md),
+        padding: const EdgeInsets.all(AgroSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Selected Files', style: AgroTypography.cardTitle),
+                const Text('Selected Files', style: AgroTypography.cardTitle),
                 IconButton(
                   icon: const Icon(Icons.close),
                   tooltip: 'Cancel Upload',
@@ -400,7 +413,7 @@ class _UploadFormCard extends StatelessWidget {
               child: ElevatedButton.icon(
                 icon:
                     uploading
-                        ? SizedBox(
+                        ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
@@ -435,17 +448,17 @@ class _UploadResultsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      margin: EdgeInsets.only(bottom: AgroSpacing.md),
+      margin: const EdgeInsets.only(bottom: AgroSpacing.md),
       shape: RoundedRectangleBorder(borderRadius: AgroShapes.containerRadius),
       child: Padding(
-        padding: EdgeInsets.all(AgroSpacing.md),
+        padding: const EdgeInsets.all(AgroSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Upload Results', style: AgroTypography.cardTitle),
+                const Text('Upload Results', style: AgroTypography.cardTitle),
                 IconButton(
                   icon: const Icon(Icons.close),
                   tooltip: 'Dismiss Results',
@@ -551,6 +564,7 @@ class _BillCard extends StatelessWidget {
                       await onVerify(bill['id']);
                     }
                   } catch (e) {
+                    if (!context.mounted) return;
                     AgroSnackBar.error(context, e.toString());
                   }
                 },
@@ -585,7 +599,10 @@ class _BillCard extends StatelessWidget {
           ),
           trailing: TextButton(
             onPressed: () {
-              context.push('/pdf-viewer', extra: int.parse(bill['id'].toString()));
+              context.push(
+                '/pdf-viewer',
+                extra: int.parse(bill['id'].toString()),
+              );
             },
             child: const Text('View'),
           ),
@@ -615,11 +632,15 @@ class _BillCard extends StatelessWidget {
                           DataCell(Text(it['item_name'] ?? '')),
                           DataCell(Text(it['quantity'].toString())),
                           DataCell(Text(it['uom'] ?? '')),
-                          DataCell(Text((it['price'] as num).toStringAsFixed(2))),
-                          DataCell(Text((it['total'] as num).toStringAsFixed(2))),
+                          DataCell(
+                            Text((it['price'] as num).toStringAsFixed(2)),
+                          ),
+                          DataCell(
+                            Text((it['total'] as num).toStringAsFixed(2)),
+                          ),
                           DataCell(
                             isVerified
-                                ? Icon(
+                                ? const Icon(
                                   Icons.lock,
                                   size: 16,
                                   color: AgroColors.textDisabled,

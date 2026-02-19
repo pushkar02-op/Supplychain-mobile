@@ -54,7 +54,7 @@ class DispatchRepository {
       if (data is Map && data['mart_names'] is List) {
         return List<String>.from(data['mart_names']);
       }
-      throw ServerException('Unexpected mart-names format');
+      throw const ServerException('Unexpected mart-names format');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -96,7 +96,7 @@ class DispatchRepository {
   AppException _handleError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {
-      return NetworkException('Connection timed out');
+      return const NetworkException('Connection timed out');
     }
 
     if (error.response != null) {
@@ -119,7 +119,7 @@ class DispatchRepository {
         );
       }
       if (statusCode == 409) {
-        return ConfigurationException(
+        return const ConfigurationException(
           'This item is not fully configured. Please contact an admin to set its default unit of measure.',
         );
       }

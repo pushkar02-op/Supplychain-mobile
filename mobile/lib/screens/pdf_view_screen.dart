@@ -176,8 +176,8 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
               width: double.infinity,
               color: Colors.green.shade100,
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              child: Row(
-                children: const [
+              child: const Row(
+                children: [
                   Icon(Icons.lock, size: 16, color: Colors.green),
                   SizedBox(width: 8),
                   Text(

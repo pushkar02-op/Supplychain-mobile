@@ -66,7 +66,7 @@ class AliasMappingScreen extends ConsumerWidget {
           }
 
           return ListView.builder(
-            padding: EdgeInsets.all(AgroSpacing.lg),
+            padding: const EdgeInsets.all(AgroSpacing.lg),
             itemCount: rows.length,
             itemBuilder: (context, index) {
               final row = rows[index];
@@ -149,7 +149,7 @@ class _AliasMappingCard extends StatelessWidget {
             : <Map<String, dynamic>>[];
 
     return AgroCard.outlined(
-      padding: EdgeInsets.all(AgroSpacing.md),
+      padding: const EdgeInsets.all(AgroSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -203,7 +203,7 @@ class _AliasMappingCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     "Existing aliases for this item:",
                     style: AgroTypography.captionEmphasis,
                   ),

@@ -29,73 +29,73 @@ class MoreHubScreen extends ConsumerWidget {
         automaticallyImplyLeading: false,
       ),
       body: ListView(
-        padding: EdgeInsets.all(AgroSpacing.screenPadding),
+        padding: const EdgeInsets.all(AgroSpacing.screenPadding),
         children: [
           // Reference Section
-          Padding(
+          const Padding(
             padding: EdgeInsets.only(
               bottom: AgroSpacing.sm,
               top: AgroSpacing.sm,
             ),
             child: Text('Reference', style: AgroTypography.sectionTitle),
           ),
-          _NavTile(
+          const _NavTile(
             icon: Icons.analytics_outlined,
             title: 'Inventory',
             subtitle: 'View current stock levels',
             route: '/inventory',
           ),
-          _NavTile(
+          const _NavTile(
             icon: Icons.receipt_outlined,
             title: 'Mart Bills',
             subtitle: 'Upload and manage invoices',
             route: '/mart-bills',
           ),
-          _NavTile(
+          const _NavTile(
             icon: Icons.category_outlined,
             title: 'Items',
             subtitle: 'Manage item catalog',
             route: '/items',
           ),
-          _NavTile(
+          const _NavTile(
             icon: Icons.link_outlined,
             title: 'Alias Mapping',
             subtitle: 'Map invoice items to master items',
             route: '/alias-mapping',
           ),
-          _NavTile(
+          const _NavTile(
             icon: Icons.cancel_outlined,
             title: 'Rejections',
             subtitle: 'Track rejected items',
             route: '/rejection-list',
           ),
 
-          SizedBox(height: AgroSpacing.xl),
+          const SizedBox(height: AgroSpacing.xl),
 
           // Admin Section (only visible to admins)
           if (isAdmin) ...[
-            Padding(
+            const Padding(
               padding: EdgeInsets.only(
                 bottom: AgroSpacing.sm,
                 top: AgroSpacing.sm,
               ),
               child: Text('Administration', style: AgroTypography.sectionTitle),
             ),
-            _NavTile(
+            const _NavTile(
               icon: Icons.health_and_safety_outlined,
               title: 'Inventory Health',
               subtitle: 'Ledger health and drift detection',
               route: '/admin/ledger/health',
               isAdmin: true,
             ),
-            _NavTile(
+            const _NavTile(
               icon: Icons.compare_arrows_outlined,
               title: 'Drift Report',
               subtitle: 'View detailed reconciliation',
               route: '/admin/ledger/drift',
               isAdmin: true,
             ),
-            _NavTile(
+            const _NavTile(
               icon: Icons.build_outlined,
               title: 'UOM Diagnostics',
               subtitle: 'Items with missing configurations',
@@ -104,7 +104,7 @@ class MoreHubScreen extends ConsumerWidget {
             ),
           ],
 
-          SizedBox(height: AgroSpacing.xl),
+          const SizedBox(height: AgroSpacing.xl),
 
           // Logout
           _LogoutTile(ref: ref),
@@ -139,7 +139,7 @@ class _NavTile extends StatelessWidget {
             : AgroColors.dividerLight;
 
     return Card(
-      margin: EdgeInsets.only(bottom: AgroSpacing.sm),
+      margin: const EdgeInsets.only(bottom: AgroSpacing.sm),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: AgroShapes.cardRadius,
@@ -149,7 +149,7 @@ class _NavTile extends StatelessWidget {
         leading: Icon(icon, color: iconColor),
         title: Text(title, style: AgroTypography.cardTitle),
         subtitle: Text(subtitle, style: AgroTypography.cardSubtitle),
-        trailing: Icon(Icons.chevron_right, color: AgroColors.textDisabled),
+        trailing: const Icon(Icons.chevron_right, color: AgroColors.textDisabled),
         onTap: () => context.push(route),
       ),
     );
@@ -168,7 +168,7 @@ class _LogoutTile extends StatelessWidget {
     final severity = AgroSeverity.fromStatus(AgroStatus.critical);
 
     return Card(
-      margin: EdgeInsets.only(bottom: AgroSpacing.sm),
+      margin: const EdgeInsets.only(bottom: AgroSpacing.sm),
       elevation: 0,
       color: severity.backgroundColor,
       shape: RoundedRectangleBorder(

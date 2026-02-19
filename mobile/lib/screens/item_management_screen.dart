@@ -74,7 +74,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
       creationIntent = currentItem?['creation_intent'];
 
       // Use code for UOM if available, else id
-      String? defaultUomCode = currentItem?['default_uom_code'];
+      final String? defaultUomCode = currentItem?['default_uom_code'];
       defaultUomId =
           defaultUomCode != null
               ? fetchedUoms.firstWhere(
@@ -108,8 +108,9 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
       });
 
       // Generate conversions only for new item
-      if (widget.data == null || widget.data?['id'] == null)
+      if (widget.data == null || widget.data?['id'] == null) {
         _generateConversions();
+      }
     } catch (e) {
       setState(() {
         error = e.toString();
@@ -378,7 +379,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                                     ),
                                   ),
                                 )
-                                .toList(),
+                                ,
                           ],
                         ),
                       ),
@@ -410,7 +411,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                 ),
               ),
 
-              SizedBox(height: AgroSpacing.sectionGap),
+              const SizedBox(height: AgroSpacing.sectionGap),
 
               // ═══════════════════════════════════════════════════════════════
               // SECTION 2: UNITS & CONVERSIONS — How is it measured?
@@ -495,7 +496,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
+                                    const Text(
                                       "Existing conversions for this item:",
                                       style: AgroTypography.captionEmphasis,
                                     ),
@@ -589,7 +590,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                 ),
               ),
 
-              SizedBox(height: AgroSpacing.sectionGap),
+              const SizedBox(height: AgroSpacing.sectionGap),
 
               // ═══════════════════════════════════════════════════════════════
               // SECTION 3: NAMING & ALIASES — How does it appear externally?
@@ -687,7 +688,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                 ),
               ),
 
-              SizedBox(height: AgroSpacing.sectionGap),
+              const SizedBox(height: AgroSpacing.sectionGap),
 
               // ═══════════════════════════════════════════════════════════════
               // LIFECYCLE ACTIONS — Only for existing items (Edit mode)
@@ -699,7 +700,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                   onSavingChanged: (v) => setState(() => isSaving = v),
                   onError: (e) => setState(() => error = e),
                 ),
-                SizedBox(height: AgroSpacing.md),
+                const SizedBox(height: AgroSpacing.md),
               ],
 
               // ═══════════════════════════════════════════════════════════════

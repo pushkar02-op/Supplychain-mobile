@@ -420,9 +420,9 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                             fillColor: Colors.white,
                           ),
                         ),
-                        popupProps: PopupProps.dialog(
+                        popupProps: const PopupProps.dialog(
                           showSearchBox: true,
-                          searchFieldProps: const TextFieldProps(
+                          searchFieldProps: TextFieldProps(
                             decoration: InputDecoration(
                               hintText: 'Search item...',
                             ),

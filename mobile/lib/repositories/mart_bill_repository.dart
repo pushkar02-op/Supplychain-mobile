@@ -43,7 +43,7 @@ class MartBillRepository {
           ),
         };
       }
-      throw ServerException('Failed to load mart bills');
+      throw const ServerException('Failed to load mart bills');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -139,7 +139,7 @@ class MartBillRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw ServerException('Failed to load items');
+      throw const ServerException('Failed to load items');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -214,7 +214,7 @@ class MartBillRepository {
     try {
       final resp = await DioClient.instance.delete('/mart-bills/$billId');
       if (resp.statusCode != 204) {
-        throw ServerException('Delete failed');
+        throw const ServerException('Delete failed');
       }
     } on DioException catch (e) {
       throw _handleError(e);
@@ -226,7 +226,7 @@ class MartBillRepository {
     try {
       final resp = await DioClient.instance.delete('/mart-bill-items/$itemId');
       if (resp.statusCode != 204) {
-        throw ServerException('Delete item failed');
+        throw const ServerException('Delete item failed');
       }
     } on DioException catch (e) {
       throw _handleError(e);
@@ -258,7 +258,7 @@ class MartBillRepository {
       if (data is List) {
         return List<String>.from(data);
       }
-      throw ServerException('Unexpected mart-names format');
+      throw const ServerException('Unexpected mart-names format');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -297,7 +297,7 @@ class MartBillRepository {
       if (resp.statusCode == 200) {
         return MartBill.fromJson(resp.data);
       }
-      throw ServerException('Failed to load mart bill');
+      throw const ServerException('Failed to load mart bill');
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -306,7 +306,7 @@ class MartBillRepository {
   AppException _handleError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {
-      return NetworkException('Connection timed out');
+      return const NetworkException('Connection timed out');
     }
 
     if (error.response != null) {
@@ -329,7 +329,7 @@ class MartBillRepository {
         );
       }
       if (statusCode == 409) {
-        return ConfigurationException(
+        return const ConfigurationException(
           'This item is not fully configured. Please contact an admin to set its default unit of measure.',
         );
       }

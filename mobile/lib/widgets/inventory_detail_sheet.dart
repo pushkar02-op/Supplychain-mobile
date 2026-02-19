@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../screens/admin_reconciliation_detail_screen.dart';
 import '../providers/inventory_provider.dart';
+import '../screens/admin_reconciliation_detail_screen.dart';
 
 /// Full-screen bottom sheet showing inventory item details.
 ///
@@ -39,9 +39,9 @@ class InventoryDetailSheet extends ConsumerWidget {
     final itemId = item['item_id'] as int;
     final unit = item['unit'] as String?;
     final name = item['name'] as String;
-    final detailFuture = ref.read(inventoryListProvider.notifier).fetchDetail(
-      itemId,
-    );
+    final detailFuture = ref
+        .read(inventoryListProvider.notifier)
+        .fetchDetail(itemId);
     final ledgerStock = (item['ledger_qty'] as num?)?.toDouble() ?? 0.0;
     final availableStock = (item['state_qty'] as num?)?.toDouble() ?? 0.0;
     final status = item['status'] as String? ?? 'HEALTHY';
@@ -97,7 +97,7 @@ class InventoryDetailSheet extends ConsumerWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: badgeColor.withOpacity(0.1),
+                      color: badgeColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: badgeColor),
                     ),
@@ -161,7 +161,7 @@ class InventoryDetailSheet extends ConsumerWidget {
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               side: BorderSide(
-                                color: Colors.blue.withOpacity(0.5),
+                                color: Colors.blue.withValues(alpha: 0.5),
                               ),
                             ),
                           ),
@@ -204,10 +204,9 @@ class InventoryDetailSheet extends ConsumerWidget {
                             if (!snapshot.hasData) {
                               return const SizedBox.shrink();
                             }
-                            final data =
-                                Map<String, dynamic>.from(
-                                  snapshot.data!['signals'] as Map,
-                                );
+                            final data = Map<String, dynamic>.from(
+                              snapshot.data!['signals'] as Map,
+                            );
                             final signals =
                                 (data['signals'] as List<dynamic>?)
                                     ?.map((e) => e.toString())
@@ -239,15 +238,15 @@ class InventoryDetailSheet extends ConsumerWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
+                                  const Row(
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.trending_up,
                                         size: 16,
                                         color: Colors.black54,
                                       ),
-                                      const SizedBox(width: 8),
-                                      const Text(
+                                      SizedBox(width: 8),
+                                      Text(
                                         'Stock Trend (Last 14 days)',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
@@ -316,8 +315,8 @@ class InventoryDetailSheet extends ConsumerWidget {
                                               vertical: 2,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: trendColor.withOpacity(
-                                                0.1,
+                                              color: trendColor.withValues(
+                                                alpha: 0.1,
                                               ),
                                               borderRadius:
                                                   BorderRadius.circular(4),
@@ -344,9 +343,9 @@ class InventoryDetailSheet extends ConsumerWidget {
                     ),
                   ),
                   const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: const Text(
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
                       'Recent Transactions',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
@@ -402,9 +401,9 @@ class InventoryDetailSheet extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

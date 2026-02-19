@@ -104,7 +104,7 @@ class OrdersScreen extends ConsumerWidget {
             children: [
               Container(
                 color: AgroColors.surface,
-                padding: EdgeInsets.fromLTRB(
+                padding: const EdgeInsets.fromLTRB(
                   AgroSpacing.lg,
                   AgroSpacing.md,
                   AgroSpacing.lg,
@@ -131,7 +131,7 @@ class OrdersScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    Text(
+                    const Text(
                       'Orders scheduled for this date',
                       style: AgroTypography.caption,
                     ),
@@ -140,7 +140,7 @@ class OrdersScreen extends ConsumerWidget {
               ),
               Container(
                 color: AgroColors.surface,
-                padding: EdgeInsets.fromLTRB(
+                padding: const EdgeInsets.fromLTRB(
                   AgroSpacing.lg,
                   0,
                   AgroSpacing.lg,
@@ -154,17 +154,17 @@ class OrdersScreen extends ConsumerWidget {
                         value: state.selectedMart,
                         decoration: InputDecoration(
                           isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: AgroSpacing.md,
                             vertical: AgroSpacing.sm,
                           ),
                           border: OutlineInputBorder(
                             borderRadius: AgroShapes.pillRadius,
-                            borderSide: BorderSide(color: AgroColors.divider),
+                            borderSide: const BorderSide(color: AgroColors.divider),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: AgroShapes.pillRadius,
-                            borderSide: BorderSide(color: AgroColors.divider),
+                            borderSide: const BorderSide(color: AgroColors.divider),
                           ),
                           filled: true,
                           fillColor: AgroColors.surfaceVariant,
@@ -172,7 +172,7 @@ class OrdersScreen extends ConsumerWidget {
                         dropdownStyleData: const DropdownStyleData(
                           maxHeight: 200,
                         ),
-                        hint: Text('All Marts', style: AgroTypography.body),
+                        hint: const Text('All Marts', style: AgroTypography.body),
                         items: [
                           const DropdownMenuItem<String>(
                             value: null,
@@ -190,11 +190,11 @@ class OrdersScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              Divider(height: 1, color: AgroColors.divider),
+              const Divider(height: 1, color: AgroColors.divider),
               Expanded(
                 child:
                     state.orders.isEmpty
-                        ? AgroEmptyState(
+                        ? const AgroEmptyState(
                           icon: Icons.assignment_outlined,
                           title: 'No orders for this date',
                           message: 'Tap + to create an order',
@@ -206,7 +206,7 @@ class OrdersScreen extends ConsumerWidget {
                                       .read(orderListProvider.notifier)
                                       .refresh(),
                           child: ListView.builder(
-                            padding: EdgeInsets.all(AgroSpacing.lg),
+                            padding: const EdgeInsets.all(AgroSpacing.lg),
                             itemCount: state.orders.length,
                             itemBuilder:
                                 (_, i) => _OrderCard(
@@ -258,18 +258,18 @@ class _OrderCard extends StatelessWidget {
     final severityStyle = AgroSeverity.fromStatus(status);
 
     return Container(
-      margin: EdgeInsets.only(bottom: AgroSpacing.md),
+      margin: const EdgeInsets.only(bottom: AgroSpacing.md),
       decoration: BoxDecoration(
         color: AgroColors.surface,
         borderRadius: AgroShapes.containerRadius,
         border: Border(
           left: BorderSide(color: severityStyle.textColor, width: 5),
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: AgroColors.divider,
             blurRadius: 4,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -292,7 +292,7 @@ class _OrderCard extends StatelessWidget {
         },
         borderRadius: AgroShapes.containerRadius,
         child: Padding(
-          padding: EdgeInsets.all(AgroSpacing.md + 2),
+          padding: const EdgeInsets.all(AgroSpacing.md + 2),
           child: Row(
             children: [
               Expanded(
@@ -303,9 +303,9 @@ class _OrderCard extends StatelessWidget {
                       itemName,
                       style: AgroTypography.cardTitle.copyWith(fontSize: 15),
                     ),
-                    SizedBox(height: AgroSpacing.xs / 2),
+                    const SizedBox(height: AgroSpacing.xs / 2),
                     Text(martName, style: AgroTypography.caption),
-                    SizedBox(height: AgroSpacing.sm),
+                    const SizedBox(height: AgroSpacing.sm),
                     Row(
                       children: [
                         _QuantityChip(
@@ -314,14 +314,14 @@ class _OrderCard extends StatelessWidget {
                           unit: unit,
                           backgroundColor: AgroColors.surfaceVariant,
                         ),
-                        SizedBox(width: AgroSpacing.sm),
+                        const SizedBox(width: AgroSpacing.sm),
                         _QuantityChip(
                           label: 'Dispatched',
                           value: dispatched,
                           unit: unit,
                           backgroundColor: AgroColors.success.background,
                         ),
-                        SizedBox(width: AgroSpacing.sm),
+                        const SizedBox(width: AgroSpacing.sm),
                         _QuantityChip(
                           label: 'Remaining',
                           value: remaining,
@@ -333,7 +333,7 @@ class _OrderCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    SizedBox(height: AgroSpacing.sm),
+                    const SizedBox(height: AgroSpacing.sm),
                     Row(
                       children: [
                         Icon(
@@ -345,7 +345,7 @@ class _OrderCard extends StatelessWidget {
                           size: 16,
                           color: severityStyle.textColor,
                         ),
-                        SizedBox(width: AgroSpacing.xs),
+                        const SizedBox(width: AgroSpacing.xs),
                         Text(
                           statusText,
                           style: AgroTypography.caption.copyWith(
@@ -412,7 +412,7 @@ class _QuantityChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: AgroSpacing.sm,
         vertical: AgroSpacing.xs,
       ),

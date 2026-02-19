@@ -53,7 +53,7 @@ class ItemRepository {
     final items = await fetchItems(includeInactive: true);
     return items.firstWhere(
       (item) => item['id'] == itemId,
-      orElse: () => throw ServerException('Item not found'),
+      orElse: () => throw const ServerException('Item not found'),
     );
   }
 
@@ -190,7 +190,7 @@ class ItemRepository {
   AppException _handleError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {
-      return NetworkException('Connection timed out');
+      return const NetworkException('Connection timed out');
     }
 
     if (error.response != null) {
@@ -213,7 +213,7 @@ class ItemRepository {
         );
       }
       if (statusCode == 409) {
-        return ConfigurationException(
+        return const ConfigurationException(
           'This item is not fully configured. Please contact an admin to set its default unit of measure.',
         );
       }

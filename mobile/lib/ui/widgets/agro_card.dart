@@ -79,7 +79,7 @@ class AgroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectivePadding = padding ?? EdgeInsets.all(AgroSpacing.cardPadding);
+    final effectivePadding = padding ?? const EdgeInsets.all(AgroSpacing.cardPadding);
 
     // Determine styling based on variant
     Color backgroundColor;

@@ -355,7 +355,7 @@ class DispatchListScreen extends ConsumerWidget {
                                         ),
                                         alignment: Alignment.center,
                                         child: Text(
-                                          '${(netQty as num).toStringAsFixed(0)}',
+                                          (netQty as num).toStringAsFixed(0),
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color:
@@ -433,8 +433,7 @@ class DispatchListScreen extends ConsumerWidget {
                                                 context,
                                                 ref,
                                                 id: d['id'],
-                                                currentQty:
-                                                    (netQty as num).toDouble(),
+                                                currentQty: (netQty).toDouble(),
                                                 itemName:
                                                     batch['item_name'] ??
                                                     'Unknown Item',
