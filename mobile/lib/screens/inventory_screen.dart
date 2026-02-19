@@ -3,6 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/inventory_provider.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_card.dart';
+import '../ui/widgets/agro_status_badge.dart';
 import '../widgets/inventory_detail_sheet.dart';
 import 'admin_inventory_drift_screen.dart';
 
@@ -16,11 +22,11 @@ class InventoryScreen extends ConsumerWidget {
     final unitsAsync = ref.watch(inventoryUnitOptionsProvider);
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: AgroColors.background,
       appBar: AppBar(
         title: const Text('Inventory'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AgroColors.surface,
+        foregroundColor: AgroColors.textPrimary,
         elevation: 1,
         actions: [
           Consumer(
@@ -30,7 +36,7 @@ class InventoryScreen extends ConsumerWidget {
               return IconButton(
                 icon: const Icon(
                   Icons.admin_panel_settings_outlined,
-                  color: Colors.orange,
+                  color: AgroColors.adminAccent,
                 ),
                 tooltip: 'Reconciliation (Admin Only)',
                 onPressed: () {
@@ -51,7 +57,9 @@ class InventoryScreen extends ConsumerWidget {
             (e, _) => Center(
               child: Text(
                 e.toString(),
-                style: const TextStyle(color: Colors.red),
+                style: AgroTypography.body.copyWith(
+                  color: AgroColors.critical.text,
+                ),
               ),
             ),
         data: (state) {
@@ -60,7 +68,7 @@ class InventoryScreen extends ConsumerWidget {
           final filterUnits = unitsAsync.valueOrNull ?? const <String>[];
 
           return Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AgroSpacing.screenPadding),
             child: Column(
               children: [
                 _InventoryFilterBar(
@@ -75,7 +83,7 @@ class InventoryScreen extends ConsumerWidget {
                       (u) =>
                           ref.read(inventoryListProvider.notifier).setUnit(u),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AgroSpacing.md),
                 Expanded(
                   child:
                       state.items.isEmpty
@@ -83,17 +91,16 @@ class InventoryScreen extends ConsumerWidget {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.warehouse_outlined,
                                   size: 64,
-                                  color: Colors.grey[400],
+                                  color: AgroColors.textDisabled,
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: AgroSpacing.lg),
                                 Text(
                                   'No inventory records found',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[600],
+                                  style: AgroTypography.cardTitle.copyWith(
+                                    color: AgroColors.textSecondary,
                                   ),
                                 ),
                               ],
@@ -103,195 +110,67 @@ class InventoryScreen extends ConsumerWidget {
                             itemCount: state.items.length,
                             itemBuilder: (context, i) {
                               final inv = state.items[i];
-                              final ledgerStock =
-                                  (inv['ledger_qty'] as num?)?.toDouble() ??
-                                  0.0;
                               final availableStock =
                                   (inv['state_qty'] as num?)?.toDouble() ?? 0.0;
                               final unit = inv['unit'] ?? '';
-                              final status =
-                                  inv['status'] as String? ?? 'HEALTHY';
-                              final severity =
-                                  inv['severity'] as String? ?? 'NONE';
+                              final statusKind = _deriveStatusKind(inv);
+                              final lastUpdated = _resolveLastUpdated(inv);
 
-                              final isHealthy = status == 'HEALTHY';
-                              final isCritical = severity == 'CRITICAL';
-
-                              final signals =
-                                  (inv['signals'] as List<dynamic>?)
-                                      ?.map((e) => e.toString())
-                                      .toList() ??
-                                  [];
-                              String? signalLabel;
-                              Color? signalColor;
-                              if (signals.contains('FAST_DEPLETING')) {
-                                signalLabel = 'Fast Depleting';
-                                signalColor = Colors.red;
-                              } else if (signals.contains('LOW_STOCK')) {
-                                signalLabel = 'Low Stock';
-                                signalColor = Colors.orange;
-                              } else if (signals.contains('STABLE')) {
-                                signalLabel = 'Stable';
-                                signalColor = Colors.green;
-                              }
-
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(color: Colors.grey.shade200),
+                              return AgroCard(
+                                margin: const EdgeInsets.only(
+                                  bottom: AgroSpacing.md,
                                 ),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap:
-                                      () => InventoryDetailSheet.show(
-                                        context,
-                                        inv,
-                                        isAdmin:
-                                            ref
-                                                .read(authProvider)
-                                                .value
-                                                ?.isAdmin ??
-                                            false,
-                                      ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                inv['name'] ?? 'Unknown',
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Unit: $unit',
-                                                style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            if (isHealthy)
-                                              _buildCompactStat(
-                                                'Available',
-                                                '$availableStock $unit',
-                                                Colors.green,
-                                              )
-                                            else ...[
-                                              _buildCompactStat(
-                                                'Available',
-                                                '$availableStock $unit',
-                                                Colors.blue,
-                                              ),
-                                              const SizedBox(height: 4),
-                                              _buildCompactStat(
-                                                'Ledger',
-                                                '$ledgerStock $unit',
-                                                Colors.orange,
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      isCritical
-                                                          ? Colors.red
-                                                              .withValues(
-                                                                alpha: 0.1,
-                                                              )
-                                                          : Colors.orange
-                                                              .withValues(
-                                                                alpha: 0.1,
-                                                              ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                  border: Border.all(
-                                                    color:
-                                                        isCritical
-                                                            ? Colors.red
-                                                            : Colors.orange,
-                                                  ),
-                                                ),
-                                                child: Text(
-                                                  isCritical
-                                                      ? 'Critical'
-                                                      : 'Drift',
-                                                  style: TextStyle(
-                                                    color:
-                                                        isCritical
-                                                            ? Colors.red
-                                                            : Colors.orange,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                            if (signalLabel != null) ...[
-                                              const SizedBox(height: 6),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: signalColor!
-                                                      .withValues(alpha: 0.1),
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                  border: Border.all(
-                                                    color: signalColor,
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons.circle,
-                                                      size: 8,
-                                                      color: signalColor,
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      signalLabel,
-                                                      style: TextStyle(
-                                                        color: signalColor,
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ],
+                                onTap:
+                                    () => InventoryDetailSheet.show(
+                                      context,
+                                      inv,
+                                      isAdmin:
+                                          ref
+                                              .read(authProvider)
+                                              .value
+                                              ?.isAdmin ??
+                                          false,
                                     ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AgroSpacing.lg,
+                                    vertical: AgroSpacing.md,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              inv['name'] ?? 'Unknown',
+                                              style: AgroTypography.cardTitle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: AgroSpacing.sm),
+                                          _InventoryStatusBadge(
+                                            kind: statusKind,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: AgroSpacing.xs),
+                                      Text(
+                                        '$availableStock $unit',
+                                        style: AgroTypography.emphasis.copyWith(
+                                          fontSize: 16,
+                                        ),
+                                        softWrap: false,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: AgroSpacing.xs),
+                                      Text(
+                                        'Last updated: $lastUpdated',
+                                        style: AgroTypography.caption,
+                                      ),
+                                    ],
                                   ),
                                 ),
                               );
@@ -303,26 +182,6 @@ class InventoryScreen extends ConsumerWidget {
           );
         },
       ),
-    );
-  }
-
-  Widget _buildCompactStat(String label, String value, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$label: ',
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -346,47 +205,131 @@ class _InventoryFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: DropdownButtonFormField<int>(
-            // ignore: deprecated_member_use
-            value: selectedItemId,
-            decoration: const InputDecoration(labelText: 'Item'),
-            items: [
-              const DropdownMenuItem<int>(
-                value: null,
-                child: Text('All Items'),
+    return AgroCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Filter:', style: AgroTypography.captionEmphasis),
+          const SizedBox(height: AgroSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  // ignore: deprecated_member_use
+                  value: selectedItemId,
+                  decoration: const InputDecoration(labelText: 'Item'),
+                  items: [
+                    const DropdownMenuItem<int>(
+                      value: null,
+                      child: Text('All Items'),
+                    ),
+                    ...items.map(
+                      (item) => DropdownMenuItem(
+                        value: item['id'],
+                        child: Text(item['name']),
+                      ),
+                    ),
+                  ],
+                  onChanged: onItemChanged,
+                  isExpanded: true,
+                ),
               ),
-              ...items.map(
-                (item) => DropdownMenuItem(
-                  value: item['id'],
-                  child: Text(item['name']),
+              const SizedBox(width: AgroSpacing.md),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  // ignore: deprecated_member_use
+                  value: selectedUnit,
+                  decoration: const InputDecoration(labelText: 'Unit'),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('All Units'),
+                    ),
+                    ...units.map(
+                      (u) => DropdownMenuItem(value: u, child: Text(u)),
+                    ),
+                  ],
+                  onChanged: onUnitChanged,
+                  isExpanded: true,
                 ),
               ),
             ],
-            onChanged: onItemChanged,
-            isExpanded: true,
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            // ignore: deprecated_member_use
-            value: selectedUnit,
-            decoration: const InputDecoration(labelText: 'Unit'),
-            items: [
-              const DropdownMenuItem<String>(
-                value: null,
-                child: Text('All Units'),
-              ),
-              ...units.map((u) => DropdownMenuItem(value: u, child: Text(u))),
-            ],
-            onChanged: onUnitChanged,
-            isExpanded: true,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
+  }
+}
+
+enum _InventoryStatusKind { criticalDrift, drift, forecastAlert, ok }
+
+_InventoryStatusKind _deriveStatusKind(Map<String, dynamic> inv) {
+  final status = (inv['status'] as String? ?? 'HEALTHY').toUpperCase();
+  final severity = (inv['severity'] as String? ?? 'NONE').toUpperCase();
+  final signals =
+      (inv['signals'] as List<dynamic>?)
+          ?.map((e) => e.toString().toUpperCase())
+          .toList() ??
+      const <String>[];
+
+  if (severity == 'CRITICAL' || status == 'CRITICAL_DRIFT') {
+    return _InventoryStatusKind.criticalDrift;
+  }
+  if (status != 'HEALTHY' || severity == 'MAJOR' || severity == 'MINOR') {
+    return _InventoryStatusKind.drift;
+  }
+  if (signals.any((s) => s != 'STABLE')) {
+    return _InventoryStatusKind.forecastAlert;
+  }
+  return _InventoryStatusKind.ok;
+}
+
+String _resolveLastUpdated(Map<String, dynamic> inv) {
+  final raw =
+      inv['last_updated_at'] ??
+      inv['updated_at'] ??
+      inv['as_of'] ??
+      inv['last_reconciled_at'];
+  if (raw == null) return '--';
+  final parsed = DateTime.tryParse(raw.toString());
+  if (parsed == null) return raw.toString();
+
+  final now = DateTime.now();
+  final diff = now.difference(parsed.toLocal());
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+  if (diff.inDays < 1) return '${diff.inHours}h ago';
+  return '${diff.inDays}d ago';
+}
+
+class _InventoryStatusBadge extends StatelessWidget {
+  final _InventoryStatusKind kind;
+
+  const _InventoryStatusBadge({required this.kind});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (kind) {
+      case _InventoryStatusKind.criticalDrift:
+        return const AgroStatusBadge.compact(
+          status: AgroStatus.critical,
+          label: 'CRITICAL_DRIFT',
+        );
+      case _InventoryStatusKind.drift:
+        return const AgroStatusBadge.compact(
+          status: AgroStatus.major,
+          label: 'DRIFT',
+        );
+      case _InventoryStatusKind.forecastAlert:
+        return const AgroStatusBadge.compact(
+          status: AgroStatus.info,
+          label: 'FORECAST_ALERT',
+        );
+      case _InventoryStatusKind.ok:
+        return const AgroStatusBadge.compact(
+          status: AgroStatus.stable,
+          label: 'OK',
+        );
+    }
   }
 }

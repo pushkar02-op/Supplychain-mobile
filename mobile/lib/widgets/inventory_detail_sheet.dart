@@ -3,11 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/inventory_provider.dart';
 import '../screens/admin_reconciliation_detail_screen.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_spacing.dart';
+import '../ui/theme/agro_typography.dart';
+import '../ui/widgets/agro_card.dart';
+import '../ui/widgets/agro_status_badge.dart';
 
 /// Full-screen bottom sheet showing inventory item details.
 ///
-/// Includes stock stats, batch breakdown, signals, and recent transactions.
-/// Extracted from `InventoryScreen._showItemDetail` for readability.
+/// Includes system health, current balance, batch breakdown, and recent transactions.
 class InventoryDetailSheet extends ConsumerWidget {
   final Map<String, dynamic> item;
   final bool isAdmin;
@@ -37,24 +42,19 @@ class InventoryDetailSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final itemId = item['item_id'] as int;
-    final unit = item['unit'] as String?;
-    final name = item['name'] as String;
+    final unit = item['unit'] as String? ?? '';
+    final name = item['name'] as String? ?? 'Unknown';
     final detailFuture = ref
         .read(inventoryListProvider.notifier)
         .fetchDetail(itemId);
+
     final ledgerStock = (item['ledger_qty'] as num?)?.toDouble() ?? 0.0;
     final availableStock = (item['state_qty'] as num?)?.toDouble() ?? 0.0;
-    final status = item['status'] as String? ?? 'HEALTHY';
-    final severity = item['severity'] as String? ?? 'NONE';
+    final status = (item['status'] as String? ?? 'HEALTHY').toUpperCase();
+    final severity = (item['severity'] as String? ?? 'NONE').toUpperCase();
+    final drift = availableStock - ledgerStock;
 
-    // Health Badge Logic (Standardized via Backend)
-    String badgeLabel = status == 'HEALTHY' ? 'Healthy' : 'Drift';
-    Color badgeColor = status == 'HEALTHY' ? Colors.green : Colors.orange;
-
-    if (severity == 'CRITICAL') {
-      badgeLabel = 'Critical';
-      badgeColor = Colors.red;
-    }
+    final badgeStatus = AgroStatusParser.fromDriftSeverity(severity);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
@@ -64,11 +64,12 @@ class InventoryDetailSheet extends ConsumerWidget {
       builder: (ctx, scrollController) {
         return Column(
           children: [
-            // Header
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AgroSpacing.lg),
               decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.black12)),
+                border: Border(
+                  bottom: BorderSide(color: AgroColors.dividerLight),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -77,282 +78,136 @@ class InventoryDetailSheet extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Unit: $unit',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
+                        Text(name, style: AgroTypography.screenTitle),
+                        Text('Unit: $unit', style: AgroTypography.caption),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: badgeColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: badgeColor),
-                    ),
-                    child: Text(
-                      badgeLabel,
-                      style: TextStyle(
-                        color: badgeColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  AgroStatusBadge.compact(
+                    status: badgeStatus,
+                    label: severity == 'NONE' ? 'OK' : severity,
                   ),
                 ],
               ),
             ),
-            // Content
             Expanded(
               child: ListView(
                 controller: scrollController,
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.all(AgroSpacing.screenPadding),
                 children: [
-                  // Stats
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildStatCard(
-                                'Available Stock',
-                                '$availableStock $unit',
-                                Colors.blue,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildStatCard(
-                                'Ledger Balance',
-                                '$ledgerStock $unit',
-                                status == 'HEALTHY'
-                                    ? Colors.green
-                                    : Colors.orange,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed:
-                                () => _showBatchBreakdown(
-                                  context,
-                                  ref,
-                                  itemId,
-                                  name,
-                                  unit ?? '',
-                                ),
-                            icon: const Icon(Icons.layers_outlined, size: 18),
-                            label: const Text('View Batch Breakdown'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              side: BorderSide(
-                                color: Colors.blue.withValues(alpha: 0.5),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (status != 'HEALTHY' && isAdmin)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: FilledButton.icon(
-                                onPressed: () {
-                                  Navigator.pop(ctx);
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder:
-                                          (_) =>
-                                              AdminReconciliationDetailScreen(
-                                                itemId: itemId,
-                                                itemName: name,
-                                              ),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.rebase_edit, size: 18),
-                                label: const Text('Admin Reconciliation'),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: Colors.orange.shade800,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: 16),
-                        // Stock Trend Section
-                        FutureBuilder<Map<String, dynamic>>(
-                          future: detailFuture,
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) {
-                              return const SizedBox.shrink();
-                            }
-                            final data = Map<String, dynamic>.from(
-                              snapshot.data!['signals'] as Map,
-                            );
-                            final signals =
-                                (data['signals'] as List<dynamic>?)
-                                    ?.map((e) => e.toString())
-                                    .toList() ??
-                                [];
-                            final l7 = (data['out_last_7d'] as num).toDouble();
-                            final p7 = (data['out_prev_7d'] as num).toDouble();
-
-                            String trendStatus = 'Normal';
-                            Color trendColor = Colors.grey;
-                            if (signals.contains('FAST_DEPLETING')) {
-                              trendStatus = 'Fast Depleting';
-                              trendColor = Colors.red;
-                            } else if (signals.contains('LOW_STOCK')) {
-                              trendStatus = 'Low Stock';
-                              trendColor = Colors.orange;
-                            } else if (signals.contains('STABLE')) {
-                              trendStatus = 'Stable';
-                              trendColor = Colors.green;
-                            }
-
-                            return Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey[200]!),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Row(
-                                    children: [
-                                      Icon(
-                                        Icons.trending_up,
-                                        size: 16,
-                                        color: Colors.black54,
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Stock Trend (Last 14 days)',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '7d OUT',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                          Text(
-                                            '$l7 $unit',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Prev 7d OUT',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                          Text(
-                                            '$p7 $unit',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            'Status',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: trendColor.withValues(
-                                                alpha: 0.1,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              trendStatus,
-                                              style: TextStyle(
-                                                color: trendColor,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                  const Text(
+                    'System Health',
+                    style: AgroTypography.sectionTitle,
                   ),
-                  const Divider(height: 1),
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'Recent Transactions',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                  const SizedBox(height: AgroSpacing.sectionHeaderGap),
+                  FutureBuilder<Map<String, dynamic>>(
+                    future: detailFuture,
+                    builder: (context, snapshot) {
+                      final signalData =
+                          snapshot.data?['signals'] as Map<String, dynamic>?;
+                      return _InventoryHealthSection(
+                        status: status,
+                        severity: severity,
+                        drift: drift,
+                        unit: unit,
+                        isAdmin: isAdmin,
+                        signalData: signalData,
+                      );
+                    },
+                  ),
+                  if (status != 'HEALTHY' && isAdmin) ...[
+                    const SizedBox(height: AgroSpacing.sm),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => AdminReconciliationDetailScreen(
+                                    itemId: itemId,
+                                    itemName: name,
+                                  ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.rebase_edit, size: 18),
+                        label: const Text('Admin Reconciliation'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AgroColors.warning.text,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AgroSpacing.md,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AgroSpacing.sectionGap),
+
+                  const Text(
+                    'Current Balance',
+                    style: AgroTypography.sectionTitle,
+                  ),
+                  const SizedBox(height: AgroSpacing.sectionHeaderGap),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          'Available Stock',
+                          '$availableStock $unit',
+                          AgroColors.info,
+                        ),
+                      ),
+                      const SizedBox(width: AgroSpacing.md),
+                      Expanded(
+                        child: _buildStatCard(
+                          'Ledger Balance',
+                          '$ledgerStock $unit',
+                          status == 'HEALTHY'
+                              ? AgroColors.success
+                              : AgroColors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: AgroSpacing.sectionGap),
+
+                  const Text(
+                    'Batch Breakdown',
+                    style: AgroTypography.sectionTitle,
+                  ),
+                  const SizedBox(height: AgroSpacing.sectionHeaderGap),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          () => _showBatchBreakdown(
+                            context,
+                            ref,
+                            itemId,
+                            name,
+                            unit,
+                          ),
+                      icon: const Icon(Icons.layers_outlined, size: 18),
+                      label: const Text('View Batch Breakdown'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AgroSpacing.md,
+                        ),
+                        side: const BorderSide(color: AgroColors.divider),
                       ),
                     ),
                   ),
+
+                  const SizedBox(height: AgroSpacing.sectionGap),
+
+                  const Text(
+                    'Recent Transactions',
+                    style: AgroTypography.sectionTitle,
+                  ),
+                  const SizedBox(height: AgroSpacing.sectionHeaderGap),
                   FutureBuilder<Map<String, dynamic>>(
                     future: detailFuture,
                     builder: (context, snapshot) {
@@ -363,26 +218,30 @@ class InventoryDetailSheet extends ConsumerWidget {
                         );
                       }
                       if (snapshot.hasError) {
-                        return Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text('Error: ${snapshot.error}'),
+                        return Text(
+                          'Error: ${snapshot.error}',
+                          style: AgroTypography.bodySecondary,
                         );
                       }
+
                       final txns = List<Map<String, dynamic>>.from(
-                        snapshot.data!['transactions'] as List,
+                        snapshot.data?['transactions'] as List? ?? const [],
                       );
                       if (txns.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.all(16),
+                        return const AgroCard(
                           child: Center(child: Text('No transactions found')),
                         );
                       }
-                      return ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: txns.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (ctx, i) => _buildTxnRow(txns[i]),
+
+                      return AgroCard.outlined(
+                        padding: EdgeInsets.zero,
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: txns.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (ctx, i) => _buildTxnRow(txns[i]),
+                        ),
                       );
                     },
                   ),
@@ -395,28 +254,26 @@ class InventoryDetailSheet extends ConsumerWidget {
     );
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────
-
-  Widget _buildStatCard(String label, String value, Color color) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    AgroSemanticColor semanticColor,
+  ) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AgroSpacing.md),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.05),
+        color: semanticColor.background,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        border: Border.all(color: semanticColor.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-          const SizedBox(height: 4),
+          Text(label, style: AgroTypography.caption),
+          const SizedBox(height: AgroSpacing.xs),
           Text(
             value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            style: AgroTypography.emphasis.copyWith(color: semanticColor.text),
           ),
         ],
       ),
@@ -455,26 +312,24 @@ class InventoryDetailSheet extends ConsumerWidget {
     return ListTile(
       dense: true,
       leading: CircleAvatar(
-        backgroundColor: isIn ? Colors.green.shade50 : Colors.red.shade50,
+        backgroundColor:
+            isIn
+                ? AgroColors.success.background
+                : AgroColors.critical.background,
         child: Icon(
           isIn ? Icons.arrow_downward : Icons.arrow_upward,
-          color: isIn ? Colors.green : Colors.red,
+          color: isIn ? AgroColors.success.text : AgroColors.critical.text,
           size: 20,
         ),
       ),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+      title: Text(label, style: AgroTypography.captionEmphasis),
       subtitle: Text(
         '$subLabel\n${txn['created_at']?.toString().split('.').first ?? ''}',
+        style: AgroTypography.caption,
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            '${txn['raw_qty']} ${txn['raw_unit']}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-        ],
+      trailing: Text(
+        '${txn['raw_qty']} ${txn['raw_unit']}',
+        style: AgroTypography.emphasis,
       ),
     );
   }
@@ -502,7 +357,7 @@ class InventoryDetailSheet extends ConsumerWidget {
               return Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(AgroSpacing.lg),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -511,18 +366,9 @@ class InventoryDetailSheet extends ConsumerWidget {
                           children: [
                             const Text(
                               'Batch Breakdown',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: AgroTypography.screenTitle,
                             ),
-                            Text(
-                              itemName,
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 13,
-                              ),
-                            ),
+                            Text(itemName, style: AgroTypography.caption),
                           ],
                         ),
                         IconButton(
@@ -551,13 +397,12 @@ class InventoryDetailSheet extends ConsumerWidget {
                           );
                         }
                         final batches = List<Map<String, dynamic>>.from(
-                          snapshot.data!['batches'] as List,
+                          snapshot.data?['batches'] as List? ?? const [],
                         );
                         if (batches.isEmpty) {
                           return const Center(child: Text('No batches found'));
                         }
 
-                        // FIFO Sort: Oldest received_at first
                         batches.sort((a, b) {
                           final dateA =
                               DateTime.tryParse(a['received_at'] ?? '') ??
@@ -580,38 +425,40 @@ class InventoryDetailSheet extends ConsumerWidget {
 
                             return ListTile(
                               dense: true,
-                              tileColor: isZero ? Colors.grey[50] : null,
+                              tileColor:
+                                  isZero ? AgroColors.surfaceVariant : null,
                               title: Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Batch #${batch['id']}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color:
-                                          isZero ? Colors.grey : Colors.black87,
-                                    ),
+                                    style: AgroTypography.captionEmphasis
+                                        .copyWith(
+                                          color:
+                                              isZero
+                                                  ? AgroColors.textDisabled
+                                                  : AgroColors.textPrimary,
+                                        ),
                                   ),
                                   Text(
-                                    '$qty ${batch['unit']}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
+                                    '$qty ${batch['unit'] ?? unit}',
+                                    style: AgroTypography.emphasis.copyWith(
                                       color:
                                           isZero
-                                              ? Colors.grey
-                                              : Colors.blue[700],
+                                              ? AgroColors.textDisabled
+                                              : AgroColors.info.text,
                                     ),
                                   ),
                                 ],
                               ),
                               subtitle: Text(
                                 'Received: ${batch['received_at']?.toString().split("T").first ?? "Unknown"}',
-                                style: TextStyle(
+                                style: AgroTypography.caption.copyWith(
                                   color:
                                       isZero
-                                          ? Colors.grey[400]
-                                          : Colors.grey[600],
+                                          ? AgroColors.textDisabled
+                                          : AgroColors.textSecondary,
                                 ),
                               ),
                             );
@@ -625,5 +472,95 @@ class InventoryDetailSheet extends ConsumerWidget {
             },
           ),
     );
+  }
+}
+
+class _InventoryHealthSection extends StatelessWidget {
+  final String status;
+  final String severity;
+  final double drift;
+  final String unit;
+  final bool isAdmin;
+  final Map<String, dynamic>? signalData;
+
+  const _InventoryHealthSection({
+    required this.status,
+    required this.severity,
+    required this.drift,
+    required this.unit,
+    required this.isAdmin,
+    required this.signalData,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isNormal = status == 'HEALTHY' && severity == 'NONE';
+    final badgeStatus =
+        isNormal
+            ? AgroStatus.stable
+            : AgroStatusParser.fromDriftSeverity(severity);
+
+    final reconciliationAt = _resolveReconciliationTimestamp(signalData);
+    final l7 = (signalData?['out_last_7d'] as num?)?.toDouble();
+    final p7 = (signalData?['out_prev_7d'] as num?)?.toDouble();
+
+    return AgroCard.outlined(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AgroStatusBadge(
+            status: badgeStatus,
+            label:
+                isNormal
+                    ? 'Inventory Healthy'
+                    : 'Inventory discrepancy detected',
+          ),
+          const SizedBox(height: AgroSpacing.sm),
+          if (!isAdmin)
+            Text(
+              isNormal ? 'Inventory Healthy' : 'Inventory discrepancy detected',
+              style: AgroTypography.captionEmphasis,
+            ),
+          if (isAdmin) ...[
+            if (!isNormal) ...[
+              Text(
+                'Drift: ${drift >= 0 ? '+' : ''}$drift $unit',
+                style: AgroTypography.captionEmphasis,
+              ),
+              const SizedBox(height: AgroSpacing.xs),
+              Text('Severity: $severity', style: AgroTypography.caption),
+            ],
+            if (isNormal)
+              const Text(
+                'Inventory Healthy',
+                style: AgroTypography.captionEmphasis,
+              ),
+            const SizedBox(height: AgroSpacing.xs),
+            Text(
+              'Last reconciliation: ${reconciliationAt ?? '--'}',
+              style: AgroTypography.caption,
+            ),
+          ],
+          if (l7 != null && p7 != null) ...[
+            const SizedBox(height: AgroSpacing.sm),
+            Text(
+              'Recent outbound: $l7 vs previous $p7',
+              style: AgroTypography.caption,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String? _resolveReconciliationTimestamp(Map<String, dynamic>? signalData) {
+    if (signalData == null) return null;
+    final raw =
+        signalData['last_reconciliation'] ??
+        signalData['last_reconciled_at'] ??
+        signalData['reconciled_at'] ??
+        signalData['reconciliation_at'] ??
+        signalData['updated_at'];
+    return raw?.toString();
   }
 }
