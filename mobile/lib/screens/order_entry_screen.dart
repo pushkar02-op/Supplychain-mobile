@@ -331,6 +331,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                     // --- Destination Section ---
                     _sectionHeader('Destination'),
                     DropdownButtonFormField<int>(
+                      // ignore: deprecated_member_use
                       value: _selectedMartId,
                       decoration: InputDecoration(
                         labelText: 'Mart',
@@ -448,6 +449,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                       ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
+                      // ignore: deprecated_member_use
                       value: _unit.isNotEmpty ? _unit : null,
                       decoration: InputDecoration(
                         labelText: 'Unit',

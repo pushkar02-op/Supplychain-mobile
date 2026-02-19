@@ -33,6 +33,7 @@ class ItemListScreen extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       DropdownButtonFormField<int>(
+                        // ignore: deprecated_member_use
                         value: selectedBillItemId,
                         isExpanded: true,
                         items:
@@ -45,13 +46,15 @@ class ItemListScreen extends ConsumerWidget {
                               );
                             }).toList(),
                         onChanged:
-                            (val) => setDialogState(() => selectedBillItemId = val),
+                            (val) =>
+                                setDialogState(() => selectedBillItemId = val),
                         decoration: const InputDecoration(
                           labelText: 'Unmapped Mart Bill Item',
                         ),
                       ),
                       const SizedBox(height: AgroSpacing.sm + 2),
                       DropdownButtonFormField<int>(
+                        // ignore: deprecated_member_use
                         value: selectedItemId,
                         isExpanded: true,
                         items:
@@ -63,7 +66,9 @@ class ItemListScreen extends ConsumerWidget {
                             }).toList(),
                         onChanged:
                             (val) => setDialogState(() => selectedItemId = val),
-                        decoration: const InputDecoration(labelText: 'Select Item'),
+                        decoration: const InputDecoration(
+                          labelText: 'Select Item',
+                        ),
                       ),
                     ],
                   ),
@@ -74,7 +79,8 @@ class ItemListScreen extends ConsumerWidget {
                     ),
                     ElevatedButton(
                       onPressed: () async {
-                        if (selectedBillItemId == null || selectedItemId == null) {
+                        if (selectedBillItemId == null ||
+                            selectedItemId == null) {
                           return;
                         }
                         await ref
@@ -130,6 +136,7 @@ class ItemListScreen extends ConsumerWidget {
                           (val) => ref
                               .read(itemListProvider.notifier)
                               .setStatusFilter(val ? 'all' : 'active'),
+                      // ignore: deprecated_member_use
                       activeColor: AgroColors.primary,
                     ),
                   ],
@@ -337,7 +344,10 @@ class _ItemCard extends StatelessWidget {
                         },
                       ),
                       IconButton(
-                        icon: const Icon(Icons.edit, color: AgroColors.textSecondary),
+                        icon: const Icon(
+                          Icons.edit,
+                          color: AgroColors.textSecondary,
+                        ),
                         tooltip: 'Edit',
                         onPressed: () async {
                           await context.push('/item-edit', extra: item);

@@ -22,11 +22,13 @@ class AliasMappingScreen extends ConsumerWidget {
     _AliasRow row,
     int masterItemId,
   ) async {
-    await ref.read(itemAliasProvider.notifier).mapAlias(
-      billItemId: row.id,
-      masterItemId: masterItemId,
-      itemIdToRefresh: masterItemId,
-    );
+    await ref
+        .read(itemAliasProvider.notifier)
+        .mapAlias(
+          billItemId: row.id,
+          masterItemId: masterItemId,
+          itemIdToRefresh: masterItemId,
+        );
     if (!context.mounted) return;
     AgroSnackBar.success(context, 'Mapped ${row.aliasName} successfully');
     ref.invalidate(aliasMappingDataProvider);
@@ -85,12 +87,8 @@ class AliasMappingScreen extends ConsumerWidget {
                 seenCount: seenCount,
                 aliasMetrics: data.metrics,
                 onMap:
-                    (masterItemId) => _mapAlias(
-                      context,
-                      ref,
-                      row,
-                      masterItemId,
-                    ),
+                    (masterItemId) =>
+                        _mapAlias(context, ref, row, masterItemId),
                 onCreateNew: () async {
                   final newItem = await context.push<Map<String, dynamic>>(
                     '/item-edit',
@@ -174,6 +172,7 @@ class _AliasMappingCard extends StatelessWidget {
           const SizedBox(height: AgroSpacing.md),
           DropdownButtonFormField<int>(
             isExpanded: true,
+            // ignore: deprecated_member_use
             value: selectedItemId,
             items:
                 items

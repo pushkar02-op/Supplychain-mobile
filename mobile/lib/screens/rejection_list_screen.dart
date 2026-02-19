@@ -61,6 +61,7 @@ class _RejectionListScreenState extends ConsumerState<RejectionListScreen> {
                 ),
               )
               .toList(),
+      // ignore: deprecated_member_use
       value: state.selectedItemId,
       onChanged: (id) => ref.read(rejectionListProvider.notifier).setItem(id),
       isExpanded: true,

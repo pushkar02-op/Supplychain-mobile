@@ -1,8 +1,9 @@
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:dropdown_search/dropdown_search.dart';
+
 import '../providers/rejection_provider.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
@@ -169,6 +170,7 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
                       _loadingBatches
                           ? const Center(child: CircularProgressIndicator())
                           : DropdownButtonFormField<int>(
+                            // ignore: deprecated_member_use
                             value: _selectedBatchId,
                             decoration: const InputDecoration(
                               labelText: 'Batch *',

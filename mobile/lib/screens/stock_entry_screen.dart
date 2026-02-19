@@ -456,6 +456,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
             // Reason Dropdown
             DropdownButtonFormField<String>(
               decoration: InputDecoration(label: _requiredLabel('Reason')),
+              // ignore: deprecated_member_use
               value: _selectedReason,
               items: const [
                 DropdownMenuItem(
@@ -690,6 +691,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              // ignore: deprecated_member_use
               value: _unit.isNotEmpty ? _unit : null,
               decoration: InputDecoration(label: _requiredLabel('Unit')),
               items:

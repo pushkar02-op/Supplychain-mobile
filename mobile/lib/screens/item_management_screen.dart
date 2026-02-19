@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/item_provider.dart';
@@ -54,9 +54,12 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
 
   Future<void> _fetchData() async {
     try {
-      final fetchedUoms = await ref.read(itemAliasProvider.notifier).fetchUOMs();
+      final fetchedUoms =
+          await ref.read(itemAliasProvider.notifier).fetchUOMs();
       final unmappedBillItems =
-          await ref.read(itemAliasProvider.notifier).fetchUnmappedMartBillItems();
+          await ref
+              .read(itemAliasProvider.notifier)
+              .fetchUnmappedMartBillItems();
 
       // Transform unmapped items to look like aliases for the UI
       final unmappedAsAliases =
@@ -298,88 +301,86 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            ...similarItems
-                                .map(
-                                  (item) => Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 4,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item['name'],
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                              Text(
-                                                "${item['default_unit']} • ${item['alias_count']} aliases",
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        if (item['has_stock'] == true)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.green.shade100,
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              "In Stock",
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: Colors.green.shade800,
-                                              ),
-                                            ),
-                                          )
-                                        else
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey.shade200,
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              "Never Used",
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: Colors.grey.shade600,
-                                              ),
+                            ...similarItems.map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item['name'],
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w500,
                                             ),
                                           ),
-                                        TextButton(
-                                          child: const Text("View"),
-                                          onPressed: () {
-                                            context.push(
-                                              '/items/${item['id']}',
-                                            );
-                                          },
-                                        ),
-                                      ],
+                                          Text(
+                                            "${item['default_unit']} • ${item['alias_count']} aliases",
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                )
-                                ,
+                                    if (item['has_stock'] == true)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade100,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          "In Stock",
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.green.shade800,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          "Never Used",
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ),
+                                    TextButton(
+                                      child: const Text("View"),
+                                      onPressed: () {
+                                        context.push('/items/${item['id']}');
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -390,6 +391,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Default UOM',
                       ),
+                      // ignore: deprecated_member_use
                       value: defaultUomId,
                       items:
                           uoms
@@ -635,6 +637,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                             return AlertDialog(
                               title: const Text('Select Unmapped Alias'),
                               content: DropdownButtonFormField<int>(
+                                // ignore: deprecated_member_use
                                 value: tempSelected,
                                 items:
                                     fetchedAliases

@@ -49,10 +49,14 @@ class InventoryScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error:
             (e, _) => Center(
-              child: Text(e.toString(), style: const TextStyle(color: Colors.red)),
+              child: Text(
+                e.toString(),
+                style: const TextStyle(color: Colors.red),
+              ),
             ),
         data: (state) {
-          final filterItems = itemsAsync.valueOrNull ?? const <Map<String, dynamic>>[];
+          final filterItems =
+              itemsAsync.valueOrNull ?? const <Map<String, dynamic>>[];
           final filterUnits = unitsAsync.valueOrNull ?? const <String>[];
 
           return Padding(
@@ -65,9 +69,11 @@ class InventoryScreen extends ConsumerWidget {
                   selectedItemId: state.selectedItemId,
                   selectedUnit: state.selectedUnit,
                   onItemChanged:
-                      (id) => ref.read(inventoryListProvider.notifier).setItem(id),
+                      (id) =>
+                          ref.read(inventoryListProvider.notifier).setItem(id),
                   onUnitChanged:
-                      (u) => ref.read(inventoryListProvider.notifier).setUnit(u),
+                      (u) =>
+                          ref.read(inventoryListProvider.notifier).setUnit(u),
                 ),
                 const SizedBox(height: 12),
                 Expanded(
@@ -98,12 +104,15 @@ class InventoryScreen extends ConsumerWidget {
                             itemBuilder: (context, i) {
                               final inv = state.items[i];
                               final ledgerStock =
-                                  (inv['ledger_qty'] as num?)?.toDouble() ?? 0.0;
+                                  (inv['ledger_qty'] as num?)?.toDouble() ??
+                                  0.0;
                               final availableStock =
                                   (inv['state_qty'] as num?)?.toDouble() ?? 0.0;
                               final unit = inv['unit'] ?? '';
-                              final status = inv['status'] as String? ?? 'HEALTHY';
-                              final severity = inv['severity'] as String? ?? 'NONE';
+                              final status =
+                                  inv['status'] as String? ?? 'HEALTHY';
+                              final severity =
+                                  inv['severity'] as String? ?? 'NONE';
 
                               final isHealthy = status == 'HEALTHY';
                               final isCritical = severity == 'CRITICAL';
@@ -140,13 +149,17 @@ class InventoryScreen extends ConsumerWidget {
                                         context,
                                         inv,
                                         isAdmin:
-                                            ref.read(authProvider).value?.isAdmin ??
+                                            ref
+                                                .read(authProvider)
+                                                .value
+                                                ?.isAdmin ??
                                             false,
                                       ),
                                   child: Padding(
                                     padding: const EdgeInsets.all(16),
                                     child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Expanded(
                                           child: Column(
@@ -172,7 +185,8 @@ class InventoryScreen extends ConsumerWidget {
                                           ),
                                         ),
                                         Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
                                           children: [
                                             if (isHealthy)
                                               _buildCompactStat(
@@ -194,19 +208,22 @@ class InventoryScreen extends ConsumerWidget {
                                               ),
                                               const SizedBox(height: 6),
                                               Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 2,
-                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2,
+                                                    ),
                                                 decoration: BoxDecoration(
                                                   color:
                                                       isCritical
-                                                          ? Colors.red.withValues(
-                                                            alpha: 0.1,
-                                                          )
-                                                          : Colors.orange.withValues(
-                                                            alpha: 0.1,
-                                                          ),
+                                                          ? Colors.red
+                                                              .withValues(
+                                                                alpha: 0.1,
+                                                              )
+                                                          : Colors.orange
+                                                              .withValues(
+                                                                alpha: 0.1,
+                                                              ),
                                                   borderRadius:
                                                       BorderRadius.circular(4),
                                                   border: Border.all(
@@ -217,7 +234,9 @@ class InventoryScreen extends ConsumerWidget {
                                                   ),
                                                 ),
                                                 child: Text(
-                                                  isCritical ? 'Critical' : 'Drift',
+                                                  isCritical
+                                                      ? 'Critical'
+                                                      : 'Drift',
                                                   style: TextStyle(
                                                     color:
                                                         isCritical
@@ -232,14 +251,14 @@ class InventoryScreen extends ConsumerWidget {
                                             if (signalLabel != null) ...[
                                               const SizedBox(height: 6),
                                               Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 2,
-                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2,
+                                                    ),
                                                 decoration: BoxDecoration(
-                                                  color: signalColor!.withValues(
-                                                    alpha: 0.1,
-                                                  ),
+                                                  color: signalColor!
+                                                      .withValues(alpha: 0.1),
                                                   borderRadius:
                                                       BorderRadius.circular(4),
                                                   border: Border.all(
@@ -247,7 +266,8 @@ class InventoryScreen extends ConsumerWidget {
                                                   ),
                                                 ),
                                                 child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
                                                     Icon(
                                                       Icons.circle,
@@ -290,7 +310,10 @@ class InventoryScreen extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('$label: ', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+        Text(
+          '$label: ',
+          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        ),
         Text(
           value,
           style: TextStyle(
@@ -327,10 +350,14 @@ class _InventoryFilterBar extends StatelessWidget {
       children: [
         Expanded(
           child: DropdownButtonFormField<int>(
+            // ignore: deprecated_member_use
             value: selectedItemId,
             decoration: const InputDecoration(labelText: 'Item'),
             items: [
-              const DropdownMenuItem<int>(value: null, child: Text('All Items')),
+              const DropdownMenuItem<int>(
+                value: null,
+                child: Text('All Items'),
+              ),
               ...items.map(
                 (item) => DropdownMenuItem(
                   value: item['id'],
@@ -345,10 +372,14 @@ class _InventoryFilterBar extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: DropdownButtonFormField<String>(
+            // ignore: deprecated_member_use
             value: selectedUnit,
             decoration: const InputDecoration(labelText: 'Unit'),
             items: [
-              const DropdownMenuItem<String>(value: null, child: Text('All Units')),
+              const DropdownMenuItem<String>(
+                value: null,
+                child: Text('All Units'),
+              ),
               ...units.map((u) => DropdownMenuItem(value: u, child: Text(u))),
             ],
             onChanged: onUnitChanged,
