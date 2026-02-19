@@ -91,7 +91,7 @@ class InventoryScreen extends ConsumerWidget {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.warehouse_outlined,
                                   size: 64,
                                   color: AgroColors.textDisabled,
@@ -209,7 +209,7 @@ class _InventoryFilterBar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Filter:', style: AgroTypography.captionEmphasis),
+          const Text('Filter:', style: AgroTypography.captionEmphasis),
           const SizedBox(height: AgroSpacing.sm),
           Row(
             children: [

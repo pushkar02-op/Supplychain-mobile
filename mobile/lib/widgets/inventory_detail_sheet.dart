@@ -95,7 +95,10 @@ class InventoryDetailSheet extends ConsumerWidget {
                 controller: scrollController,
                 padding: const EdgeInsets.all(AgroSpacing.screenPadding),
                 children: [
-                  Text('System Health', style: AgroTypography.sectionTitle),
+                  const Text(
+                    'System Health',
+                    style: AgroTypography.sectionTitle,
+                  ),
                   const SizedBox(height: AgroSpacing.sectionHeaderGap),
                   FutureBuilder<Map<String, dynamic>>(
                     future: detailFuture,
@@ -142,7 +145,10 @@ class InventoryDetailSheet extends ConsumerWidget {
                   ],
                   const SizedBox(height: AgroSpacing.sectionGap),
 
-                  Text('Current Balance', style: AgroTypography.sectionTitle),
+                  const Text(
+                    'Current Balance',
+                    style: AgroTypography.sectionTitle,
+                  ),
                   const SizedBox(height: AgroSpacing.sectionHeaderGap),
                   Row(
                     children: [
@@ -168,7 +174,10 @@ class InventoryDetailSheet extends ConsumerWidget {
 
                   const SizedBox(height: AgroSpacing.sectionGap),
 
-                  Text('Batch Breakdown', style: AgroTypography.sectionTitle),
+                  const Text(
+                    'Batch Breakdown',
+                    style: AgroTypography.sectionTitle,
+                  ),
                   const SizedBox(height: AgroSpacing.sectionHeaderGap),
                   SizedBox(
                     width: double.infinity,
@@ -194,7 +203,7 @@ class InventoryDetailSheet extends ConsumerWidget {
 
                   const SizedBox(height: AgroSpacing.sectionGap),
 
-                  Text(
+                  const Text(
                     'Recent Transactions',
                     style: AgroTypography.sectionTitle,
                   ),
@@ -355,7 +364,7 @@ class InventoryDetailSheet extends ConsumerWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Batch Breakdown',
                               style: AgroTypography.screenTitle,
                             ),
@@ -522,7 +531,10 @@ class _InventoryHealthSection extends StatelessWidget {
               Text('Severity: $severity', style: AgroTypography.caption),
             ],
             if (isNormal)
-              Text('Inventory Healthy', style: AgroTypography.captionEmphasis),
+              const Text(
+                'Inventory Healthy',
+                style: AgroTypography.captionEmphasis,
+              ),
             const SizedBox(height: AgroSpacing.xs),
             Text(
               'Last reconciliation: ${reconciliationAt ?? '--'}',
