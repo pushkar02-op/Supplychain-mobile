@@ -6,148 +6,122 @@ import 'package:intl/intl.dart';
 import '../providers/admin_ledger_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/dispatch_provider.dart';
+import '../providers/forecasting_provider.dart';
+import '../providers/inventory_provider.dart';
+import '../providers/mart_bill_provider.dart';
 import '../providers/order_provider.dart';
-import '../services/stock_service.dart';
-import '../ui/semantics/agro_severity.dart';
+import '../providers/rejection_provider.dart';
+import '../providers/stock_list_provider.dart';
+import '../services/forecasting_service.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_card.dart';
 import '../ui/widgets/agro_decision_card.dart';
-import '../ui/widgets/agro_error_state.dart';
+import '../ui/widgets/agro_status_badge.dart';
 
 /// Overview screen - read-only dashboard showing today's system snapshot.
 /// This is Tab 1 in the bottom navigation.
-class OverviewScreen extends ConsumerStatefulWidget {
+class OverviewScreen extends ConsumerWidget {
   const OverviewScreen({super.key});
 
-  @override
-  ConsumerState<OverviewScreen> createState() => _OverviewScreenState();
-}
-
-class _OverviewScreenState extends ConsumerState<OverviewScreen> {
-  bool _loading = true;
-  String? _error;
-
-  int _ordersToday = 0;
-  int _dispatchesToday = 0;
-  int _stockEntriesToday = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTodayData();
-  }
-
-  Future<void> _loadTodayData() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-    try {
-      final results = await Future.wait([
-        ref.read(orderListProvider.notifier).fetchOrdersForDate(DateTime.now()),
-        ref
-            .read(dispatchListProvider.notifier)
-            .fetchDispatchesForDate(DateTime.now()),
-        StockService.fetchStockEntries(date: todayStr),
-      ]);
-
-      if (!mounted) return;
-      setState(() {
-        _ordersToday = results[0].length;
-        _dispatchesToday = results[1].length;
-        _stockEntriesToday = results[2].length;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    }
+  Future<void> _refreshOverview(WidgetRef ref) async {
+    ref.invalidate(orderListProvider);
+    ref.invalidate(dispatchListProvider);
+    ref.invalidate(stockListProvider);
+    ref.invalidate(rejectionListProvider);
+    ref.invalidate(inventoryListProvider);
+    ref.invalidate(martBillProvider);
+    ref.invalidate(forecastingProvider);
+    ref.invalidate(ledgerHealthProvider);
+    ref.invalidate(driftReportProvider);
   }
 
   @override
-  Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final isAdmin = authState.value?.isAdmin ?? false;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
     final todayFormatted = DateFormat('EEEE, MMMM d').format(DateTime.now());
 
-    // Watch ledger health for the decision strip (available to all users)
     final healthAsync = ref.watch(ledgerHealthProvider);
+    final ordersAsync = ref.watch(orderListProvider);
+    final dispatchAsync = ref.watch(dispatchListProvider);
+    final stockAsync = ref.watch(stockListProvider);
+    final rejectionAsync = ref.watch(rejectionListProvider);
+    final inventoryAsync = ref.watch(inventoryListProvider);
+    final martBillAsync = ref.watch(martBillProvider);
+    final forecastAsync = ref.watch(forecastingProvider);
+    final driftAsync = ref.watch(driftReportProvider);
+
+    final orders = _deriveOrdersActivity(ordersAsync);
+    final dispatches = _deriveDispatchActivity(dispatchAsync);
+    final receipts = _deriveReceiptsActivity(stockAsync);
+    final rejections = _deriveRejectionsActivity(rejectionAsync);
+
+    final alerts = _deriveAlerts(
+      isAdmin: isAdmin,
+      inventoryAsync: inventoryAsync,
+      martBillAsync: martBillAsync,
+      forecastAsync: forecastAsync,
+      healthAsync: healthAsync,
+      driftAsync: driftAsync,
+    );
 
     return Scaffold(
       backgroundColor: AgroColors.background,
       appBar: AppBar(
         title: const Text('Overview'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AgroColors.surface,
+        foregroundColor: AgroColors.textPrimary,
         elevation: 1,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadTodayData,
+            onPressed: () => _refreshOverview(ref),
             tooltip: 'Refresh',
           ),
         ],
       ),
-      body:
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-              ? AgroErrorState.loadFailed(
-                customTitle: 'Could not load overview',
-                onRetry: _loadTodayData,
-              )
-              : RefreshIndicator(
-                onRefresh: _loadTodayData,
-                child: ListView(
-                  padding: const EdgeInsets.all(AgroSpacing.screenPadding),
-                  children: [
-                    // Decision Strip (Available to all users if data exists)
-                    if (healthAsync.hasValue && healthAsync.value != null)
-                      _buildDecisionStrip(healthAsync.value!),
+      body: RefreshIndicator(
+        onRefresh: () => _refreshOverview(ref),
+        child: ListView(
+          padding: const EdgeInsets.all(AgroSpacing.screenPadding),
+          children: [
+            if (healthAsync.hasValue && healthAsync.value != null)
+              _buildDecisionStrip(healthAsync.value!),
 
-                    // Date Header
-                    Text(todayFormatted, style: AgroTypography.captionEmphasis),
-                    const SizedBox(height: AgroSpacing.lg),
+            Text(todayFormatted, style: AgroTypography.captionEmphasis),
+            const SizedBox(height: AgroSpacing.lg),
 
-                    // Today's Operations
-                    const Text(
-                      "Today's Operations",
-                      style: AgroTypography.sectionTitle,
-                    ),
-                    const SizedBox(height: AgroSpacing.sm),
-                    _buildOperationsGrid(),
-                    const SizedBox(height: AgroSpacing.xl),
+            const Text("Today's Activity", style: AgroTypography.sectionTitle),
+            const SizedBox(height: AgroSpacing.sm),
+            _buildTodayActivity(
+              context,
+              orders,
+              dispatches,
+              receipts,
+              rejections,
+            ),
 
-                    // Quick Actions
-                    const Text('Quick Actions', style: AgroTypography.sectionTitle),
-                    const SizedBox(height: AgroSpacing.sm),
-                    _buildQuickActions(),
+            const SizedBox(height: AgroSpacing.xl),
 
-                    // Admin Summary (Admin only)
-                    if (isAdmin) ...[
-                      const SizedBox(height: AgroSpacing.xl),
-                      const Text('System Health', style: AgroTypography.sectionTitle),
-                      const SizedBox(height: AgroSpacing.sm),
-                      _buildAdminSummary(),
-                    ],
-                  ],
-                ),
-              ),
+            const Text('Alerts & Health', style: AgroTypography.sectionTitle),
+            const SizedBox(height: AgroSpacing.sm),
+            _buildAlertsAndHealth(context, alerts, isAdmin: isAdmin),
+
+            const SizedBox(height: AgroSpacing.xl),
+
+            const Text('Quick Actions', style: AgroTypography.sectionTitle),
+            const SizedBox(height: AgroSpacing.sm),
+            _buildQuickActions(context),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildDecisionStrip(Map<String, dynamic> data) {
-    // FIX 1: Use combined signals (only Ledger available currently)
     final statusStr = data['status'] as String? ?? 'unknown';
     final agroStatus = AgroStatusParser.fromHealthStatus(statusStr);
     final driftCount = data['drifted_batches'] ?? 0;
@@ -156,7 +130,6 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     String? secondary;
     String explanation;
 
-    // FIX 4: Adjust Explanation Copy (Truthful, Not Absolute)
     if (agroStatus == AgroStatus.stable) {
       primary = 'Ledger Balanced';
       explanation = 'No ledger drift detected based on current records.';
@@ -168,7 +141,6 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
           'Differences found between ledger and physical stock calculations.';
     }
 
-    // FIX 3: Correct Source Attribution ("Ledger Health" since only using ledger)
     const source = 'Ledger Health';
 
     return Padding(
@@ -184,43 +156,119 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     );
   }
 
-  Widget _buildOperationsGrid() {
-    return Row(
+  Widget _buildTodayActivity(
+    BuildContext context,
+    _ActivityCardData orders,
+    _ActivityCardData dispatches,
+    _ActivityCardData receipts,
+    _ActivityCardData rejections,
+  ) {
+    return Column(
       children: [
-        Expanded(
-          child: _MetricCard(
-            label: 'Orders',
-            value: _ordersToday.toString(),
-            icon: Icons.receipt_long,
-            color: Colors.blue,
-            onTap: () => context.push('/orders'),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _ActivityCard(
+                data: orders,
+                onTap: () => context.push('/orders'),
+              ),
+            ),
+            const SizedBox(width: AgroSpacing.md),
+            Expanded(
+              child: _ActivityCard(
+                data: dispatches,
+                onTap: () => context.push('/dispatch-entries'),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: AgroSpacing.md),
-        Expanded(
-          child: _MetricCard(
-            label: 'Dispatches',
-            value: _dispatchesToday.toString(),
-            icon: Icons.local_shipping,
-            color: Colors.orange,
-            onTap: () => context.push('/dispatch-entries'),
-          ),
-        ),
-        const SizedBox(width: AgroSpacing.md),
-        Expanded(
-          child: _MetricCard(
-            label: 'Stock In',
-            value: _stockEntriesToday.toString(),
-            icon: Icons.inventory_2,
-            color: Colors.green,
-            onTap: () => context.push('/stock-list'),
-          ),
+        const SizedBox(height: AgroSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: _ActivityCard(
+                data: receipts,
+                onTap: () => context.push('/stock-list'),
+              ),
+            ),
+            const SizedBox(width: AgroSpacing.md),
+            Expanded(
+              child: _ActivityCard(
+                data: rejections,
+                onTap: () => context.push('/rejection-list'),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildQuickActions() {
+  Widget _buildAlertsAndHealth(
+    BuildContext context,
+    List<_AlertRowData> alerts, {
+    required bool isAdmin,
+  }) {
+    if (alerts.isEmpty) {
+      return AgroCard.outlined(
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: const AgroStatusBadge.compact(
+            status: AgroStatus.stable,
+            label: 'System Healthy',
+          ),
+          title: Text(
+            isAdmin ? 'No governance alerts' : 'No active operator alerts',
+            style: AgroTypography.caption,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children:
+          alerts
+              .map(
+                (a) => Padding(
+                  padding: const EdgeInsets.only(bottom: AgroSpacing.sm),
+                  child: AgroCard.outlined(
+                    onTap:
+                        a.route == null ? null : () => context.push(a.route!),
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: AgroStatusBadge.compact(
+                        status: a.status,
+                        label: a.badgeLabel,
+                      ),
+                      title: Text(
+                        a.title,
+                        style: AgroTypography.captionEmphasis,
+                      ),
+                      subtitle:
+                          a.subtitle == null
+                              ? null
+                              : Text(
+                                a.subtitle!,
+                                style: AgroTypography.caption,
+                              ),
+                      trailing:
+                          a.route == null
+                              ? null
+                              : const Icon(
+                                Icons.chevron_right,
+                                color: AgroColors.textDisabled,
+                              ),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
     return Wrap(
       spacing: AgroSpacing.sm,
       runSpacing: AgroSpacing.sm,
@@ -249,105 +297,362 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     );
   }
 
-  Widget _buildAdminSummary() {
-    final healthAsync = ref.watch(ledgerHealthProvider);
+  _ActivityCardData _deriveOrdersActivity(
+    AsyncValue<OrderListState> ordersAsync,
+  ) {
+    final orders =
+        ordersAsync.valueOrNull?.orders ?? const <Map<String, dynamic>>[];
+    final total = orders.length;
+    final pending =
+        orders.where((o) {
+          final dispatched = (o['quantity_dispatched'] as num?) ?? 0;
+          return dispatched == 0;
+        }).length;
+    final partial =
+        orders.where((o) {
+          final ordered = (o['quantity_ordered'] as num?) ?? 0;
+          final dispatched = (o['quantity_dispatched'] as num?) ?? 0;
+          return dispatched > 0 && dispatched < ordered;
+        }).length;
+    final reversed =
+        orders.where((o) {
+          final s = (o['status'] ?? '').toString().toLowerCase();
+          return s.contains('reversed');
+        }).length;
 
-    return healthAsync.when(
-      loading:
-          () => const AgroCard(
-            child: Padding(
-              padding: EdgeInsets.all(AgroSpacing.lg),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          ),
-      error: (e, _) {
-        final severity = AgroSeverity.fromStatus(AgroStatus.critical);
-        return AgroCard(
-          borderColor: severity.borderColor,
-          child: ListTile(
-            leading: Icon(Icons.error_outline, color: severity.iconColor),
-            title: const Text('Could not load health'),
-            trailing: IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed:
-                  () => ref.read(ledgerHealthProvider.notifier).refresh(),
-            ),
-          ),
-        );
-      },
-      data: (data) {
-        final status = data['status'] as String? ?? 'unknown';
-        final agroStatus = AgroStatusParser.fromHealthStatus(status);
-        final severity = AgroSeverity.fromStatus(agroStatus);
-        final isHealthy = status == 'healthy';
-        final driftedBatches = data['drifted_batches'] ?? 0;
-        final negativeStock = data['negative_stock_batches'] ?? 0;
+    final subtext = <String>[
+      '$pending pending',
+      '$partial partially fulfilled',
+      if (reversed > 0) '$reversed reversed',
+    ];
 
-        return AgroCard.outlined(
-          borderColor: severity.borderColor,
-          onTap: () => context.push('/admin/ledger/health'),
-          child: Row(
-            children: [
-              Icon(severity.icon, color: severity.iconColor, size: 32),
-              const SizedBox(width: AgroSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isHealthy ? 'System Healthy' : 'Attention Needed',
-                      style: AgroTypography.emphasis.copyWith(
-                        color: severity.textColor,
-                      ),
-                    ),
-                    if (!isHealthy)
-                      Text(
-                        'Drift: $driftedBatches | Negative: $negativeStock',
-                        style: AgroTypography.caption,
-                      ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right, color: AgroColors.textDisabled),
-            ],
-          ),
-        );
-      },
+    return _ActivityCardData(
+      label: 'Orders Today',
+      value: '$total',
+      icon: Icons.receipt_long,
+      semanticColor: AgroColors.info,
+      subtext: subtext,
     );
+  }
+
+  _ActivityCardData _deriveDispatchActivity(
+    AsyncValue<DispatchListState> dispatchAsync,
+  ) {
+    final dispatches =
+        dispatchAsync.valueOrNull?.dispatches ?? const <dynamic>[];
+    final total = dispatches.length;
+
+    final partial =
+        dispatches.where((d) {
+          final map = d as Map<String, dynamic>;
+          return (map['status'] as String?) == 'Partially Reversed';
+        }).length;
+    final reversed =
+        dispatches.where((d) {
+          final map = d as Map<String, dynamic>;
+          return (map['status'] as String?) == 'Reversed';
+        }).length;
+
+    return _ActivityCardData(
+      label: 'Dispatches Today',
+      value: '$total',
+      icon: Icons.local_shipping,
+      semanticColor: AgroColors.warning,
+      subtext: ['$partial partial', if (reversed > 0) '$reversed reversed'],
+    );
+  }
+
+  _ActivityCardData _deriveReceiptsActivity(
+    AsyncValue<List<dynamic>> stockAsync,
+  ) {
+    final entries = stockAsync.valueOrNull ?? const <dynamic>[];
+    final total = entries.length;
+
+    int adjusted = 0;
+    int adjustments = 0;
+    for (final e in entries) {
+      final entry = e as Map<String, dynamic>;
+      final qty = (entry['quantity'] as num?)?.toDouble() ?? 0;
+      final batchQty = (entry['batch_quantity'] as num?)?.toDouble() ?? qty;
+      final isAdjusted = (batchQty - qty).abs() > 0.001;
+      if (!isAdjusted) continue;
+      adjusted += 1;
+
+      final typeFields = [
+        entry['entry_type'],
+        entry['mode'],
+        entry['adjustment_type'],
+        entry['reason'],
+      ];
+      final looksAdjustment = typeFields.whereType<String>().any(
+        (v) => v.toLowerCase().contains('adjust'),
+      );
+      if (looksAdjustment) {
+        adjustments += 1;
+      }
+    }
+    final corrections = adjusted - adjustments;
+
+    return _ActivityCardData(
+      label: 'Receipts Today',
+      value: '$total',
+      icon: Icons.inventory_2,
+      semanticColor: AgroColors.success,
+      subtext: [
+        '$corrections corrections',
+        '$adjustments adjustment${adjustments == 1 ? '' : 's'}',
+      ],
+    );
+  }
+
+  _ActivityCardData _deriveRejectionsActivity(
+    AsyncValue<RejectionListState> rejectionAsync,
+  ) {
+    final items =
+        rejectionAsync.valueOrNull?.items ?? const <Map<String, dynamic>>[];
+    final total = items.length;
+    final reversed =
+        items.where((r) => (r['is_active'] ?? true) == false).length;
+
+    return _ActivityCardData(
+      label: 'Rejections Today',
+      value: '$total',
+      icon: Icons.cancel_outlined,
+      semanticColor: AgroColors.caution,
+      subtext: ['$reversed reversed'],
+    );
+  }
+
+  List<_AlertRowData> _deriveAlerts({
+    required bool isAdmin,
+    required AsyncValue<InventoryState> inventoryAsync,
+    required AsyncValue<MartBillState> martBillAsync,
+    required AsyncValue<List<ItemForecast>> forecastAsync,
+    required AsyncValue<Map<String, dynamic>> healthAsync,
+    required AsyncValue<List<dynamic>> driftAsync,
+  }) {
+    final inventoryItems =
+        inventoryAsync.valueOrNull?.items ?? const <Map<String, dynamic>>[];
+    final severeInventory =
+        inventoryItems.where((i) {
+          final sev = (i['severity'] ?? '').toString().toUpperCase();
+          return sev == 'CRITICAL';
+        }).length;
+    final minorInventory =
+        inventoryItems.where((i) {
+          final sev = (i['severity'] ?? '').toString().toUpperCase();
+          final status = (i['status'] ?? '').toString().toUpperCase();
+          return status != 'HEALTHY' && sev != 'CRITICAL';
+        }).length;
+
+    final bills =
+        martBillAsync.valueOrNull?.bills ?? const <Map<String, dynamic>>[];
+    final unverifiedBills =
+        bills.where((b) {
+          final status =
+              (b['status'] ?? 'NEEDS_REVIEW').toString().toUpperCase();
+          return status != 'VERIFIED';
+        }).length;
+
+    final forecasts = forecastAsync.valueOrNull ?? const <ItemForecast>[];
+    final forecastAnomalies =
+        forecasts.where((f) {
+          final signal = f.signal.toUpperCase();
+          return signal != 'STABLE';
+        }).length;
+
+    final ledger = healthAsync.valueOrNull;
+    final driftedBatches = (ledger?['drifted_batches'] as num?)?.toInt() ?? 0;
+    final ledgerStatus = (ledger?['status'] ?? '').toString().toLowerCase();
+    final reconciliationNeeded =
+        (ledgerStatus == 'unhealthy' || driftedBatches > 0) ? 1 : 0;
+
+    final driftRows = driftAsync.valueOrNull ?? const <dynamic>[];
+    final severeDrift =
+        driftRows.where((d) {
+          final row = d as Map<String, dynamic>;
+          final sev = (row['severity'] ?? '').toString().toUpperCase();
+          return sev == 'CRITICAL';
+        }).length;
+
+    final alerts = <_AlertRowData>[];
+
+    if (isAdmin) {
+      if (driftedBatches > 0) {
+        alerts.add(
+          _AlertRowData(
+            status: AgroStatus.major,
+            badgeLabel: 'DRIFT',
+            title: 'Drift Count: $driftedBatches',
+            route: '/admin/ledger/health',
+          ),
+        );
+      }
+      if (severeDrift > 0) {
+        alerts.add(
+          _AlertRowData(
+            status: AgroStatus.critical,
+            badgeLabel: 'SEVERE',
+            title: 'Severe Drift Count: $severeDrift',
+            route: '/admin/ledger/health',
+          ),
+        );
+      }
+      if (unverifiedBills > 0) {
+        alerts.add(
+          _AlertRowData(
+            status: AgroStatus.major,
+            badgeLabel: 'VERIFY',
+            title: 'Unverified Mart Bills: $unverifiedBills',
+            route: '/mart-bills',
+          ),
+        );
+      }
+      if (forecastAnomalies > 0) {
+        alerts.add(
+          _AlertRowData(
+            status: AgroStatus.info,
+            badgeLabel: 'FORECAST',
+            title: 'Forecast Anomalies: $forecastAnomalies',
+            route: '/items',
+          ),
+        );
+      }
+      if (reconciliationNeeded > 0) {
+        alerts.add(
+          _AlertRowData(
+            status: AgroStatus.minor,
+            badgeLabel: 'RECON',
+            title: 'Reconciliation Needed: $driftedBatches',
+            route: '/admin/ledger/health',
+          ),
+        );
+      }
+      return alerts;
+    }
+
+    if (severeInventory > 0) {
+      alerts.add(
+        _AlertRowData(
+          status: AgroStatus.critical,
+          badgeLabel: 'CRITICAL',
+          title:
+              '$severeInventory Inventory Issue${severeInventory == 1 ? '' : 's'}',
+          route: '/inventory',
+        ),
+      );
+    }
+    if (unverifiedBills > 0) {
+      alerts.add(
+        _AlertRowData(
+          status: AgroStatus.major,
+          badgeLabel: 'VERIFY',
+          title:
+              '$unverifiedBills Unverified Mart Bill${unverifiedBills == 1 ? '' : 's'}',
+          route: '/mart-bills',
+        ),
+      );
+    }
+    if (forecastAnomalies > 0) {
+      alerts.add(
+        _AlertRowData(
+          status: AgroStatus.info,
+          badgeLabel: 'FORECAST',
+          title:
+              '$forecastAnomalies Forecast Anomal${forecastAnomalies == 1 ? 'y' : 'ies'}',
+          route: '/items',
+        ),
+      );
+    }
+    if (minorInventory > 0) {
+      alerts.add(
+        _AlertRowData(
+          status: AgroStatus.minor,
+          badgeLabel: 'DRIFT',
+          title: '$minorInventory Minor Drift',
+          route: '/inventory',
+        ),
+      );
+    }
+    if (reconciliationNeeded > 0) {
+      alerts.add(
+        const _AlertRowData(
+          status: AgroStatus.minor,
+          badgeLabel: 'RECON',
+          title: 'Reconciliation Pending',
+          subtitle: 'Ledger indicates drifted batches',
+          route: '/inventory',
+        ),
+      );
+    }
+
+    return alerts;
   }
 }
 
-/// Metric card widget for the operations grid.
-class _MetricCard extends StatelessWidget {
+class _ActivityCardData {
   final String label;
   final String value;
   final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
+  final AgroSemanticColor semanticColor;
+  final List<String> subtext;
 
-  const _MetricCard({
+  const _ActivityCardData({
     required this.label,
     required this.value,
     required this.icon,
-    required this.color,
-    required this.onTap,
+    required this.semanticColor,
+    required this.subtext,
   });
+}
+
+class _ActivityCard extends StatelessWidget {
+  final _ActivityCardData data;
+  final VoidCallback onTap;
+
+  const _ActivityCard({required this.data, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return AgroCard.outlined(
       onTap: onTap,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 28),
+          Icon(data.icon, color: data.semanticColor.text, size: 24),
           const SizedBox(height: AgroSpacing.sm),
-          Text(value, style: AgroTypography.metricValue.copyWith(color: color)),
+          Text(
+            data.value,
+            style: AgroTypography.metricValue.copyWith(
+              color: data.semanticColor.text,
+            ),
+          ),
           const SizedBox(height: AgroSpacing.xs),
-          Text(label, style: AgroTypography.metricLabel),
+          Text(data.label, style: AgroTypography.metricLabel),
+          const SizedBox(height: AgroSpacing.xs),
+          ...data.subtext.map(
+            (line) => Text(line, style: AgroTypography.caption),
+          ),
         ],
       ),
     );
   }
+}
+
+class _AlertRowData {
+  final AgroStatus status;
+  final String badgeLabel;
+  final String title;
+  final String? subtitle;
+  final String? route;
+
+  const _AlertRowData({
+    required this.status,
+    required this.badgeLabel,
+    required this.title,
+    this.subtitle,
+    this.route,
+  });
 }
 
 /// Action chip widget for quick actions.
