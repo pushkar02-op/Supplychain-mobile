@@ -6,11 +6,12 @@ Adheres to REC-001 (read-only for inventory) and REC-004 (admin workflow).
 from typing import List
 
 from app.core.auth import get_current_active_admin
+from app.core.exceptions import AppException
 from app.db.models.reconciliation_mismatch import MismatchStatus, ReconciliationMismatch
 from app.db.models.user import User
 from app.db.session import get_db
 from app.services.reconciliation import resolve_mismatch, run_invoice_reconciliation
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -61,7 +62,9 @@ def trigger_reconciliation(
     """
     results = run_invoice_reconciliation(db, payload.invoice_id)
     if results and "error" in results[0]:
-        raise HTTPException(status_code=404, detail=results[0]["error"])
+        raise AppException(
+            detail=results[0]["error"], status_code=404, rule_id=None, metadata={}
+        )
     return {"invoice_id": payload.invoice_id, "results": results}
 
 
@@ -77,7 +80,12 @@ def list_open_mismatches(
     try:
         status_enum = MismatchStatus(status)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+        raise AppException(
+            detail=f"Invalid status: {status}",
+            status_code=400,
+            rule_id=None,
+            metadata={},
+        )
 
     mismatches = (
         db.query(ReconciliationMismatch)
@@ -107,6 +115,8 @@ def resolve_dispute(
     )
 
     if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+        raise AppException(
+            detail=result["error"], status_code=400, rule_id=None, metadata={}
+        )
 
     return result

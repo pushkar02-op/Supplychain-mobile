@@ -6,6 +6,7 @@ Provides inventory and P&L summary reports.
 import logging
 from typing import List, Optional
 
+from app.core.exceptions import AppException
 from app.db.schemas.inventory_summary import (
     InventorySignalResponse,
     InventorySummaryRead,
@@ -15,7 +16,7 @@ from app.db.schemas.inventory_summary import (
 from app.db.schemas.pnl_summary import PnlSummaryRead
 from app.db.session import get_db
 from app.services.reports import get_inventory_report, get_pnl_report
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,9 @@ def read_item_reconciliation(item_id: int, db: Session = Depends(get_db)):
 
     res = get_item_reconciliation(db, item_id)
     if not res:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise AppException(
+            detail="Item not found", status_code=404, rule_id=None, metadata={}
+        )
     return res
 
 
@@ -66,11 +69,12 @@ def read_inventory_signals(
     Retrieve detailed inventory signals for an item.
     """
     from app.services.reports import get_item_signals
-    from fastapi import HTTPException
 
     data = get_item_signals(db=db, item_id=item_id)
     if not data:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise AppException(
+            detail="Item not found", status_code=404, rule_id=None, metadata={}
+        )
     return data
 
 

@@ -3,6 +3,7 @@
 from typing import List
 
 from app.core.auth import get_current_user
+from app.core.exceptions import AppException
 from app.db.models import UOM, Item, ItemAlias, User
 from app.db.models.mart_bill_item import MartBillItem as InvoiceItem
 from app.db.schemas.item_management import (
@@ -13,7 +14,7 @@ from app.db.schemas.item_management import (
 )
 from app.db.session import get_db
 from app.services import item_management as svc
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -56,7 +57,9 @@ def create_or_update_item(
 def map_alias_to_item(payload: AliasMapInput, db: Session = Depends(get_db)):
     alias = db.query(ItemAlias).filter(ItemAlias.id == payload.alias_id).first()
     if not alias:
-        raise HTTPException(status_code=404, detail="Alias not found")
+        raise AppException(
+            detail="Alias not found", status_code=404, rule_id=None, metadata={}
+        )
     alias.master_item_id = payload.item_id
     db.commit()
     return {"message": "Alias mapped successfully"}
@@ -72,15 +75,22 @@ def map_invoice_item(
 ):
     invoice_item = db.get(InvoiceItem, payload.invoice_item_id)
     if not invoice_item:
-        raise HTTPException(status_code=404, detail="Invoice item not found")
+        raise AppException(
+            detail="Invoice item not found", status_code=404, rule_id=None, metadata={}
+        )
     if invoice_item.item_id:
-        raise HTTPException(
-            status_code=400, detail="This invoice item is already mapped."
+        raise AppException(
+            detail="This invoice item is already mapped.",
+            status_code=400,
+            rule_id=None,
+            metadata={},
         )
 
     master_item = db.get(Item, payload.master_item_id)
     if not master_item:
-        raise HTTPException(status_code=404, detail="Master item not found")
+        raise AppException(
+            detail="Master item not found", status_code=404, rule_id=None, metadata={}
+        )
 
     # 1. Map the invoice item
     invoice_item.item_id = payload.master_item_id

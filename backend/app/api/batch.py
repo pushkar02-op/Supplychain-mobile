@@ -19,7 +19,7 @@ from app.services.batch import (
     get_batches_by_item_with_quantity,
     update_batch,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -44,8 +44,11 @@ def create(
         BatchRead: The created batch object.
     """
     if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        raise AppException(
+            detail="Not authorized",
+            status_code=status.HTTP_403_FORBIDDEN,
+            rule_id=None,
+            metadata={},
         )
     # SAFETY WARNING:
     # - This endpoint bypasses ledger logic
@@ -146,8 +149,11 @@ def update(
         AppException: If the batch is not found (404).
     """
     if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        raise AppException(
+            detail="Not authorized",
+            status_code=status.HTTP_403_FORBIDDEN,
+            rule_id=None,
+            metadata={},
         )
     # SAFETY WARNING:
     # - This endpoint bypasses ledger logic
@@ -189,8 +195,11 @@ def delete(
     """
     logger.info(f"Deleting batch_id={batch_id}")
     if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        raise AppException(
+            detail="Not authorized",
+            status_code=status.HTTP_403_FORBIDDEN,
+            rule_id=None,
+            metadata={},
         )
     # SAFETY WARNING:
     # - This endpoint bypasses ledger logic

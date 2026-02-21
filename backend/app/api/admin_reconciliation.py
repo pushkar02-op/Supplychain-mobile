@@ -1,6 +1,7 @@
 from typing import List
 
 from app.core.auth import get_current_active_admin
+from app.core.exceptions import AppException
 from app.db.models.user import User
 from app.db.schemas.reconciliation import (
     ReconciliationRecordRead,
@@ -12,7 +13,7 @@ from app.services.reconciliation import (
     get_all_reconciliation_records,
     resolve_drift,
 )
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/admin/reconciliation", tags=["Admin Reconciliation"])
@@ -48,9 +49,11 @@ def create_reconciliation_record(
     """
     record = create_drift_record(db, batch_id)
     if not record:
-        raise HTTPException(
+        raise AppException(
             status_code=400,
             detail="No drift detected for this batch or batch not found",
+            rule_id=None,
+            metadata={},
         )
     return record
 
@@ -72,5 +75,7 @@ def resolve_reconciliation_drift(
         apply_to_batch=data.apply_to_batch,
     )
     if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+        raise AppException(
+            detail=result["error"], status_code=400, rule_id=None, metadata={}
+        )
     return result["record"]

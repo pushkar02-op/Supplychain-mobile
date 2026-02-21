@@ -23,7 +23,7 @@ from app.services.mart_bill import (
     update_mart_bill,
     verify_mart_bill,
 )
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
@@ -196,7 +196,9 @@ def verify_mart_bill_endpoint(
     verifier_name = getattr(current_user, "full_name", None) or current_user.username
     bill = verify_mart_bill(db, invoice_id=bill_id, user_name=verifier_name)
     if not bill:
-        raise HTTPException(status_code=404, detail="Mart bill not found")
+        raise AppException(
+            detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
+        )
     return bill
 
 
@@ -211,10 +213,14 @@ def unverify_mart_bill_endpoint(
     """
     bill = unverify_mart_bill(db, invoice_id=bill_id)
     if not bill:
-        raise HTTPException(status_code=404, detail="Mart bill not found")
+        raise AppException(
+            detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
+        )
     bill = unverify_mart_bill(db, invoice_id=bill_id)
     if not bill:
-        raise HTTPException(status_code=404, detail="Mart bill not found")
+        raise AppException(
+            detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
+        )
     return bill
 
 
@@ -231,7 +237,12 @@ async def replace_mart_bill_file_endpoint(
     Resets status to NEEDS_REVIEW.
     """
     if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+        raise AppException(
+            detail="Only PDF files are allowed",
+            status_code=400,
+            rule_id=None,
+            metadata={},
+        )
 
     user_name = getattr(current_user, "full_name", None) or current_user.username
     bill = await replace_mart_bill_file(
@@ -239,7 +250,9 @@ async def replace_mart_bill_file_endpoint(
     )
 
     if not bill:
-        raise HTTPException(status_code=404, detail="Mart bill not found")
+        raise AppException(
+            detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
+        )
 
     return bill
 

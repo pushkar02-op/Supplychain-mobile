@@ -3,6 +3,7 @@ Custom exceptions and global exception handlers for the application.
 """
 
 import logging
+import re
 
 from fastapi import HTTPException, Request
 from fastapi.encoders import jsonable_encoder
@@ -15,18 +16,60 @@ logger = logging.getLogger(__name__)
 
 # Base AppException for domain-level errors
 class AppException(Exception):
-    def __init__(self, message: str, status_code: int = 400, **kwargs):
-        self.message = message
+    _RULE_ID_PATTERN = re.compile(r"^[A-Z]{2,5}-\d{3}$")
+
+    def __init__(
+        self,
+        detail: str = None,
+        status_code: int = 400,
+        rule_id: str = None,
+        metadata: dict = None,
+        message: str = None,
+        **kwargs,
+    ):
+        resolved_detail = detail if detail is not None else message
+        if resolved_detail is None:
+            resolved_detail = "Application error"
+
+        extra = kwargs.pop("extra", None)
+        resolved_rule_id = rule_id
+        resolved_metadata = {}
+
+        if isinstance(extra, dict):
+            extra_copy = dict(extra)
+            if resolved_rule_id is None:
+                resolved_rule_id = extra_copy.pop("rule_id", None)
+            nested_metadata = extra_copy.pop("metadata", None)
+            if isinstance(nested_metadata, dict):
+                resolved_metadata.update(nested_metadata)
+            resolved_metadata.update(extra_copy)
+
+        if metadata:
+            resolved_metadata.update(metadata)
+
+        if kwargs:
+            resolved_metadata.update(kwargs)
+
+        if resolved_rule_id is not None:
+            assert self._RULE_ID_PATTERN.match(
+                resolved_rule_id
+            ), "rule_id must match ^[A-Z]{2,5}-\\d{3}$"
+
+        super().__init__(resolved_detail)
+        self.message = resolved_detail
+        self.detail = resolved_detail
         self.status_code = status_code
-        self.extra = kwargs.get("extra")
+        self.rule_id = resolved_rule_id
+        self.metadata = resolved_metadata
+        self.extra = {"rule_id": resolved_rule_id, **resolved_metadata}
 
 
 class UOMConfigurationError(AppException):
     """Raised when UOM configuration (default UOM or conversion factor) is missing or invalid."""
 
-    def __init__(self, message: str):
+    def __init__(self, detail: str, rule_id: str = None, metadata: dict = None):
         super().__init__(
-            message=message, status_code=409
+            detail=detail, status_code=409, rule_id=rule_id, metadata=metadata
         )  # 409 Conflict suitable for config mismatch
 
 
@@ -37,22 +80,27 @@ def register_exception_handlers(app):
         request: Request, exc: UOMConfigurationError
     ):
         logger.warning(f"UOM Configuration Error: {exc.message}")
+        content = jsonable_encoder(
+            {
+                "detail": exc.detail,
+                "rule_id": exc.rule_id,
+                "metadata": exc.metadata or {},
+            }
+        )
         return JSONResponse(
             status_code=exc.status_code,
-            content={"detail": exc.message, "error_code": "UOM_CONFIG_ERROR"},
+            content=content,
         )
 
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
         logger.warning(f"AppException: {exc.message}")
-        rule_id = None
-        metadata = None
-        if exc.extra:
-            extra = dict(exc.extra)
-            rule_id = extra.pop("rule_id", None)
-            metadata = extra if extra else None
         content = jsonable_encoder(
-            {"detail": exc.message, "rule_id": rule_id, "metadata": metadata}
+            {
+                "detail": exc.detail,
+                "rule_id": exc.rule_id,
+                "metadata": exc.metadata or {},
+            }
         )
         return JSONResponse(status_code=exc.status_code, content=content)
 
@@ -61,17 +109,30 @@ def register_exception_handlers(app):
         request: Request, exc: RequestValidationError
     ):
         logger.warning(f"Validation Error: {exc.errors()}")
-        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+        content = jsonable_encoder(
+            {"detail": "Request validation failed", "rule_id": None, "metadata": {}}
+        )
+        return JSONResponse(status_code=422, content=content)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         logger.warning(f"HTTPException: {exc.detail}")
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        content = jsonable_encoder(
+            {"detail": str(exc.detail), "rule_id": None, "metadata": {}}
+        )
+        return JSONResponse(status_code=exc.status_code, content=content)
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         logger.exception(f"Unhandled Exception: {exc}")
+        content = jsonable_encoder(
+            {
+                "detail": "Internal server error. Please contact support.",
+                "rule_id": None,
+                "metadata": {},
+            }
+        )
         return JSONResponse(
             status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Internal server error. Please contact support."},
+            content=content,
         )
