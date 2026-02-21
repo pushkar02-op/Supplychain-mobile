@@ -1,7 +1,10 @@
 # UI_ARCHITECTURE_v1.md
 
 **Version**: 1.0  
-**Status**: LOCKED  
+**Status**: ACTIVE  
+**UI Migration**: COMPLETED (S1-S3)  
+**Provider Authority**: LOCKED  
+**Service Usage in UI**: PROHIBITED  
 **Date**: 2026-02-16  
 **Scope**: `mobile/lib/` — All screens, widgets, providers, repositories  
 **Supersedes**: Ad-hoc UI patterns, legacy service-direct state management
@@ -296,6 +299,14 @@ _One screen per PR. No behavior change._
 
 ---
 
+## 7.1 Platform Stability Milestones
+
+- S1: Error Surface Standardization
+- S2: Provider Rebuild Optimization
+- S3: Badge & Severity Normalization
+
+---
+
 ## 8. Non-Goals
 
 This initiative does **NOT** include:
@@ -335,4 +346,4 @@ Any change to:
 
 **Requires an RFC.**
 
-**Status**: LOCKED
+**Status**: ACTIVE
