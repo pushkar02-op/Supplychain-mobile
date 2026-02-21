@@ -21,6 +21,7 @@ from app.db.schemas.inventory_summary import (
     ReconciliationTxn,
 )
 from app.db.schemas.pnl_summary import PnlSummaryRead
+from app.domain.drift_policy import classify_drift_ratio
 from app.services.item_conversion_map import get_conversion_factor
 from sqlalchemy.orm import Session
 
@@ -135,10 +136,10 @@ def get_inventory_report(
             # Severity Logic
             denom = abs(ledger) if ledger != Decimal("0") else Decimal("1")
             drift_ratio = abs(delta) / denom
-            if ledger < Decimal("0") or drift_ratio > Decimal("0.05"):
+            if ledger < Decimal("0"):
                 severity = "CRITICAL"
             else:
-                severity = "MAJOR"
+                severity = classify_drift_ratio(drift_ratio)
 
         # Signals
         signals = []

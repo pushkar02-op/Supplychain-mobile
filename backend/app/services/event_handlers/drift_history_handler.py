@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from app.db.models.inventory_drift_history import InventoryDriftHistory
 from app.db.schemas.domain_event import DomainEventBase
+from app.domain.drift_policy import classify_drift_amount
 from sqlalchemy.orm import Session
 
 
@@ -13,14 +14,7 @@ def handle_drift_history(session: Session, event: DomainEventBase):
     drift = Decimal(str(payload.get("drift_resolved", 0)))
     batch_id = payload.get("batch_id")
 
-    # Determine severity
-    abs_drift = abs(drift)
-    if abs_drift > 50:
-        severity = "HIGH"
-    elif abs_drift > 10:
-        severity = "MEDIUM"
-    else:
-        severity = "LOW"
+    severity = classify_drift_amount(drift)
 
     history = InventoryDriftHistory(
         batch_id=batch_id,

@@ -10,6 +10,7 @@ from app.db.models.reconciliation_record import DriftStatus, ReconciliationRecor
 from app.db.models.views.batch_ledger_balance import BatchLedgerBalance
 from app.db.schemas.domain_event import ReconciliationResolved
 from app.db.schemas.inventory_txn import InventoryTxnCreate
+from app.domain.drift_policy import classify_drift_ratio
 from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
@@ -72,11 +73,7 @@ def check_batch_drift(
         # Avoid division by zero
         denom = abs(ledger_qty) if ledger_qty != 0 else Decimal("1")
         drift_ratio = abs(drift) / denom
-
-        if drift_ratio > Decimal("0.05"):
-            severity = "CRITICAL"
-        else:
-            severity = "MAJOR"
+        severity = classify_drift_ratio(drift_ratio)
 
     return {
         "batch_id": batch_id,
@@ -108,6 +105,17 @@ def create_drift_record(db: Session, batch_id: int) -> Optional[ReconciliationRe
     if not drift_data["is_drifted"]:
         return None
 
+    existing = (
+        db.query(ReconciliationRecord)
+        .filter(
+            ReconciliationRecord.batch_id == batch_id,
+            ReconciliationRecord.status == DriftStatus.OPEN,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+
     record = ReconciliationRecord(
         batch_id=batch_id,
         observed_ledger_qty=drift_data["ledger_qty"],
@@ -134,14 +142,21 @@ def resolve_drift(
     - Updates Batch.quantity (State) IF apply_to_batch is True.
     - Marks Record as RESOLVED.
     """
-    record = db.get(ReconciliationRecord, record_id)
+    record = (
+        db.query(ReconciliationRecord)
+        .filter(ReconciliationRecord.id == record_id)
+        .with_for_update()
+        .first()
+    )
     if not record:
         return {"error": "Record not found"}
 
     if record.status != DriftStatus.OPEN:
         return {"error": "Record is not open"}
 
-    batch = db.get(Batch, record.batch_id)
+    batch = (
+        db.query(Batch).filter(Batch.id == record.batch_id).with_for_update().first()
+    )
     if not batch:
         return {"error": "Batch via record not found"}
 

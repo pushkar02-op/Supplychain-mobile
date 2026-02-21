@@ -24,6 +24,7 @@ from app.db.models import (
 )
 from app.db.models.reconciliation_record import ReconciliationRecord, DriftStatus
 from app.db.models.mart_item_alias import MartItemAlias
+from app.domain.drift_policy import classify_drift_ratio
 
 from app.services.reconciliation import (
     check_batch_drift,
@@ -222,6 +223,103 @@ def test_drift_record_creation_and_resolution(db_session: Session):
     drift_after = check_batch_drift(db_session, batch.id)
     assert drift_after["drift"] == 0
     assert drift_after["severity"] == "NONE"
+
+
+def test_create_drift_record_is_idempotent_for_open_record(db_session: Session):
+    uom = UOM(description="Unit", code="UNT")
+    db_session.add(uom)
+    db_session.commit()
+
+    item = Item(name="Idempotent Item", item_code="IDM1", default_uom_id=uom.id)
+    db_session.add(item)
+    db_session.commit()
+
+    batch = Batch(item_id=item.id, quantity=Decimal("100.0"), unit="UNT")
+    db_session.add(batch)
+    db_session.commit()
+
+    db_session.add(
+        InventoryTxn(
+            item_id=item.id,
+            batch_id=batch.id,
+            txn_type="IN",
+            raw_qty=Decimal("110.0"),
+            raw_unit="UNT",
+            base_qty=Decimal("110.0"),
+            base_unit="UNT",
+        )
+    )
+    db_session.commit()
+
+    first_record = create_drift_record(db_session, batch.id)
+    second_record = create_drift_record(db_session, batch.id)
+
+    assert first_record is not None
+    assert second_record is not None
+    assert first_record.id == second_record.id
+
+    open_records = (
+        db_session.query(ReconciliationRecord)
+        .filter(
+            ReconciliationRecord.batch_id == batch.id,
+            ReconciliationRecord.status == DriftStatus.OPEN,
+        )
+        .all()
+    )
+    assert len(open_records) == 1
+
+
+def test_resolve_drift_second_attempt_returns_error(db_session: Session):
+    uom = UOM(description="Unit", code="UNT")
+    db_session.add(uom)
+    db_session.commit()
+
+    item = Item(name="Resolve Once Item", item_code="RS1", default_uom_id=uom.id)
+    db_session.add(item)
+    db_session.commit()
+
+    batch = Batch(item_id=item.id, quantity=Decimal("100.0"), unit="UNT")
+    db_session.add(batch)
+    db_session.commit()
+
+    db_session.add(
+        InventoryTxn(
+            item_id=item.id,
+            batch_id=batch.id,
+            txn_type="IN",
+            raw_qty=Decimal("110.0"),
+            raw_unit="UNT",
+            base_qty=Decimal("110.0"),
+            base_unit="UNT",
+        )
+    )
+    db_session.commit()
+
+    record = create_drift_record(db_session, batch.id)
+    assert record is not None
+
+    first_result = resolve_drift(
+        db_session,
+        record.id,
+        adjustment_qty=Decimal("-10.0"),
+        user_id=1,
+        apply_to_batch=False,
+    )
+    assert first_result["status"] == "success"
+
+    second_result = resolve_drift(
+        db_session,
+        record.id,
+        adjustment_qty=Decimal("-10.0"),
+        user_id=1,
+        apply_to_batch=False,
+    )
+    assert second_result["error"] == "Record is not open"
+
+
+def test_drift_ratio_policy_preserves_threshold_behavior():
+    assert classify_drift_ratio(Decimal("0.0500")) == "MAJOR"
+    assert classify_drift_ratio(Decimal("0.0501")) == "CRITICAL"
 
 
 def test_admin_ledger_api_truth(client, admin_token_headers):
