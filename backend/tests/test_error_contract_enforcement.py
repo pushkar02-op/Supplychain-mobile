@@ -97,3 +97,22 @@ def test_app_exception_without_rule_id_sets_rule_id_none():
 def test_invalid_rule_id_format_raises_assertion_error():
     with pytest.raises(AssertionError):
         AppException(detail="Invalid", status_code=400, rule_id="bad-1")
+
+
+@pytest.mark.parametrize(
+    ("path", "status_code"),
+    [
+        ("/raise-validation?value=bad", 422),
+        ("/raise-app-with-rule", 400),
+        ("/raise-generic", 500),
+    ],
+)
+def test_error_envelope_keys_are_present_for_validation_business_and_generic(
+    path: str, status_code: int
+):
+    client = _build_test_client()
+    response = client.get(path)
+    payload = response.json()
+
+    assert response.status_code == status_code
+    assert sorted(payload.keys()) == ["detail", "metadata", "rule_id"]
