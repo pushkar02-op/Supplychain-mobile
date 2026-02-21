@@ -12,6 +12,7 @@ import '../ui/widgets/agro_card.dart';
 import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_key_value_row.dart';
 import '../ui/widgets/agro_section.dart';
+import '../ui/widgets/agro_status_badge.dart';
 
 class AdminReconciliationDetailScreen extends ConsumerWidget {
   final int itemId;
@@ -66,6 +67,8 @@ class AdminReconciliationDetailScreen extends ConsumerWidget {
             ledgerQty: ledgerQty,
             drift: drift,
             unit: unit,
+            status: status,
+            severity: severity,
             severityStyle: severityStyle,
           ),
           const SizedBox(height: AgroSpacing.xl),
@@ -117,6 +120,8 @@ class _SummaryCard extends StatelessWidget {
   final double ledgerQty;
   final double drift;
   final String unit;
+  final AgroStatus status;
+  final String severity;
   final AgroSeverityStyle severityStyle;
 
   const _SummaryCard({
@@ -124,6 +129,8 @@ class _SummaryCard extends StatelessWidget {
     required this.ledgerQty,
     required this.drift,
     required this.unit,
+    required this.status,
+    required this.severity,
     required this.severityStyle,
   });
 
@@ -138,6 +145,14 @@ class _SummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(AgroSpacing.lg),
       child: Column(
         children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AgroStatusBadge(
+              status: status,
+              label: _toTitleCase(severity),
+            ),
+          ),
+          const SizedBox(height: AgroSpacing.sm),
           AgroKeyValueRow(label: 'State (Batches)', value: '$stateQty $unit'),
           const SizedBox(height: AgroSpacing.sm),
           AgroKeyValueRow(
@@ -157,6 +172,13 @@ class _SummaryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _toTitleCase(String value) {
+  return value.toLowerCase().split('_').map((part) {
+    if (part.isEmpty) return part;
+    return '${part[0].toUpperCase()}${part.substring(1)}';
+  }).join(' ');
 }
 
 /// Card displaying a single batch in the snapshot.

@@ -493,7 +493,7 @@ class OverviewScreen extends ConsumerWidget {
         alerts.add(
           _AlertRowData(
             status: AgroStatus.major,
-            badgeLabel: 'DRIFT',
+            badgeLabel: 'Drift',
             title: 'Drift Count: $driftedBatches',
             route: '/admin/ledger/health',
           ),
@@ -503,7 +503,7 @@ class OverviewScreen extends ConsumerWidget {
         alerts.add(
           _AlertRowData(
             status: AgroStatus.critical,
-            badgeLabel: 'SEVERE',
+            badgeLabel: 'Severe',
             title: 'Severe Drift Count: $severeDrift',
             route: '/admin/ledger/health',
           ),
@@ -513,7 +513,7 @@ class OverviewScreen extends ConsumerWidget {
         alerts.add(
           _AlertRowData(
             status: AgroStatus.major,
-            badgeLabel: 'VERIFY',
+            badgeLabel: 'Verify',
             title: 'Unverified Mart Bills: $unverifiedBills',
             route: '/mart-bills',
           ),
@@ -523,7 +523,7 @@ class OverviewScreen extends ConsumerWidget {
         alerts.add(
           _AlertRowData(
             status: AgroStatus.info,
-            badgeLabel: 'FORECAST',
+            badgeLabel: 'Forecast',
             title: 'Forecast Anomalies: $forecastAnomalies',
             route: '/items',
           ),
@@ -533,7 +533,7 @@ class OverviewScreen extends ConsumerWidget {
         alerts.add(
           _AlertRowData(
             status: AgroStatus.minor,
-            badgeLabel: 'RECON',
+            badgeLabel: 'Recon',
             title: 'Reconciliation Needed: $driftedBatches',
             route: '/admin/ledger/health',
           ),
@@ -546,7 +546,7 @@ class OverviewScreen extends ConsumerWidget {
       alerts.add(
         _AlertRowData(
           status: AgroStatus.critical,
-          badgeLabel: 'CRITICAL',
+          badgeLabel: 'Critical',
           title:
               '$severeInventory Inventory Issue${severeInventory == 1 ? '' : 's'}',
           route: '/inventory',
@@ -557,7 +557,7 @@ class OverviewScreen extends ConsumerWidget {
       alerts.add(
         _AlertRowData(
           status: AgroStatus.major,
-          badgeLabel: 'VERIFY',
+          badgeLabel: 'Verify',
           title:
               '$unverifiedBills Unverified Mart Bill${unverifiedBills == 1 ? '' : 's'}',
           route: '/mart-bills',
@@ -568,7 +568,7 @@ class OverviewScreen extends ConsumerWidget {
       alerts.add(
         _AlertRowData(
           status: AgroStatus.info,
-          badgeLabel: 'FORECAST',
+          badgeLabel: 'Forecast',
           title:
               '$forecastAnomalies Forecast Anomal${forecastAnomalies == 1 ? 'y' : 'ies'}',
           route: '/items',
@@ -579,7 +579,7 @@ class OverviewScreen extends ConsumerWidget {
       alerts.add(
         _AlertRowData(
           status: AgroStatus.minor,
-          badgeLabel: 'DRIFT',
+          badgeLabel: 'Drift',
           title: '$minorInventory Minor Drift',
           route: '/inventory',
         ),
@@ -589,7 +589,7 @@ class OverviewScreen extends ConsumerWidget {
       alerts.add(
         const _AlertRowData(
           status: AgroStatus.minor,
-          badgeLabel: 'RECON',
+          badgeLabel: 'Recon',
           title: 'Reconciliation Pending',
           subtitle: 'Ledger indicates drifted batches',
           route: '/inventory',

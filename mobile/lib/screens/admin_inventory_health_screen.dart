@@ -11,6 +11,7 @@ import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_card.dart';
 import '../ui/widgets/agro_error_state.dart';
+import '../ui/widgets/agro_status_badge.dart';
 
 class AdminInventoryHealthScreen extends ConsumerWidget {
   const AdminInventoryHealthScreen({super.key});
@@ -59,6 +60,7 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
           _HealthStatusCard(
             status: status,
             isHealthy: isHealthy,
+            healthStatus: healthStatus,
             severityStyle: severityStyle,
           ),
           const SizedBox(height: AgroSpacing.xl),
@@ -125,11 +127,13 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
 class _HealthStatusCard extends StatelessWidget {
   final String status;
   final bool isHealthy;
+  final AgroStatus healthStatus;
   final AgroSeverityStyle severityStyle;
 
   const _HealthStatusCard({
     required this.status,
     required this.isHealthy,
+    required this.healthStatus,
     required this.severityStyle,
   });
 
@@ -156,6 +160,11 @@ class _HealthStatusCard extends StatelessWidget {
               fontSize: 20,
               color: severityStyle.textColor,
             ),
+          ),
+          const SizedBox(height: AgroSpacing.md),
+          AgroStatusBadge(
+            status: healthStatus,
+            label: status[0].toUpperCase() + status.substring(1).toLowerCase(),
           ),
         ],
       ),

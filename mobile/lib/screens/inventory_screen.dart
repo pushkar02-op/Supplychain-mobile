@@ -319,17 +319,17 @@ class _InventoryStatusBadge extends StatelessWidget {
       case _InventoryStatusKind.criticalDrift:
         return const AgroStatusBadge.compact(
           status: AgroStatus.critical,
-          label: 'CRITICAL_DRIFT',
+          label: 'Critical Drift',
         );
       case _InventoryStatusKind.drift:
         return const AgroStatusBadge.compact(
           status: AgroStatus.major,
-          label: 'DRIFT',
+          label: 'Drift',
         );
       case _InventoryStatusKind.forecastAlert:
         return const AgroStatusBadge.compact(
           status: AgroStatus.info,
-          label: 'FORECAST_ALERT',
+          label: 'Forecast Alert',
         );
       case _InventoryStatusKind.ok:
         return const AgroStatusBadge.compact(

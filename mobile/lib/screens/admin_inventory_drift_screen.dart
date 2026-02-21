@@ -114,7 +114,10 @@ class _DriftItemCard extends StatelessWidget {
                     Expanded(
                       child: Text(itemName, style: AgroTypography.cardTitle),
                     ),
-                    AgroStatusBadge.fromDriftSeverity(severity),
+                    AgroStatusBadge(
+                      status: status,
+                      label: _toTitleCase(severity),
+                    ),
                   ],
                 ),
                 const Divider(color: AgroColors.divider),
@@ -149,4 +152,11 @@ class _DriftItemCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _toTitleCase(String value) {
+  return value.toLowerCase().split('_').map((part) {
+    if (part.isEmpty) return part;
+    return '${part[0].toUpperCase()}${part.substring(1)}';
+  }).join(' ');
 }

@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/dispatch_provider.dart';
+import '../ui/semantics/agro_status.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/widgets/agro_status_badge.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 import '../widgets/reversal_dialog.dart';
 import '../widgets/skeleton_loader.dart';
@@ -396,31 +399,17 @@ class DispatchListScreen extends ConsumerWidget {
                                                 fontSize: 13,
                                               ),
                                             ),
-                                            if (isPartial) ...[
+                                            if (isReversed) ...[
                                               const SizedBox(height: 6),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.orange[50],
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                  border: Border.all(
-                                                    color:
-                                                        Colors.orange.shade100,
-                                                  ),
-                                                ),
-                                                child: Text(
-                                                  'Partially Reversed',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    color: Colors.orange[800],
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
+                                              const AgroStatusBadge.compact(
+                                                status: AgroStatus.major,
+                                                label: 'Reversed',
+                                              ),
+                                            ] else if (isPartial) ...[
+                                              const SizedBox(height: 6),
+                                              const AgroStatusBadge.compact(
+                                                status: AgroStatus.minor,
+                                                label: 'Partially Reversed',
                                               ),
                                             ],
                                           ],
@@ -449,7 +438,7 @@ class DispatchListScreen extends ConsumerWidget {
                                             }
                                           },
                                           itemBuilder:
-                                              (_) => const [
+                                              (_) => [
                                                 PopupMenuItem(
                                                   value: 'reverse',
                                                   child: Row(
@@ -457,13 +446,13 @@ class DispatchListScreen extends ConsumerWidget {
                                                       Icon(
                                                         Icons.history,
                                                         size: 18,
-                                                        color: Colors.red,
+                                                        color: AgroColors.critical.text,
                                                       ),
-                                                      SizedBox(width: 8),
+                                                      const SizedBox(width: 8),
                                                       Text(
                                                         'Reverse Dispatch',
                                                         style: TextStyle(
-                                                          color: Colors.red,
+                                                          color: AgroColors.critical.text,
                                                         ),
                                                       ),
                                                     ],

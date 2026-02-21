@@ -10,6 +10,7 @@ import '../providers/mart_bill_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_snack_bar.dart';
+import '../ui/widgets/agro_status_badge.dart';
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
   final int invoiceId;
@@ -203,25 +204,6 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
   }
 
   Widget _buildStatusBadge(String status) {
-    Color color;
-    switch (status) {
-      case 'VERIFIED':
-        color = Colors.green;
-        break;
-      case 'NEEDS_REVIEW':
-        color = Colors.orange;
-        break;
-      default:
-        color = Colors.grey;
-    }
-    return Chip(
-      label: Text(
-        status,
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-      ),
-      backgroundColor: color,
-      padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
-    );
+    return AgroStatusBadge.fromBillStatus(status, size: AgroStatusBadgeSize.compact);
   }
 }
