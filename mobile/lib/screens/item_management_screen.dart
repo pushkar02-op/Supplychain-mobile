@@ -250,7 +250,12 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
               if (error.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: AgroSpacing.md),
-                  child: Text(error, style: const TextStyle(color: Colors.red)),
+                  child: Text(
+                    error,
+                    style: const TextStyle().copyWith(
+                      color: AgroColors.critical.text,
+                    ),
+                  ),
                 ),
 
               // ═══════════════════════════════════════════════════════════════

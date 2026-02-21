@@ -6,6 +6,7 @@ import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_card.dart';
+import '../ui/widgets/agro_error_state.dart';
 import '../widgets/item_forecast_section.dart';
 
 class ItemDetailScreen extends ConsumerWidget {
@@ -37,7 +38,7 @@ class ItemDetailScreen extends ConsumerWidget {
       error:
           (e, _) => Scaffold(
             appBar: AppBar(title: Text(item['name'] ?? 'Item Detail')),
-            body: Center(child: Text(e.toString())),
+            body: AgroErrorState.general(message: e.toString()),
           ),
       data: (state) {
         final detailItem = state.item;

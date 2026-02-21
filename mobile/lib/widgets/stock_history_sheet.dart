@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../models/stock_history.dart';
 import '../services/stock_service.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/widgets/agro_error_state.dart';
 
 class StockHistorySheet extends StatefulWidget {
   final int stockEntryId;
@@ -117,12 +119,9 @@ class _StockHistorySheetState extends State<StockHistorySheet> {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        'Error loading history: ${snapshot.error}',
-                        style: const TextStyle(color: Colors.red),
-                        textAlign: TextAlign.center,
-                      ),
+                    return AgroErrorState.loadFailed(
+                      customTitle: 'Error loading history',
+                      message: snapshot.error.toString(),
                     );
                   }
 
@@ -145,10 +144,13 @@ class _StockHistorySheetState extends State<StockHistorySheet> {
     if (history.isVoided) {
       return Container(
         padding: const EdgeInsets.all(12),
-        color: Colors.red.shade50,
-        child: const Text(
+        color: AgroColors.critical.background,
+        child: Text(
           'This receipt has been voided.',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AgroColors.critical.text,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
     }
@@ -173,13 +175,13 @@ class _StockHistorySheetState extends State<StockHistorySheet> {
               fontWeight: FontWeight.bold,
               color:
                   adj.quantityDelta > 0
-                      ? Colors.green[700]
-                      : Colors.orange[800],
+                      ? AgroColors.success.text
+                      : AgroColors.warning.text,
             ),
           ),
           icon: Icons.edit_note,
-          color: Colors.orange.shade100,
-          iconColor: Colors.orange.shade800,
+          color: AgroColors.warning.background,
+          iconColor: AgroColors.warning.text,
         ),
       );
       items.add(const SizedBox(height: 16));
@@ -196,14 +198,14 @@ class _StockHistorySheetState extends State<StockHistorySheet> {
                 : 'Initial Entry',
         trailing: Text(
           '+${history.receipt.quantity} ${history.receipt.unit}',
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: Colors.green,
+            color: AgroColors.success.text,
           ),
         ),
         icon: Icons.inventory_2,
-        color: Colors.green.shade50,
-        iconColor: Colors.green.shade700,
+        color: AgroColors.success.background,
+        iconColor: AgroColors.success.text,
         isLast: true,
       ),
     );

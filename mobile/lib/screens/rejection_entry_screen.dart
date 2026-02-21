@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/rejection_provider.dart';
+import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
 class RejectionEntryScreen extends ConsumerStatefulWidget {
@@ -129,11 +130,10 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
         padding: const EdgeInsets.all(16),
         child:
             _error != null
-                ? Center(
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
+                ? AgroErrorState.general(
+                  customTitle: 'Failed to load rejection entry',
+                  message: _error,
+                  onRetry: _loadItems,
                 )
                 : Form(
                   key: _formKey,

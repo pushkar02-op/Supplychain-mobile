@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/dispatch_provider.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
 class CreateOrEditDispatchScreen extends ConsumerStatefulWidget {
@@ -228,26 +230,14 @@ class _CreateOrEditDispatchScreenState
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: const Text('Dispatching...')),
-        body: Center(
-          child:
-              _error != null
-                  ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _error!,
-                        style: const TextStyle(color: Colors.red),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadBatches,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  )
-                  : const CircularProgressIndicator(),
-        ),
+        body:
+            _error != null
+                ? AgroErrorState.loadFailed(
+                  customTitle: 'Failed to load batches',
+                  message: _error,
+                  onRetry: _loadBatches,
+                )
+                : const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -525,7 +515,7 @@ class _CreateOrEditDispatchScreenState
                           fontSize: 14,
                           color:
                               _totalNow > _remaining
-                                  ? Colors.red[700]
+                                  ? AgroColors.critical.text
                                   : Colors.black54,
                           fontWeight: FontWeight.w600,
                         ),
@@ -537,7 +527,7 @@ class _CreateOrEditDispatchScreenState
                           fontWeight: FontWeight.bold,
                           color:
                               _totalNow > _remaining
-                                  ? Colors.red[700]
+                                  ? AgroColors.critical.text
                                   : Colors.blue[900],
                         ),
                       ),
@@ -548,13 +538,16 @@ class _CreateOrEditDispatchScreenState
                       padding: const EdgeInsets.only(top: 8),
                       child: Row(
                         children: [
-                          Icon(Icons.warning_amber, color: Colors.red[700]),
+                          Icon(
+                            Icons.warning_amber,
+                            color: AgroColors.critical.text,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Exceeds remaining quantity by ${(_totalNow - _remaining).toStringAsFixed(2)}',
                               style: TextStyle(
-                                color: Colors.red[700],
+                                color: AgroColors.critical.text,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -572,8 +565,8 @@ class _CreateOrEditDispatchScreenState
                       style: ElevatedButton.styleFrom(
                         backgroundColor:
                             _totalNow > _remaining
-                                ? Colors.orange[800]
-                                : Colors.green[700],
+                                ? AgroColors.warning.text
+                                : AgroColors.success.text,
                         foregroundColor: Colors.white,
                         elevation: 0,
                       ),
