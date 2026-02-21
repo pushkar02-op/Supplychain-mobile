@@ -171,7 +171,11 @@ class MartBillListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncState = ref.watch(martBillProvider);
-    final martsAsync = ref.watch(martBillMartListProvider);
+    final marts = ref.watch(
+      martBillMartListProvider.select(
+        (async) => async.valueOrNull ?? const <String>[],
+      ),
+    );
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -211,8 +215,6 @@ class MartBillListScreen extends ConsumerWidget {
               ),
             ),
         data: (state) {
-          final marts = martsAsync.valueOrNull ?? const <String>[];
-
           return Padding(
             padding: const EdgeInsets.all(AgroSpacing.lg),
             child: Column(

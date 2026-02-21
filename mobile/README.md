@@ -20,6 +20,8 @@ This is the **SupplyChain Mobile Frontend**, a hardened Flutter application desi
 
 The application follows a strict unidirectional data flow:
 
+> UI Layer Architecture: Provider-authoritative. See `docs/ui/UI_STABILITY_LOCK.md`.
+
 1.  **UI (ConsumerWidgets):** Renders state. Dispatches actions to Controllers. **NEVER** calls API Repositories directly.
 2.  **Controllers (AsyncNotifier Providers):** Manages feature state (Loading/Error/Data). Calls Repositories. Handles logic (e.g., whether to refresh or retry).
 3.  **Repositories:** Pure Dart classes. Wraps `DioClient`. Maps raw JSON/`DioException` into domain objects and `AppException`.

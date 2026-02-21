@@ -107,14 +107,15 @@ class AgroStatusBadge extends StatelessWidget {
     final effectiveLabel = label ?? status.label;
 
     final isCompact = size == AgroStatusBadgeSize.compact;
-    final horizontalPadding = isCompact ? AgroSpacing.sm : AgroSpacing.sm;
-    final verticalPadding = isCompact ? 2.0 : AgroSpacing.xs;
+    const horizontalPadding = AgroSpacing.sm;
+    final verticalPadding = isCompact ? AgroSpacing.xs : AgroSpacing.sm;
     final iconSize = isCompact ? 12.0 : 14.0;
     final textStyle = AgroTypography.badgeText.copyWith(
       color: severity.textColor,
     );
 
     return Container(
+      constraints: const BoxConstraints(minHeight: 24),
       padding: EdgeInsets.symmetric(
         horizontal: horizontalPadding,
         vertical: verticalPadding,

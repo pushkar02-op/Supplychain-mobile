@@ -13,6 +13,7 @@ import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_error_state.dart';
+import '../ui/widgets/agro_status_badge.dart';
 import '../widgets/skeleton_loader.dart';
 
 class OrdersScreen extends ConsumerWidget {
@@ -66,7 +67,13 @@ class OrdersScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(orderListProvider);
-    final martsAsync = ref.watch(orderMartListProvider);
+    final martNames = ref.watch(
+      orderMartListProvider.select(
+        (async) =>
+            async.valueOrNull?.map((mart) => mart['name'] as String).toList() ??
+            const <String>[],
+      ),
+    );
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -93,12 +100,6 @@ class OrdersScreen extends ConsumerWidget {
             state.selectedDate,
             DateTime.now(),
           );
-          final martNames =
-              martsAsync.valueOrNull
-                  ?.map((mart) => mart['name'] as String)
-                  .toList() ??
-              [];
-
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -334,27 +335,7 @@ class _OrderCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: AgroSpacing.sm),
-                    Row(
-                      children: [
-                        Icon(
-                          dispatched >= ordered
-                              ? Icons.check_circle
-                              : dispatched > 0
-                              ? Icons.autorenew
-                              : Icons.schedule,
-                          size: 16,
-                          color: severityStyle.textColor,
-                        ),
-                        const SizedBox(width: AgroSpacing.xs),
-                        Text(
-                          statusText,
-                          style: AgroTypography.caption.copyWith(
-                            fontWeight: FontWeight.w500,
-                            color: severityStyle.textColor,
-                          ),
-                        ),
-                      ],
-                    ),
+                    AgroStatusBadge.compact(status: status, label: statusText),
                   ],
                 ),
               ),

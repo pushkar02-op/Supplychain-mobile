@@ -85,7 +85,13 @@ class InventoryDetailSheet extends ConsumerWidget {
                   ),
                   AgroStatusBadge.compact(
                     status: badgeStatus,
-                    label: severity == 'NONE' ? 'OK' : severity,
+                    label:
+                        severity == 'NONE'
+                            ? 'OK'
+                            : severity.toLowerCase().split('_').map((part) {
+                              if (part.isEmpty) return part;
+                              return '${part[0].toUpperCase()}${part.substring(1)}';
+                            }).join(' '),
                   ),
                 ],
               ),

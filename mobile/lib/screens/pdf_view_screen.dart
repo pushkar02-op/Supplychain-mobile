@@ -7,7 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/mart_bill.dart';
 import '../providers/mart_bill_provider.dart';
+import '../ui/theme/agro_colors.dart';
+import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_snack_bar.dart';
+import '../ui/widgets/agro_status_badge.dart';
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
   final int invoiceId;
@@ -150,21 +153,10 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              'Error loading PDF:\n$_error',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.red),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(onPressed: _loadData, child: const Text('Retry')),
-          ],
-        ),
+      return AgroErrorState.loadFailed(
+        customTitle: 'Error loading PDF',
+        message: _error,
+        onRetry: _loadData,
       );
     }
 
@@ -174,16 +166,16 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
           if (_bill?.status == 'VERIFIED')
             Container(
               width: double.infinity,
-              color: Colors.green.shade100,
+              color: AgroColors.success.background,
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.lock, size: 16, color: Colors.green),
-                  SizedBox(width: 8),
+                  Icon(Icons.lock, size: 16, color: AgroColors.success.text),
+                  const SizedBox(width: 8),
                   Text(
                     'This bill is verified and locked.',
                     style: TextStyle(
-                      color: Colors.green,
+                      color: AgroColors.success.text,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -205,29 +197,13 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
       );
     }
 
-    return const Center(child: Text("Unexpected state"));
+    return const AgroErrorState.general(
+      customTitle: 'Unexpected state',
+      message: 'PDF state could not be resolved.',
+    );
   }
 
   Widget _buildStatusBadge(String status) {
-    Color color;
-    switch (status) {
-      case 'VERIFIED':
-        color = Colors.green;
-        break;
-      case 'NEEDS_REVIEW':
-        color = Colors.orange;
-        break;
-      default:
-        color = Colors.grey;
-    }
-    return Chip(
-      label: Text(
-        status,
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-      ),
-      backgroundColor: color,
-      padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
-    );
+    return AgroStatusBadge.fromBillStatus(status, size: AgroStatusBadgeSize.compact);
   }
 }
