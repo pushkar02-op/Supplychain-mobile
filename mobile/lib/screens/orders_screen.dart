@@ -66,7 +66,13 @@ class OrdersScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(orderListProvider);
-    final martsAsync = ref.watch(orderMartListProvider);
+    final martNames = ref.watch(
+      orderMartListProvider.select(
+        (async) =>
+            async.valueOrNull?.map((mart) => mart['name'] as String).toList() ??
+            const <String>[],
+      ),
+    );
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -93,12 +99,6 @@ class OrdersScreen extends ConsumerWidget {
             state.selectedDate,
             DateTime.now(),
           );
-          final martNames =
-              martsAsync.valueOrNull
-                  ?.map((mart) => mart['name'] as String)
-                  .toList() ??
-              [];
-
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

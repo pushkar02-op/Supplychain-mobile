@@ -40,31 +40,62 @@ class OverviewScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final isAdmin = ref.watch(
+      authProvider.select((async) => async.valueOrNull?.isAdmin ?? false),
+    );
     final todayFormatted = DateFormat('EEEE, MMMM d').format(DateTime.now());
 
-    final healthAsync = ref.watch(ledgerHealthProvider);
-    final ordersAsync = ref.watch(orderListProvider);
-    final dispatchAsync = ref.watch(dispatchListProvider);
-    final stockAsync = ref.watch(stockListProvider);
-    final rejectionAsync = ref.watch(rejectionListProvider);
-    final inventoryAsync = ref.watch(inventoryListProvider);
-    final martBillAsync = ref.watch(martBillProvider);
-    final forecastAsync = ref.watch(forecastingProvider);
-    final driftAsync = ref.watch(driftReportProvider);
-
-    final orders = _deriveOrdersActivity(ordersAsync);
-    final dispatches = _deriveDispatchActivity(dispatchAsync);
-    final receipts = _deriveReceiptsActivity(stockAsync);
-    final rejections = _deriveRejectionsActivity(rejectionAsync);
+    final healthData = ref.watch(
+      ledgerHealthProvider.select((async) => async.valueOrNull),
+    );
+    final orders = _deriveOrdersActivity(
+      ref.watch(
+        orderListProvider.select(
+          (async) => async.valueOrNull?.orders ?? const <Map<String, dynamic>>[],
+        ),
+      ),
+    );
+    final dispatches = _deriveDispatchActivity(
+      ref.watch(
+        dispatchListProvider.select(
+          (async) => async.valueOrNull?.dispatches ?? const <dynamic>[],
+        ),
+      ),
+    );
+    final receipts = _deriveReceiptsActivity(
+      ref.watch(stockListProvider.select((async) => async.valueOrNull ?? const <dynamic>[])),
+    );
+    final rejections = _deriveRejectionsActivity(
+      ref.watch(
+        rejectionListProvider.select(
+          (async) => async.valueOrNull?.items ?? const <Map<String, dynamic>>[],
+        ),
+      ),
+    );
 
     final alerts = _deriveAlerts(
       isAdmin: isAdmin,
-      inventoryAsync: inventoryAsync,
-      martBillAsync: martBillAsync,
-      forecastAsync: forecastAsync,
-      healthAsync: healthAsync,
-      driftAsync: driftAsync,
+      inventoryItems: ref.watch(
+        inventoryListProvider.select(
+          (async) => async.valueOrNull?.items ?? const <Map<String, dynamic>>[],
+        ),
+      ),
+      martBills: ref.watch(
+        martBillProvider.select(
+          (async) => async.valueOrNull?.bills ?? const <Map<String, dynamic>>[],
+        ),
+      ),
+      forecasts: ref.watch(
+        forecastingProvider.select(
+          (async) => async.valueOrNull ?? const <ItemForecast>[],
+        ),
+      ),
+      ledgerData: healthData,
+      driftRows: ref.watch(
+        driftReportProvider.select(
+          (async) => async.valueOrNull ?? const <dynamic>[],
+        ),
+      ),
     );
 
     return Scaffold(
@@ -88,8 +119,7 @@ class OverviewScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(AgroSpacing.screenPadding),
           children: [
-            if (healthAsync.hasValue && healthAsync.value != null)
-              _buildDecisionStrip(healthAsync.value!),
+            if (healthData != null) _buildDecisionStrip(healthData),
 
             Text(todayFormatted, style: AgroTypography.captionEmphasis),
             const SizedBox(height: AgroSpacing.lg),
@@ -297,11 +327,7 @@ class OverviewScreen extends ConsumerWidget {
     );
   }
 
-  _ActivityCardData _deriveOrdersActivity(
-    AsyncValue<OrderListState> ordersAsync,
-  ) {
-    final orders =
-        ordersAsync.valueOrNull?.orders ?? const <Map<String, dynamic>>[];
+  _ActivityCardData _deriveOrdersActivity(List<Map<String, dynamic>> orders) {
     final total = orders.length;
     final pending =
         orders.where((o) {
@@ -335,11 +361,7 @@ class OverviewScreen extends ConsumerWidget {
     );
   }
 
-  _ActivityCardData _deriveDispatchActivity(
-    AsyncValue<DispatchListState> dispatchAsync,
-  ) {
-    final dispatches =
-        dispatchAsync.valueOrNull?.dispatches ?? const <dynamic>[];
+  _ActivityCardData _deriveDispatchActivity(List<dynamic> dispatches) {
     final total = dispatches.length;
 
     final partial =
@@ -362,10 +384,7 @@ class OverviewScreen extends ConsumerWidget {
     );
   }
 
-  _ActivityCardData _deriveReceiptsActivity(
-    AsyncValue<List<dynamic>> stockAsync,
-  ) {
-    final entries = stockAsync.valueOrNull ?? const <dynamic>[];
+  _ActivityCardData _deriveReceiptsActivity(List<dynamic> entries) {
     final total = entries.length;
 
     int adjusted = 0;
@@ -406,10 +425,8 @@ class OverviewScreen extends ConsumerWidget {
   }
 
   _ActivityCardData _deriveRejectionsActivity(
-    AsyncValue<RejectionListState> rejectionAsync,
+    List<Map<String, dynamic>> items,
   ) {
-    final items =
-        rejectionAsync.valueOrNull?.items ?? const <Map<String, dynamic>>[];
     final total = items.length;
     final reversed =
         items.where((r) => (r['is_active'] ?? true) == false).length;
@@ -425,14 +442,12 @@ class OverviewScreen extends ConsumerWidget {
 
   List<_AlertRowData> _deriveAlerts({
     required bool isAdmin,
-    required AsyncValue<InventoryState> inventoryAsync,
-    required AsyncValue<MartBillState> martBillAsync,
-    required AsyncValue<List<ItemForecast>> forecastAsync,
-    required AsyncValue<Map<String, dynamic>> healthAsync,
-    required AsyncValue<List<dynamic>> driftAsync,
+    required List<Map<String, dynamic>> inventoryItems,
+    required List<Map<String, dynamic>> martBills,
+    required List<ItemForecast> forecasts,
+    required Map<String, dynamic>? ledgerData,
+    required List<dynamic> driftRows,
   }) {
-    final inventoryItems =
-        inventoryAsync.valueOrNull?.items ?? const <Map<String, dynamic>>[];
     final severeInventory =
         inventoryItems.where((i) {
           final sev = (i['severity'] ?? '').toString().toUpperCase();
@@ -445,29 +460,25 @@ class OverviewScreen extends ConsumerWidget {
           return status != 'HEALTHY' && sev != 'CRITICAL';
         }).length;
 
-    final bills =
-        martBillAsync.valueOrNull?.bills ?? const <Map<String, dynamic>>[];
     final unverifiedBills =
-        bills.where((b) {
+        martBills.where((b) {
           final status =
               (b['status'] ?? 'NEEDS_REVIEW').toString().toUpperCase();
           return status != 'VERIFIED';
         }).length;
 
-    final forecasts = forecastAsync.valueOrNull ?? const <ItemForecast>[];
     final forecastAnomalies =
         forecasts.where((f) {
           final signal = f.signal.toUpperCase();
           return signal != 'STABLE';
         }).length;
 
-    final ledger = healthAsync.valueOrNull;
-    final driftedBatches = (ledger?['drifted_batches'] as num?)?.toInt() ?? 0;
-    final ledgerStatus = (ledger?['status'] ?? '').toString().toLowerCase();
+    final driftedBatches =
+        (ledgerData?['drifted_batches'] as num?)?.toInt() ?? 0;
+    final ledgerStatus = (ledgerData?['status'] ?? '').toString().toLowerCase();
     final reconciliationNeeded =
         (ledgerStatus == 'unhealthy' || driftedBatches > 0) ? 1 : 0;
 
-    final driftRows = driftAsync.valueOrNull ?? const <dynamic>[];
     final severeDrift =
         driftRows.where((d) {
           final row = d as Map<String, dynamic>;

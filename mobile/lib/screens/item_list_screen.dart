@@ -109,7 +109,9 @@ class ItemListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(itemListProvider);
-    final aliasDataAsync = ref.watch(aliasMappingDataProvider);
+    final aliasData = ref.watch(
+      aliasMappingDataProvider.select((async) => async.valueOrNull),
+    );
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -148,7 +150,7 @@ class ItemListScreen extends ConsumerWidget {
             icon: const Icon(Icons.link),
             tooltip: 'Map Mart Bill Items',
             onPressed: () async {
-              final data = aliasDataAsync.valueOrNull;
+              final data = aliasData;
               if (data == null) return;
               await _showMappingDialog(context, ref, data.aliases, data.items);
             },

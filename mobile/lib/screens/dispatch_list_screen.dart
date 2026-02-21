@@ -75,8 +75,14 @@ class DispatchListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(dispatchListProvider);
-    final martsAsync = ref.watch(dispatchMartListProvider);
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final marts = ref.watch(
+      dispatchMartListProvider.select(
+        (async) => async.valueOrNull ?? const <String>[],
+      ),
+    );
+    final isAdmin = ref.watch(
+      authProvider.select((async) => async.valueOrNull?.isAdmin ?? false),
+    );
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -118,7 +124,6 @@ class DispatchListScreen extends ConsumerWidget {
               ),
             ),
         data: (state) {
-          final marts = martsAsync.valueOrNull ?? const <String>[];
           final dispatches = state.dispatches;
 
           return Column(

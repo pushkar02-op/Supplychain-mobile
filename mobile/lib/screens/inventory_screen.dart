@@ -18,8 +18,16 @@ class InventoryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(inventoryListProvider);
-    final itemsAsync = ref.watch(inventoryItemOptionsProvider);
-    final unitsAsync = ref.watch(inventoryUnitOptionsProvider);
+    final filterItems = ref.watch(
+      inventoryItemOptionsProvider.select(
+        (async) => async.valueOrNull ?? const <Map<String, dynamic>>[],
+      ),
+    );
+    final filterUnits = ref.watch(
+      inventoryUnitOptionsProvider.select(
+        (async) => async.valueOrNull ?? const <String>[],
+      ),
+    );
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -31,7 +39,9 @@ class InventoryScreen extends ConsumerWidget {
         actions: [
           Consumer(
             builder: (context, ref, _) {
-              final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+              final isAdmin = ref.watch(
+                authProvider.select((async) => async.valueOrNull?.isAdmin ?? false),
+              );
               if (!isAdmin) return const SizedBox.shrink();
               return IconButton(
                 icon: const Icon(
@@ -63,10 +73,6 @@ class InventoryScreen extends ConsumerWidget {
               ),
             ),
         data: (state) {
-          final filterItems =
-              itemsAsync.valueOrNull ?? const <Map<String, dynamic>>[];
-          final filterUnits = unitsAsync.valueOrNull ?? const <String>[];
-
           return Padding(
             padding: const EdgeInsets.all(AgroSpacing.screenPadding),
             child: Column(
