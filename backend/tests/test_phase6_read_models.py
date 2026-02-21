@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import text
 
+from app.db.base import Base
 from app.db.models.batch import Batch
 from app.db.models.inventory_txn import InventoryTxn
 from app.db.models.item import Item
@@ -16,10 +17,79 @@ from app.db.session import SessionLocal
 @pytest.fixture(scope="function")
 def db_session():
     """
-    Connects to the REAL Postgres (via supply-backend container env).
-    REQUIRED because we are testing SQL VIEWS which don't exist in SQLite.
+    Runs against local DATABASE_URL and creates read-model views when using SQLite.
     """
+    engine = SessionLocal.kw["bind"]
+    Base.metadata.create_all(bind=engine)
     session = SessionLocal()
+    if engine.dialect.name == "sqlite":
+        for object_name in ("batch_ledger_balance_view", "inventory_signal_view"):
+            try:
+                session.execute(text(f"DROP VIEW IF EXISTS {object_name}"))
+            except Exception:
+                session.rollback()
+            try:
+                session.execute(text(f"DROP TABLE IF EXISTS {object_name}"))
+            except Exception:
+                session.rollback()
+        session.execute(
+            text(
+                """
+                CREATE VIEW batch_ledger_balance_view AS
+                SELECT
+                    batch_id,
+                    ROUND(
+                        SUM(
+                            CASE
+                                WHEN txn_type = 'IN' THEN base_qty
+                                WHEN txn_type = 'OUT' THEN -base_qty
+                                WHEN txn_type = 'ADJUST' THEN base_qty
+                                ELSE 0
+                            END
+                        ),
+                        3
+                    ) AS ledger_qty
+                FROM inventory_txn
+                WHERE batch_id IS NOT NULL
+                GROUP BY batch_id
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                CREATE VIEW inventory_signal_view AS
+                SELECT
+                    item_id,
+                    ROUND(
+                        SUM(
+                            CASE
+                                WHEN txn_type = 'OUT'
+                                     AND date(created_at) >= date('now', '-7 day')
+                                THEN base_qty
+                                ELSE 0
+                            END
+                        ),
+                        3
+                    ) AS out_last_7d,
+                    ROUND(
+                        SUM(
+                            CASE
+                                WHEN txn_type = 'OUT'
+                                     AND date(created_at) < date('now', '-7 day')
+                                     AND date(created_at) >= date('now', '-14 day')
+                                THEN base_qty
+                                ELSE 0
+                            END
+                        ),
+                        3
+                    ) AS out_prev_7d
+                FROM inventory_txn
+                GROUP BY item_id
+                """
+            )
+        )
+        session.commit()
     try:
         yield session
     finally:

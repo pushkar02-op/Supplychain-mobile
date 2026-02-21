@@ -1,13 +1,21 @@
+import os
+
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
+
+# Ensure tests run without docker dependencies.
+os.environ["RUN_MIGRATIONS_ON_STARTUP"] = "false"
+os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+os.environ["SEED_INITIAL_DATA"] = "false"
+
 from app.main import app
 from app.db.base import Base
-from app.db.session import get_db
-from app.db.models.mart import Mart
 from app.db.models.item import Item
+from app.db.models.mart import Mart
 from app.db.models.uom import UOM
+from app.db.session import get_db
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 # Use in-memory SQLite for speed and isolation
 from sqlalchemy.pool import StaticPool

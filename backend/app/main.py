@@ -4,6 +4,7 @@ Configures logging, exception handlers, CORS, and database migrations on startup
 """
 
 import logging
+import os
 import subprocess
 
 from app.api import router as api_router
@@ -85,9 +86,14 @@ def startup() -> None:
 
     # Apply migrations
     try:
-        logger.info("⬆️  Applying migrations...")
-        subprocess.run(["alembic", "upgrade", "head"], check=True)
-        logger.info("Database migrations applied successfully")
+        if os.getenv("RUN_MIGRATIONS_ON_STARTUP", "true").lower() == "true":
+            logger.info("Applying migrations...")
+            subprocess.run(["alembic", "upgrade", "head"], check=True)
+            logger.info("Database migrations applied successfully")
+        else:
+            logger.info(
+                "Skipping migrations on startup (RUN_MIGRATIONS_ON_STARTUP=false)"
+            )
     except subprocess.CalledProcessError as e:
         logger.exception(f"Error applying migrations: {e}")
         # Depending on your needs, you might want to stop the app if migrations fail:

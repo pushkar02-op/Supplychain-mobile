@@ -48,6 +48,7 @@ def db_session():
     yield session
 
     session.close()
+    engine.dispose()
     os.close(db_fd)
     if os.path.exists(db_path):
         os.unlink(db_path)
