@@ -22,7 +22,7 @@ class StockAdjustmentCreate(BaseModel):
     """Request schema for creating a stock adjustment."""
 
     batch_id: int = Field(..., description="ID of the batch to adjust")
-    quantity_delta: float = Field(..., description="Adjustment quantity (+ or -)")
+    quantity_delta: Decimal = Field(..., description="Adjustment quantity (+ or -)")
     unit: str = Field(..., description="Unit of measurement")
     reason: str = Field(..., min_length=1, description="Required reason for adjustment")
 

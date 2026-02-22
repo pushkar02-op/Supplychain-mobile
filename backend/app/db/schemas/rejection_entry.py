@@ -1,13 +1,15 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
+from app.db.schemas.base import SchemaModel
 from app.db.schemas.batch import BatchRead
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 
-class RejectionEntryBase(BaseModel):
+class RejectionEntryBase(SchemaModel):
     batch_id: int
-    quantity: float
+    quantity: Decimal
     unit: str
     reason: Optional[str]
     rejection_date: date
@@ -35,7 +37,7 @@ class RejectionEntryRead(RejectionEntryBase):
         }
 
 
-class RejectionPagination(BaseModel):
+class RejectionPagination(SchemaModel):
     items: list[RejectionEntryRead]
     skip: int
     limit: int

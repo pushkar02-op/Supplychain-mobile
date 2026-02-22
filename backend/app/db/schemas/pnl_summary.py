@@ -1,13 +1,14 @@
 from datetime import date
+from decimal import Decimal
 
-from pydantic import BaseModel
+from app.db.schemas.base import SchemaModel
 
 
-class PnlSummaryRead(BaseModel):
+class PnlSummaryRead(SchemaModel):
     date: date
-    total_purchase: float
-    total_sales: float
-    profit: float
+    total_purchase: Decimal
+    total_sales: Decimal
+    profit: Decimal
 
     class Config:
         from_attributes = True

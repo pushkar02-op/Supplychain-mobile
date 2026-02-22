@@ -1,23 +1,25 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Optional
 
+from app.db.schemas.base import SchemaModel
 from app.db.schemas.item import ItemRead
-from pydantic import BaseModel, model_validator
+from pydantic import model_validator
 
 
-class OrderBase(BaseModel):
+class OrderBase(SchemaModel):
     item_id: int
     unit: str
     order_date: date
-    quantity_ordered: float  # Validation handled in service layer
+    quantity_ordered: Decimal  # Validation handled in service layer
 
 
 class OrderCreate(OrderBase):
     mart_name: str
 
 
-class OrderUpdate(BaseModel):
-    quantity_ordered: Optional[float] = None
+class OrderUpdate(SchemaModel):
+    quantity_ordered: Optional[Decimal] = None
     # Updates to mart are typically restricted, but if needed, use mart_name
     mart_name: Optional[str] = None
 
@@ -28,7 +30,7 @@ class OrderRead(OrderBase):
     mart_name: Optional[str] = None
     item: ItemRead
     unit: str
-    quantity_dispatched: float
+    quantity_dispatched: Decimal
     status: str
     created_at: Optional[datetime]
     updated_at: Optional[datetime]

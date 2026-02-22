@@ -221,7 +221,7 @@ def _resolve_drift_impl(
         batch_id=record.batch_id,
         drift_resolved=adjustment_qty,
         adjustment_txn_id=txn.id,
-    ).dict()
+    ).model_dump(mode="json")
 
     event = DomainEvent(
         event_type="reconciliation.resolved",

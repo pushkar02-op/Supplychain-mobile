@@ -1,16 +1,17 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from app.db.schemas.base import SchemaModel
 
 
-class InventoryTxnCreate(BaseModel):
+class InventoryTxnCreate(SchemaModel):
     item_id: int
     batch_id: Optional[int]
     txn_type: str
-    raw_qty: float
+    raw_qty: Decimal
     raw_unit: str
-    base_qty: float
+    base_qty: Decimal
     base_unit: str
     ref_type: Optional[str] = None
     ref_id: Optional[int] = None

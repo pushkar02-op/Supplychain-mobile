@@ -1,13 +1,14 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from app.db.schemas.base import SchemaModel
 
 
 # Base schema for shared fields
-class BatchBase(BaseModel):
+class BatchBase(SchemaModel):
     item_id: int
-    quantity: float
+    quantity: Decimal
     unit: str
     received_at: Optional[date] = None
     expiry_date: Optional[date] = None
@@ -23,8 +24,8 @@ class BatchCreate(BatchBase):
 
 
 # Schema for update
-class BatchUpdate(BaseModel):
-    quantity: Optional[float] = None
+class BatchUpdate(SchemaModel):
+    quantity: Optional[Decimal] = None
     unit: Optional[str] = None
     received_at: Optional[date] = None
     expiry_date: Optional[date] = None

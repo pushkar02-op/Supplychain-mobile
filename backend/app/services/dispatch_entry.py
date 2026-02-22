@@ -405,7 +405,7 @@ def _create_dispatch_entry_impl(
         order_id=dispatch.order_id,
         item_id=dispatch.item_id,
         qty=dispatch.quantity,
-    ).dict()
+    ).model_dump(mode="json")
 
     event = DomainEvent(
         event_type="dispatch.completed",
@@ -603,7 +603,7 @@ def _create_dispatch_from_order_impl(
             order_id=d.order_id,
             item_id=d.item_id,
             qty=d.quantity,
-        ).dict()
+        ).model_dump(mode="json")
 
         event = DomainEvent(
             event_type="dispatch.completed",
@@ -623,7 +623,7 @@ def _update_order_after_dispatch(
     db: Session,
     item_id: int,
     mart_name: str,
-    dispatched_quantity: float,
+    dispatched_quantity: Decimal,
     order_id: Optional[int] = None,
 ) -> None:
     """
@@ -634,7 +634,7 @@ def _update_order_after_dispatch(
         db (Session): Database session.
         item_id (int): Item ID.
         mart_name (str): Mart name.
-        dispatched_quantity (float): Quantity dispatched in this operation.
+        dispatched_quantity (Decimal): Quantity dispatched in this operation.
         order_id (Optional[int]): Explicit order ID.
     """
     if order_id:
@@ -653,7 +653,9 @@ def _update_order_after_dispatch(
     if not order:
         return
 
-    order.quantity_dispatched = (order.quantity_dispatched or 0) + dispatched_quantity
+    order.quantity_dispatched = Decimal(str(order.quantity_dispatched or 0)) + Decimal(
+        str(dispatched_quantity)
+    )
     order.status = (
         "Completed"
         if order.quantity_dispatched >= order.quantity_ordered
@@ -670,7 +672,7 @@ def _update_order_after_dispatch(
             item_id=order.item_id,
             mart_id=order.mart_id,
             total_qty=order.quantity_ordered,
-        ).dict()
+        ).model_dump(mode="json")
 
         event = DomainEvent(
             event_type="order.fulfilled",

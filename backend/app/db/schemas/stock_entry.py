@@ -1,17 +1,18 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
+from app.db.schemas.base import SchemaModel
 from app.db.schemas.item import ItemRead
-from pydantic import BaseModel
 
 
-class StockEntryBase(BaseModel):
+class StockEntryBase(SchemaModel):
     item_id: int
     received_date: date
-    price_per_unit: float
-    total_cost: float
+    price_per_unit: Decimal
+    total_cost: Decimal
     source: Optional[str] = None
-    quantity: float
+    quantity: Decimal
     unit: str
 
 
@@ -22,7 +23,7 @@ class StockEntryCreate(StockEntryBase):
 class StockEntryRead(StockEntryBase):
     id: int
     batch_id: int
-    batch_quantity: Optional[float] = (
+    batch_quantity: Optional[Decimal] = (
         None  # Current batch balance (may differ from receipt qty)
     )
     item: ItemRead
@@ -35,10 +36,10 @@ class StockEntryRead(StockEntryBase):
         orm_mode = True
 
 
-class StockEntryUpdate(BaseModel):
+class StockEntryUpdate(SchemaModel):
     received_date: Optional[date] = None
-    price_per_unit: Optional[float] = None
-    total_cost: Optional[float] = None
+    price_per_unit: Optional[Decimal] = None
+    total_cost: Optional[Decimal] = None
     source: Optional[str] = None
-    quantity: Optional[float] = None
+    quantity: Optional[Decimal] = None
     unit: Optional[str] = None
