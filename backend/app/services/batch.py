@@ -35,6 +35,7 @@ def create_batch(
     )
     today = date.today()
     try:
+        target_batch: Optional[Batch] = None
         existing = (
             db.query(Batch)
             .filter(
@@ -51,29 +52,34 @@ def create_batch(
             existing.quantity += batch.quantity
             existing.updated_by = created_by
             existing.updated_at = datetime.utcnow()
-            db.commit()
-            db.refresh(existing)
+            target_batch = existing
             logger.debug(
                 f"Updated existing batch id={existing.id}, new qty={existing.quantity}"
             )
-            return existing
+        else:
+            from app.utils.audit import resolve_user_audit
 
-        from app.utils.audit import resolve_user_audit
+            user_name, user_id = resolve_user_audit(db, created_by)
 
-        user_name, user_id = resolve_user_audit(db, created_by)
+            new_batch = Batch(
+                **batch.dict(),
+                created_by=user_name,
+                created_by_id=user_id,
+                updated_by=user_name,
+            )
+            db.add(new_batch)
+            target_batch = new_batch
 
-        new_batch = Batch(
-            **batch.dict(),
-            created_by=user_name,
-            created_by_id=user_id,
-            updated_by=user_name,
-        )
-        db.add(new_batch)
         db.commit()
-        db.refresh(new_batch)
-        logger.debug(f"Created new batch id={new_batch.id}")
-        return new_batch
+        db.refresh(target_batch)
+        logger.debug(f"Batch upsert committed id={target_batch.id}")
+        return target_batch
+    except AppException:
+        db.rollback()
+        logger.exception("Batch creation failed")
+        raise
     except Exception:
+        db.rollback()
         logger.exception("Failed to create/update batch")
         raise AppException("Batch creation failed", status_code=500)
 
