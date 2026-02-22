@@ -43,7 +43,7 @@ def test_http_exception_returns_structured_envelope():
     payload = response.json()
 
     assert response.status_code == 418
-    assert payload == {"detail": "Teapot", "rule_id": None, "metadata": {}}
+    assert payload == {"detail": "Teapot", "rule_id": "GEN-HTTP", "metadata": {}}
 
 
 def test_request_validation_error_returns_structured_envelope():
@@ -54,7 +54,7 @@ def test_request_validation_error_returns_structured_envelope():
     assert response.status_code == 422
     assert payload == {
         "detail": "Request validation failed",
-        "rule_id": None,
+        "rule_id": "GEN-422",
         "metadata": {},
     }
 
@@ -67,7 +67,7 @@ def test_generic_exception_returns_structured_envelope():
     assert response.status_code == 500
     assert payload == {
         "detail": "Internal server error. Please contact support.",
-        "rule_id": None,
+        "rule_id": "GEN-500",
         "metadata": {},
     }
 
@@ -83,19 +83,19 @@ def test_app_exception_with_rule_id_preserves_rule_id():
     assert payload["metadata"] == {"scope": "test"}
 
 
-def test_app_exception_without_rule_id_sets_rule_id_none():
+def test_app_exception_without_rule_id_sets_default_rule_id():
     client = _build_test_client()
     response = client.get("/raise-app-without-rule")
     payload = response.json()
 
     assert response.status_code == 400
     assert payload["detail"] == "No rule"
-    assert payload["rule_id"] is None
+    assert payload["rule_id"] == "GEN-000"
     assert payload["metadata"] == {}
 
 
-def test_invalid_rule_id_format_raises_assertion_error():
-    with pytest.raises(AssertionError):
+def test_invalid_rule_id_format_raises_value_error():
+    with pytest.raises(ValueError):
         AppException(detail="Invalid", status_code=400, rule_id="bad-1")
 
 

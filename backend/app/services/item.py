@@ -256,7 +256,7 @@ def update_item(
 
     update_data = entry_update.dict(exclude_unset=True)
 
-    # Handle UOM Change (MD-002)
+    # Handle UOM Change (MDU-002)
     if "default_unit" in update_data:
         new_unit = update_data.pop("default_unit")
 
@@ -275,7 +275,7 @@ def update_item(
 
         # 2. Check if changing (idempotency)
         if uom.id != item.default_uom_id:
-            # 3. Enforce MD-002: No change if inventory exists
+            # 3. Enforce MDU-002: No change if inventory exists
             from app.core.exceptions import AppException
             from app.db.models.inventory_txn import InventoryTxn
 
@@ -286,7 +286,7 @@ def update_item(
                 raise AppException(
                     "Cannot change default UOM after inventory transactions exist.",
                     status_code=409,
-                    extra={"rule_id": "MD-002"},
+                    extra={"rule_id": "MDU-002"},
                 )
 
             item.default_uom_id = uom.id

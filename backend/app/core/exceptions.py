@@ -4,6 +4,7 @@ Custom exceptions and global exception handlers for the application.
 
 import logging
 import re
+from typing import Any
 
 from fastapi import HTTPException, Request
 from fastapi.encoders import jsonable_encoder
@@ -16,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 # Base AppException for domain-level errors
 class AppException(Exception):
-    _RULE_ID_PATTERN = re.compile(r"^[A-Z]{2,5}-\d{3}$")
+    _RULE_ID_PATTERN = re.compile(r"^[A-Z]{3}-\d{3}$")
+    _DEFAULT_RULE_ID = "GEN-000"
 
     def __init__(
         self,
@@ -50,10 +52,10 @@ class AppException(Exception):
         if kwargs:
             resolved_metadata.update(kwargs)
 
-        if resolved_rule_id is not None:
-            assert self._RULE_ID_PATTERN.match(
-                resolved_rule_id
-            ), "rule_id must match ^[A-Z]{2,5}-\\d{3}$"
+        if resolved_rule_id is None:
+            resolved_rule_id = self._DEFAULT_RULE_ID
+        if not self._RULE_ID_PATTERN.match(resolved_rule_id):
+            raise ValueError("rule_id must match ^[A-Z]{3}-\\d{3}$")
 
         super().__init__(resolved_detail)
         self.message = resolved_detail
@@ -73,6 +75,14 @@ class UOMConfigurationError(AppException):
         )  # 409 Conflict suitable for config mismatch
 
 
+def _to_envelope(detail: Any, rule_id: str, metadata: Any = None) -> dict:
+    return {
+        "detail": str(detail),
+        "rule_id": rule_id,
+        "metadata": metadata if isinstance(metadata, dict) else {},
+    }
+
+
 # Register handlers function
 def register_exception_handlers(app):
     @app.exception_handler(UOMConfigurationError)
@@ -80,13 +90,7 @@ def register_exception_handlers(app):
         request: Request, exc: UOMConfigurationError
     ):
         logger.warning(f"UOM Configuration Error: {exc.message}")
-        content = jsonable_encoder(
-            {
-                "detail": exc.detail,
-                "rule_id": exc.rule_id,
-                "metadata": exc.metadata or {},
-            }
-        )
+        content = jsonable_encoder(_to_envelope(exc.detail, exc.rule_id, exc.metadata))
         return JSONResponse(
             status_code=exc.status_code,
             content=content,
@@ -95,13 +99,7 @@ def register_exception_handlers(app):
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
         logger.warning(f"AppException: {exc.message}")
-        content = jsonable_encoder(
-            {
-                "detail": exc.detail,
-                "rule_id": exc.rule_id,
-                "metadata": exc.metadata or {},
-            }
-        )
+        content = jsonable_encoder(_to_envelope(exc.detail, exc.rule_id, exc.metadata))
         return JSONResponse(status_code=exc.status_code, content=content)
 
     @app.exception_handler(RequestValidationError)
@@ -110,27 +108,28 @@ def register_exception_handlers(app):
     ):
         logger.warning(f"Validation Error: {exc.errors()}")
         content = jsonable_encoder(
-            {"detail": "Request validation failed", "rule_id": None, "metadata": {}}
+            _to_envelope("Request validation failed", "GEN-422", {})
         )
         return JSONResponse(status_code=422, content=content)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         logger.warning(f"HTTPException: {exc.detail}")
-        content = jsonable_encoder(
-            {"detail": str(exc.detail), "rule_id": None, "metadata": {}}
-        )
+        detail = exc.detail
+        metadata = {}
+        if isinstance(exc.detail, dict):
+            detail = exc.detail.get("detail", exc.detail)
+            metadata = exc.detail.get("metadata", {}) or {}
+        content = jsonable_encoder(_to_envelope(detail, "GEN-HTTP", metadata))
         return JSONResponse(status_code=exc.status_code, content=content)
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         logger.exception(f"Unhandled Exception: {exc}")
         content = jsonable_encoder(
-            {
-                "detail": "Internal server error. Please contact support.",
-                "rule_id": None,
-                "metadata": {},
-            }
+            _to_envelope(
+                "Internal server error. Please contact support.", "GEN-500", {}
+            )
         )
         return JSONResponse(
             status_code=HTTP_500_INTERNAL_SERVER_ERROR,
