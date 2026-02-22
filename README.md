@@ -70,6 +70,12 @@ Open `.vscode/launch.json` and run **"SupplyChain Mobile (Android Emulator)"**.
 *   **Create Migration:** `docker compose exec backend alembic revision --autogenerate -m "msg"`
 *   **Apply Migration:** `docker compose exec backend alembic upgrade head`
 
+## Backend Governance
+
+Backend governance is currently documented as a stability baseline.
+Use the backend governance index for error contract, threshold model, observability model, and topology references:
+[`docs/backend/BACKEND_GOVERNANCE_v1.md`](./docs/backend/BACKEND_GOVERNANCE_v1.md)
+
 ---
 
 ## 4. Frontend Operations (Mobile)

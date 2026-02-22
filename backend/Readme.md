@@ -112,7 +112,22 @@ backend/
 
 ---
 
-## 📚 API Documentation
+
+## Governance & Architecture
+
+Backend governance baseline documents:
+
+- `../docs/backend/BACKEND_GOVERNANCE_v1.md`
+- `../docs/backend/ERROR_CONTRACT.md`
+- `../docs/backend/THRESHOLD_GOVERNANCE.md`
+- `../docs/backend/OBSERVABILITY_MODEL.md`
+- `../docs/backend/BACKEND_TOPOLOGY.md`
+
+These documents define the current backend governance invariants and architecture references.
+
+---
+
+## API Documentation
 
 Once running, visit [http://localhost:8000/docs](http://localhost:8000/docs) for interactive API documentation (Swagger UI).
 
@@ -143,3 +158,4 @@ Once running, visit [http://localhost:8000/docs](http://localhost:8000/docs) for
 For any issues, please open an issue in the repository or contact the maintainer.
 
 ---
+
