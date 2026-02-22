@@ -27,9 +27,9 @@ SELECT
   COALESCE(s.mart_id, c.mart_id) AS mart_id,
   m.name                         AS mart_name,
   COALESCE(s.date, c.date)       AS date,
-  COALESCE(s.total_sales, 0)     AS total_sales,
-  COALESCE(c.total_cost,  0)     AS total_purchase,
-  COALESCE(s.total_sales, 0) - COALESCE(c.total_cost, 0) AS profit
+  COALESCE(s.total_sales, 0::numeric)     AS total_sales,
+  COALESCE(c.total_cost,  0::numeric)     AS total_purchase,
+  COALESCE(s.total_sales, 0::numeric) - COALESCE(c.total_cost, 0::numeric) AS profit
 FROM sales s
 FULL OUTER JOIN cost c
   ON s.mart_id = c.mart_id
