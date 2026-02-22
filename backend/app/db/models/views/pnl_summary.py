@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, Float
+from sqlalchemy import Column, Date, Numeric
 
 from ..base_class import Base
 
@@ -8,6 +8,6 @@ class PnlSummary(Base):
     __table_args__ = {"extend_existing": True}
 
     date = Column(Date, primary_key=True)
-    total_purchase = Column(Float)
-    total_sales = Column(Float)
-    profit = Column(Float)
+    total_purchase = Column(Numeric(18, 6))
+    total_sales = Column(Numeric(18, 6))
+    profit = Column(Numeric(18, 6))

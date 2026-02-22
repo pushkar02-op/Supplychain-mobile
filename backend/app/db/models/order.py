@@ -1,9 +1,11 @@
+from decimal import Decimal
+
 from sqlalchemy import (
     Column,
     Date,
-    Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     UniqueConstraint,
 )
@@ -24,8 +26,10 @@ class Order(Base, AuditMixin):
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
     mart_id = Column(Integer, ForeignKey("mart.id"), nullable=False)
     order_date = Column(Date, nullable=False)
-    quantity_ordered = Column(Float, nullable=False)
-    quantity_dispatched = Column(Float, default=0.0)  # updated as dispatch happens
+    quantity_ordered = Column(Numeric(10, 3), nullable=False)
+    quantity_dispatched = Column(
+        Numeric(10, 3), default=Decimal("0.000")
+    )  # updated as dispatch happens
     status = Column(
         String, default="Pending"
     )  # Pending, Partially Completed, Completed

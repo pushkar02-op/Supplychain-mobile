@@ -32,6 +32,7 @@ venv/
 
 # Data & artifacts
 *.sqlite3
+/backend/test.db
 modal_debug*
 test_ord007_simple.py
 

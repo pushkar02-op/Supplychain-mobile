@@ -1,9 +1,9 @@
 from sqlalchemy import (
     Column,
     Date,
-    Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     UniqueConstraint,
 )
@@ -26,7 +26,7 @@ class DispatchEntry(Base, AuditMixin):
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
     dispatch_date = Column(Date, nullable=False)
     mart_id = Column(Integer, ForeignKey("mart.id"), nullable=False)
-    quantity = Column(Float, nullable=False)
+    quantity = Column(Numeric(10, 3), nullable=False)
     unit = Column(String, nullable=False)
     remarks = Column(String, nullable=True)
     order_id = Column(Integer, ForeignKey("order.id"), nullable=True)
