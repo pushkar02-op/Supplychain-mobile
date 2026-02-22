@@ -1,21 +1,22 @@
+from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from app.db.schemas.base import SchemaModel
 
 
-class ItemConversionBase(BaseModel):
+class ItemConversionBase(SchemaModel):
     item_id: int
     source_unit: str
     target_unit: str
-    conversion_factor: float
+    conversion_factor: Decimal
 
 
 class ItemConversionCreate(ItemConversionBase):
     pass
 
 
-class ItemConversionUpdate(BaseModel):
-    conversion_factor: Optional[float]
+class ItemConversionUpdate(SchemaModel):
+    conversion_factor: Optional[Decimal]
     source_unit: Optional[str]
     target_unit: Optional[str]
 

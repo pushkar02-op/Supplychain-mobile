@@ -7,7 +7,7 @@ import logging
 from datetime import date
 from typing import List, Optional
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_active_admin, get_current_user
 from app.core.exceptions import AppException
 from app.db.models.dispatch_entry import DispatchEntry  # Added
 from app.db.models.user import User
@@ -143,15 +143,11 @@ def reverse_dispatch(
     id: int,
     entry: DispatchReversalCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_admin),
 ) -> DispatchReversalRead:
     """
     Reverse a dispatch entry (Admin Only).
     """
     logger.info(f"Reversing dispatch {id} by user {current_user.username}")
-
-    if not current_user.is_admin:
-        logger.warning(f"Unauthorized reversal attempt by {current_user.username}")
-        raise AppException("Only admins can reverse dispatches", status_code=403)
 
     return create_reversal_entry(db, id, entry, created_by=current_user.username)

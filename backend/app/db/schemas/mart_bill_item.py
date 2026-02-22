@@ -1,17 +1,18 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from app.db.schemas.base import SchemaModel
 
 
-class MartBillItemBase(BaseModel):
+class MartBillItemBase(SchemaModel):
     hsn_code: Optional[str]
     item_code: Optional[str]
     item_name: str
-    quantity: float
+    quantity: Decimal
     uom: str
-    price: float
-    total: float
+    price: Decimal
+    total: Decimal
     invoice_date: datetime
     store_name: str
 
@@ -20,10 +21,10 @@ class MartBillItemCreate(MartBillItemBase):
     invoice_id: int
 
 
-class MartBillItemUpdate(BaseModel):
-    quantity: Optional[float] = None
-    price: Optional[float] = None
-    total: Optional[float] = None
+class MartBillItemUpdate(SchemaModel):
+    quantity: Optional[Decimal] = None
+    price: Optional[Decimal] = None
+    total: Optional[Decimal] = None
 
     class Config:
         from_attributes = True
@@ -40,7 +41,7 @@ class MartBillItemRead(MartBillItemBase):
         from_attributes = True
 
 
-class MartBillItemSummary(BaseModel):
+class MartBillItemSummary(SchemaModel):
     item_id: int
     item_code: str
     item_name: str
@@ -57,8 +58,3 @@ class UnresolvedMartBillItemRead(MartBillItemBase):
 
     class Config:
         from_attributes = True
-
-
-# Was missing in previous view? Adding it if found by grep, otherwise I'll add a placeholder or copy if I find it.
-# Assuming it might be missing or in another file. I will check grep result before finalizing this file if needed.
-# Actually, I'll write what I have, and append if I find the missing class.

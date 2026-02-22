@@ -2,16 +2,16 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from app.db.schemas.base import SchemaModel
 
 
-class ReconciliationRecordResolve(BaseModel):
+class ReconciliationRecordResolve(SchemaModel):
     record_id: int
     adjustment_qty: Decimal
     apply_to_batch: bool = True
 
 
-class ReconciliationRecordRead(BaseModel):
+class ReconciliationRecordRead(SchemaModel):
     id: int
     batch_id: int
     observed_ledger_qty: Decimal

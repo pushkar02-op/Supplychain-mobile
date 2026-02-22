@@ -29,9 +29,20 @@ All decision-making and implementation MUST adhere to this precedence order. If 
 These documents define **non-negotiable rules**. They are not suggestions.
 
 *   **Business Logic:** `docs/business_rules_and_enforcement.md`
+*   **Backend Governance v1:** `docs/backend/BACKEND_GOVERNANCE_v1.md`
 *   **Deployment:** `DEPLOYMENT_PIPELINE_DESIGN.md` (Target State)
 *   **Testing:** `e2e/E2E_RULES.md`
 *   **Safety:** `docs/critical_donts.md`
+
+### 2.1 Backend Governance v1
+
+Backend governance baseline documentation:
+
+- `docs/backend/BACKEND_GOVERNANCE_v1.md`
+- `docs/backend/ERROR_CONTRACT.md`
+- `docs/backend/THRESHOLD_GOVERNANCE.md`
+- `docs/backend/OBSERVABILITY_MODEL.md`
+- `docs/backend/BACKEND_TOPOLOGY.md`
 
 ---
 

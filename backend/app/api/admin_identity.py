@@ -1,6 +1,7 @@
 from typing import List
 
 from app.core.auth import get_current_active_admin
+from app.core.exceptions import AppException
 from app.db.models.mart import Mart
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.mart_item_alias import MartItemAlias
@@ -16,7 +17,7 @@ from app.db.schemas.mart_item_alias import (
 from app.db.session import get_db
 
 # from app.services.item_alias import resolve_item_for_mart
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -46,7 +47,9 @@ def create_mart_alias(
     # Check if mart exists
     mart = db.query(Mart).filter(Mart.id == alias_in.mart_id).first()
     if not mart:
-        raise HTTPException(status_code=404, detail="Mart not found")
+        raise AppException(
+            detail="Mart not found", status_code=404, rule_id=None, metadata={}
+        )
 
     # Constraint Check happens at DB level, but we can pre-check
     existing = (
@@ -58,8 +61,11 @@ def create_mart_alias(
         .first()
     )
     if existing:
-        raise HTTPException(
-            status_code=400, detail="Alias with this name already exists for this Mart"
+        raise AppException(
+            detail="Alias with this name already exists for this Mart",
+            status_code=400,
+            rule_id=None,
+            metadata={},
         )
 
     db_obj = MartItemAlias(

@@ -103,6 +103,10 @@ def setup_base_data(db):
         item = Item(name="Event Test Item", default_uom_id=uom.id)
         db.add(item)
         db.commit()
+    else:
+        item.default_uom_id = uom.id
+        db.commit()
+        db.refresh(item)
 
     # Ensure Mart
     mart = db.query(Mart).filter_by(name="Event Test Mart").first()

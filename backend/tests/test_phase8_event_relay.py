@@ -78,7 +78,7 @@ def test_inventory_flow_projection(db_session):
     db_session.commit()
 
     # 1. Insert Event
-    create_raw_event(
+    first_event = create_raw_event(
         db_session,
         "inventory_txn.committed",
         {
@@ -98,7 +98,7 @@ def test_inventory_flow_projection(db_session):
     # 3. Assert Projection
     flow = (
         db_session.query(InventoryFlowDaily)
-        .filter_by(item_id=101, date=date.today())
+        .filter_by(item_id=101, date=first_event.occurred_at.date())
         .first()
     )
     assert flow is not None

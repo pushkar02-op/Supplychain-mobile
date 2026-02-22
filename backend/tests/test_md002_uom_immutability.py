@@ -1,5 +1,5 @@
 """
-Phase 4A: MD-002 Default UOM Immutability Tests
+Phase 4A: MDU-002 Default UOM Immutability Tests
 Verifies that default_uom_id cannot be changed after inventory transactions exist.
 """
 
@@ -82,7 +82,7 @@ def test_block_uom_change_after_inventory():
         raise AssertionError("Expected AppException was not raised!")
     except AppException as e:
         assert e.status_code == 409
-        assert "MD-002" in str(e.extra.get("rule_id", ""))
+        assert "MDU-002" in str(e.extra.get("rule_id", ""))
         print("PASS: Block UOM Change After Inventory")
 
 
@@ -171,7 +171,7 @@ if __name__ == "__main__":
         test_block_uom_change_after_inventory()
         test_allow_uom_change_before_inventory()
         test_allow_non_uom_updates_after_inventory()
-        print("\n=== ALL MD-002 TESTS PASSED ===")
+        print("\n=== ALL MDU-002 TESTS PASSED ===")
     except Exception:
         import traceback
 

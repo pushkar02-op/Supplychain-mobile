@@ -1,12 +1,14 @@
-from pydantic import BaseModel
+from decimal import Decimal
+
+from app.db.schemas.base import SchemaModel
 
 
-class InventorySummaryRead(BaseModel):
+class InventorySummaryRead(SchemaModel):
     item_id: int
     name: str
     unit: str
-    ledger_qty: float
-    state_qty: float = 0.0
+    ledger_qty: Decimal
+    state_qty: Decimal = Decimal("0")
     status: str = "HEALTHY"
     severity: str = "NONE"
     signals: list[str] = []
@@ -15,42 +17,42 @@ class InventorySummaryRead(BaseModel):
         from_attributes = True
 
 
-class ReconciliationItem(BaseModel):
+class ReconciliationItem(SchemaModel):
     item_id: int
     item_name: str
-    state_qty: float
-    ledger_qty: float
-    drift: float
+    state_qty: Decimal
+    ledger_qty: Decimal
+    drift: Decimal
     status: str  # HEALTHY | DRIFT
     severity: str  # NONE | MINOR | MAJOR | CRITICAL
 
 
-class ReconciliationBatch(BaseModel):
+class ReconciliationBatch(SchemaModel):
     batch_id: int
-    qty: float
+    qty: Decimal
     received_at: str
 
 
-class ReconciliationTxn(BaseModel):
+class ReconciliationTxn(SchemaModel):
     type: str
-    qty: float
+    qty: Decimal
     ref: str
     created_at: str
 
 
-class ReconciliationDetail(BaseModel):
+class ReconciliationDetail(SchemaModel):
     item: InventorySummaryRead
-    state_qty: float
-    ledger_qty: float
-    drift: float
+    state_qty: Decimal
+    ledger_qty: Decimal
+    drift: Decimal
     severity: str
     recent_transactions: list[ReconciliationTxn]
     batch_snapshot: list[ReconciliationBatch]
 
 
-class InventorySignalResponse(BaseModel):
-    available_stock: float
-    avg_daily_outflow: float
-    out_last_7d: float
-    out_prev_7d: float
+class InventorySignalResponse(SchemaModel):
+    available_stock: Decimal
+    avg_daily_outflow: Decimal
+    out_last_7d: Decimal
+    out_prev_7d: Decimal
     signals: list[str]

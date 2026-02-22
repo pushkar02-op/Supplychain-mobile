@@ -1,11 +1,12 @@
 # backend/app/db/schemas/item_management.py
 
+from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel
+from app.db.schemas.base import SchemaModel
 
 
-class UOMRead(BaseModel):
+class UOMRead(SchemaModel):
     id: int
     code: str
     description: Optional[str]
@@ -14,19 +15,19 @@ class UOMRead(BaseModel):
         orm_mode = True
 
 
-class ItemAliasInput(BaseModel):
+class ItemAliasInput(SchemaModel):
     id: Optional[int] = None
     alias_code: Optional[str]
     alias_name: str
 
 
-class ConversionInput(BaseModel):
+class ConversionInput(SchemaModel):
     source_unit: str
     target_unit: str
-    conversion_factor: float
+    conversion_factor: Decimal
 
 
-class ItemManagementCreateUpdate(BaseModel):
+class ItemManagementCreateUpdate(SchemaModel):
     id: Optional[int] = None
     name: str
     default_uom_id: Optional[int]
@@ -34,7 +35,7 @@ class ItemManagementCreateUpdate(BaseModel):
     conversions: List[ConversionInput]
 
 
-class ItemAliasRead(BaseModel):
+class ItemAliasRead(SchemaModel):
     id: int
     alias_code: str
     alias_name: str
@@ -43,17 +44,17 @@ class ItemAliasRead(BaseModel):
         from_attributes = True
 
 
-class ItemConversionMapRead(BaseModel):
+class ItemConversionMapRead(SchemaModel):
     id: int
     source_unit: str
     target_unit: str
-    conversion_factor: float
+    conversion_factor: Decimal
 
     class Config:
         from_attributes = True
 
 
-class ItemManagementRead(BaseModel):
+class ItemManagementRead(SchemaModel):
     id: int
     name: str
     default_uom_code: Optional[str]
@@ -64,6 +65,6 @@ class ItemManagementRead(BaseModel):
         from_attributes = True
 
 
-class AliasMapInput(BaseModel):
+class AliasMapInput(SchemaModel):
     alias_id: int
     item_id: int

@@ -18,7 +18,7 @@ from app.services.item import (
     reactivate_item,
     update_item,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -174,9 +174,11 @@ def delete(item_id: int) -> None:
     This endpoint is intentionally blocked per governance mandate.
     Items should be deactivated, not deleted, to preserve referential integrity.
     """
-    raise HTTPException(
-        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+    raise AppException(
         detail="Item deletion is not supported. Use /item/{id}/deactivate instead.",
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        rule_id=None,
+        metadata={},
     )
 
 

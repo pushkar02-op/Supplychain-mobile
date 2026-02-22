@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Union
 
 from app.core.config import settings
-from fastapi import HTTPException, status
+from app.core.exceptions import AppException
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -33,10 +33,10 @@ def create_access_token(
 
 
 def verify_access_token(token: str) -> dict:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
+    credentials_exception = AppException(
+        status_code=401,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
+        metadata={"headers": {"WWW-Authenticate": "Bearer"}},
     )
     try:
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[ALGORITHM])

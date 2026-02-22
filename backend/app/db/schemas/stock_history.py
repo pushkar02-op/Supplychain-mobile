@@ -1,29 +1,30 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel
+from app.db.schemas.base import SchemaModel
 
 
-class StockHistoryReceipt(BaseModel):
+class StockHistoryReceipt(SchemaModel):
     id: int
     received_date: date
-    quantity: float
+    quantity: Decimal
     unit: str
-    price_per_unit: float
-    total_cost: float
+    price_per_unit: Decimal
+    total_cost: Decimal
     source: Optional[str] = None
 
 
-class StockHistoryAdjustment(BaseModel):
+class StockHistoryAdjustment(SchemaModel):
     id: int
-    quantity_delta: float
+    quantity_delta: Decimal
     unit: str
     reason: str
     created_at: datetime
     created_by: Optional[str] = None
 
 
-class StockHistoryResponse(BaseModel):
+class StockHistoryResponse(SchemaModel):
     receipt: StockHistoryReceipt
     adjustments: List[StockHistoryAdjustment]
     is_voided: bool

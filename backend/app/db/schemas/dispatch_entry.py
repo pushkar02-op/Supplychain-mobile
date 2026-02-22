@@ -1,16 +1,18 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
+from app.db.schemas.base import SchemaModel
 from app.db.schemas.batch import BatchRead
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 
-class DispatchEntryBase(BaseModel):
+class DispatchEntryBase(SchemaModel):
     item_id: int
     batch_id: int
     mart_name: str
     dispatch_date: date
-    quantity: float
+    quantity: Decimal
     unit: str
     remarks: Optional[str] = None
     order_id: Optional[int] = None
@@ -20,10 +22,10 @@ class DispatchEntryCreate(DispatchEntryBase):
     pass
 
 
-class DispatchEntryUpdate(BaseModel):
+class DispatchEntryUpdate(SchemaModel):
     mart_name: Optional[str] = None
     dispatch_date: Optional[date] = None
-    quantity: Optional[float] = None
+    quantity: Optional[Decimal] = None
     unit: Optional[str] = None
 
 
@@ -40,15 +42,15 @@ class DispatchEntryRead(DispatchEntryBase):
 # ========================
 # Reversal Schemas
 # ========================
-class DispatchReversalCreate(BaseModel):
-    quantity: Optional[float] = None  # None = full reversal
+class DispatchReversalCreate(SchemaModel):
+    quantity: Optional[Decimal] = None  # None = full reversal
     reason: Optional[str] = None
 
 
-class DispatchReversalRead(BaseModel):
+class DispatchReversalRead(SchemaModel):
     id: int
     dispatch_entry_id: int
-    quantity: float
+    quantity: Decimal
     reason: Optional[str]
     created_at: datetime
     created_by: Optional[str]
@@ -62,13 +64,13 @@ class DispatchReversalRead(BaseModel):
         }
 
 
-class BatchDispatchInput(BaseModel):
+class BatchDispatchInput(SchemaModel):
     batch_id: int
-    quantity: float
+    quantity: Decimal
 
 
 # Update the create schema
-class DispatchEntryMultiCreate(BaseModel):
+class DispatchEntryMultiCreate(SchemaModel):
     item_id: int
     mart_name: str
     dispatch_date: date
@@ -78,14 +80,14 @@ class DispatchEntryMultiCreate(BaseModel):
     batches: list[BatchDispatchInput]
 
 
-class DispatchEntryCreated(BaseModel):
+class DispatchEntryCreated(SchemaModel):
     dispatch_id: int
     batch_id: int
-    quantity: float
+    quantity: Decimal
 
 
 class DispatchEntryNetRead(DispatchEntryRead):
-    net_quantity: float
+    net_quantity: Decimal
     status: str  # 'Active', 'Partially Reversed', 'Fully Reversed'
 
     class Config:

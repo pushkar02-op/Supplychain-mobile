@@ -14,15 +14,12 @@ def canonical_hash(payload: Any) -> str:
     Produce a stable hash of the given payload (dict).
     Uses string representation for maximum robustness against serialization errors.
     """
-    import sys
-
-    # print("DEBUG: canonical_hash called", file=sys.stderr)
     try:
         # Pydantic models/dicts are generally stable in repr/str
         serialized = str(payload)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
     except Exception as e:
-        print(f"DEBUG: canonical_hash failed: {e}", file=sys.stderr)
+        logger.exception("canonical_hash failed")
         raise e
 
 

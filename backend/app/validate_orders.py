@@ -1,4 +1,5 @@
 import json
+import logging
 import urllib.error
 import urllib.request
 
@@ -7,6 +8,8 @@ from sqlalchemy import create_engine, text
 
 API_URL = "http://localhost:8000/v1/orders/"
 engine = create_engine(settings.DATABASE_URL)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+logger = logging.getLogger(__name__)
 
 
 def run_test(name, payload):
@@ -17,19 +20,19 @@ def run_test(name, payload):
     )
     try:
         with urllib.request.urlopen(req) as response:
-            print(f"{name}: {response.getcode()} SUCCESS")
+            logger.info("%s: %s SUCCESS", name, response.getcode())
             return True
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8")
-        print(f"{name}: {e.code} FAIL {body}")
+        logger.error("%s: %s FAIL %s", name, e.code, body)
         return False
     except Exception as e:
-        print(f"{name}: ERR {e}")
+        logger.error("%s: ERR %s", name, e)
         return False
 
 
 def check_db():
-    print("--- DB STATE ---")
+    logger.info("--- DB STATE ---")
     with engine.connect() as conn:
         rows = conn.execute(
             text(
@@ -37,7 +40,7 @@ def check_db():
             )
         ).fetchall()
         for r in rows:
-            print(f"ID={r.id} MartID={r.mart_id}")
+            logger.info("ID=%s MartID=%s", r.id, r.mart_id)
 
 
 def main():

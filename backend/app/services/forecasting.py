@@ -10,6 +10,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional
 
+from app.core.governance import thresholds
+from app.core.structured_logging import log_event
 from app.db.models.inventory_flow_daily import InventoryFlowDaily
 from app.db.models.item import Item
 from app.db.models.item_burn_rate import ItemBurnRate
@@ -19,11 +21,10 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-
-# Signal thresholds (days to stockout)
-SIGNAL_CRITICAL = 3
-SIGNAL_REORDER_SOON = 7
-SIGNAL_WATCH = 14
+# Backward-compatible aliases for existing imports/tests.
+SIGNAL_CRITICAL = thresholds.forecast.critical_days
+SIGNAL_REORDER_SOON = thresholds.forecast.reorder_soon_days
+SIGNAL_WATCH = thresholds.forecast.watch_days
 
 
 def classify_signal(days_to_zero: Optional[float]) -> str:
@@ -187,6 +188,7 @@ def refresh_forecast_for_item(db: Session, item_id: int) -> dict:
     forecast.calculated_at = datetime.utcnow()
 
     db.commit()
+    log_event(level="INFO", event="forecast_refreshed", metadata={"item_id": item_id})
 
     return {
         "item_id": item_id,

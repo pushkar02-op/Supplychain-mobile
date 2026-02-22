@@ -4,6 +4,7 @@ Configures logging, exception handlers, CORS, and database migrations on startup
 """
 
 import logging
+import os
 import subprocess
 
 from app.api import router as api_router
@@ -17,6 +18,7 @@ from app.api.rejection_entry import router as rejection_router
 from app.api.stock_entry import router as stock_router
 from app.api.stock_history import router as stock_history_router
 from app.api.uom import router as uom_router
+from app.core.correlation import CorrelationIdMiddleware
 from app.core.exceptions import register_exception_handlers
 from app.core.logging_config import setup_logging
 from app.db.seed.seed_all import seed_all
@@ -30,6 +32,9 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(title="AGRO")
+
+# Correlation id propagation middleware
+app.add_middleware(CorrelationIdMiddleware)
 
 # Register global exception handlers
 register_exception_handlers(app)
@@ -85,9 +90,14 @@ def startup() -> None:
 
     # Apply migrations
     try:
-        logger.info("⬆️  Applying migrations...")
-        subprocess.run(["alembic", "upgrade", "head"], check=True)
-        logger.info("Database migrations applied successfully")
+        if os.getenv("RUN_MIGRATIONS_ON_STARTUP", "true").lower() == "true":
+            logger.info("Applying migrations...")
+            subprocess.run(["alembic", "upgrade", "head"], check=True)
+            logger.info("Database migrations applied successfully")
+        else:
+            logger.info(
+                "Skipping migrations on startup (RUN_MIGRATIONS_ON_STARTUP=false)"
+            )
     except subprocess.CalledProcessError as e:
         logger.exception(f"Error applying migrations: {e}")
         # Depending on your needs, you might want to stop the app if migrations fail:

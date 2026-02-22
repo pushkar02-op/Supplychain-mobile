@@ -1,15 +1,16 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from app.db.schemas.base import SchemaModel
 
 
-class MartBillRead(BaseModel):
+class MartBillRead(SchemaModel):
     id: int
     mart_id: int
     mart_name: Optional[str] = None
     invoice_date: date
-    total_amount: float
+    total_amount: Decimal
     file_path: str
     status: str
     locked_at: Optional[datetime]
@@ -22,5 +23,5 @@ class MartBillRead(BaseModel):
         from_attributes = True
 
 
-class MartBillUpdate(BaseModel):
+class MartBillUpdate(SchemaModel):
     remarks: Optional[str]

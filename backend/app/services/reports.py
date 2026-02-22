@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from app.core.decimal_utils import enforce_decimal
+from app.core.governance import thresholds
 from app.db.models.batch import Batch
 from app.db.models.inventory_txn import InventoryTxn
 from app.db.models.views.inventory_signal import InventorySignal
@@ -21,6 +22,7 @@ from app.db.schemas.inventory_summary import (
     ReconciliationTxn,
 )
 from app.db.schemas.pnl_summary import PnlSummaryRead
+from app.domain.drift_policy import classify_drift_ratio
 from app.services.item_conversion_map import get_conversion_factor
 from sqlalchemy.orm import Session
 
@@ -135,10 +137,10 @@ def get_inventory_report(
             # Severity Logic
             denom = abs(ledger) if ledger != Decimal("0") else Decimal("1")
             drift_ratio = abs(delta) / denom
-            if ledger < Decimal("0") or drift_ratio > Decimal("0.05"):
+            if ledger < Decimal("0"):
                 severity = "CRITICAL"
             else:
-                severity = "MAJOR"
+                severity = classify_drift_ratio(drift_ratio)
 
         # Signals
         signals = []
@@ -146,13 +148,13 @@ def get_inventory_report(
         p7 = out_prev_7d.get(r.item_id, Decimal("0"))
 
         # Fast Depletion
-        if l7 > (p7 * Decimal("1.5")) and l7 > Decimal("0"):
+        if l7 > (p7 * thresholds.inventory.fast_depletion_ratio) and l7 > Decimal("0"):
             signals.append("FAST_DEPLETING")
 
         # Low Stock
-        threshold = Decimal("10.0")
+        threshold = thresholds.inventory.absolute_low_stock
         if l7 > Decimal("0"):
-            threshold = l7 * Decimal("0.2")
+            threshold = l7 * thresholds.inventory.low_stock_ratio
 
         if avail <= threshold and avail > Decimal("0"):
             signals.append("LOW_STOCK")
@@ -305,14 +307,17 @@ def get_item_signals(db: Session, item_id: int):
     # 3. Signals
     signals = []
 
-    # Fast Depletion: Last 7d > Prev 7d * 1.5
-    if out_last_7d > (out_prev_7d * Decimal("1.5")) and out_last_7d > 0:
+    # Fast Depletion: Last 7d > Prev 7d * configured ratio
+    if (
+        out_last_7d > (out_prev_7d * thresholds.inventory.fast_depletion_ratio)
+        and out_last_7d > 0
+    ):
         signals.append("FAST_DEPLETING")
 
     # Low Stock
-    threshold = Decimal("10.0")
+    threshold = thresholds.inventory.absolute_low_stock
     if out_last_7d > 0:
-        threshold = out_last_7d * Decimal("0.2")
+        threshold = out_last_7d * thresholds.inventory.low_stock_ratio
 
     if available_stock <= threshold and available_stock > Decimal("0"):
         signals.append("LOW_STOCK")

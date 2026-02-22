@@ -6,13 +6,14 @@ Admin-only authorization.
 """
 
 from app.core.auth import get_current_active_admin
+from app.core.exceptions import AppException
 from app.db.session import get_db
 from app.services.forecasting import (
     get_all_forecast_summaries,
     get_forecast_summary,
     refresh_all_forecasts,
 )
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/admin/forecasting", tags=["Admin Forecasting"])
@@ -41,7 +42,12 @@ def get_item_forecast(item_id: int, db: Session = Depends(get_db)):
     """
     summary = get_forecast_summary(db, item_id)
     if not summary:
-        raise HTTPException(status_code=404, detail="Forecast not found for item")
+        raise AppException(
+            detail="Forecast not found for item",
+            status_code=404,
+            rule_id=None,
+            metadata={},
+        )
     return summary
 
 

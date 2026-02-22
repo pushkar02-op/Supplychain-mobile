@@ -1,0 +1,8 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+include = ["backend/app/**/*.py", "backend/tests/**/*.py"]
+extend-exclude = ["backend/manual_tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/tests/*.py" = ["E402", "F401", "F811", "F841"]

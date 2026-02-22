@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from app.core.decimal_utils import enforce_decimal
 from app.core.exceptions import AppException
+from app.core.structured_logging import log_event
 from app.db.models.batch import Batch
 from app.db.models.dispatch_entry import DispatchEntry
 from app.db.models.dispatch_reversal import DispatchReversal
@@ -53,134 +54,155 @@ def create_reversal_entry(
     """
     logger.info(f"Creating reversal for dispatch {dispatch_id}")
 
-    # 1. Fetch Dispatch
-    dispatch = db.get(DispatchEntry, dispatch_id)
-    if not dispatch:
-        logger.error(f"Dispatch {dispatch_id} not found")
-        raise AppException("Dispatch entry not found", status_code=404)
-
-    # 2. Calculate Remaining Quantity
-    total_reversed = db.scalar(
-        select(func.sum(DispatchReversal.quantity)).where(
-            DispatchReversal.dispatch_entry_id == dispatch_id
-        )
-    ) or Decimal("0")
-
-    # Use Decimal for precision
-    dispatch_qty = Decimal(str(dispatch.quantity))
-    existing_reversed = Decimal(str(total_reversed))
-    remaining_qty = dispatch_qty - existing_reversed
-
-    if remaining_qty <= 0:
-        logger.warning(f"Dispatch {dispatch_id} is already fully reversed")
-        raise AppException("Dispatch is already fully reversed", status_code=409)
-
-    # 3. Determine Reversal Quantity
-    if entry.quantity is None:
-        reversal_qty = remaining_qty
-    else:
-        reversal_qty = Decimal(str(entry.quantity))
-
-    if reversal_qty <= 0:
-        raise AppException("Reversal quantity must be > 0", status_code=400)
-
-    if reversal_qty > remaining_qty:
-        logger.warning(f"Requested reversal {reversal_qty} > remaining {remaining_qty}")
-        raise AppException(
-            f"Cannot reverse {reversal_qty}. Only {remaining_qty} remaining.",
-            status_code=409,
-        )
-
-    # 4. Create Reversal Record
-    reversal = DispatchReversal(
-        dispatch_entry_id=dispatch_id,
-        quantity=reversal_qty,
-        reason=entry.reason,
-        created_by=created_by,
-        created_at=datetime.utcnow(),
-    )
-    db.add(reversal)
-
-    # 5. Restore Inventory (Ledger IN)
-    batch = db.get(Batch, dispatch.batch_id)
-
-    # Canonical Conversion
     try:
-        factor = Decimal(
-            str(get_conversion_factor(db, dispatch.item_id, dispatch.unit, batch.unit))
-        )
-        canonical_qty = reversal_qty * factor
-    except AppException as e:
-        logger.error(f"Conversion failed for reversal: {e}")
-        raise
+        # 1. Fetch Dispatch
+        dispatch = db.get(DispatchEntry, dispatch_id)
+        if not dispatch:
+            logger.error(f"Dispatch {dispatch_id} not found")
+            raise AppException("Dispatch entry not found", status_code=404)
 
-    # Mutate Batch
-    batch.quantity += canonical_qty
-    batch.updated_at = datetime.utcnow()
-
-    # Create Ledger Entry
-    create_inventory_txn(
-        db,
-        InventoryTxnCreate(
-            item_id=dispatch.item_id,
-            batch_id=batch.id,
-            txn_type="IN",
-            raw_qty=reversal_qty,
-            raw_unit=dispatch.unit,
-            base_qty=canonical_qty,
-            base_unit=batch.unit,
-            ref_type="dispatch_reversal",  # New ref type? or dispatch_entry?
-            # ref_type usually matches table name? usage in codebase implies strict strings
-            # Let's use 'dispatch_reversal' to be clear, ensuring length fits (32 chars)
-            ref_id=dispatch.id,  # Link to dispatch? Or reversal id?
-            # Reversal ID isn't available until flush.
-            # Using dispatch.id might confuse what the txn is for?
-            # But ref_id usually links to the primary key of the *cause*.
-            # We should flush reversal first.
-            remarks=f"Reversal: {entry.reason or 'Manual correction'}",
-        ),
-    )
-
-    db.flush()
-    db.refresh(reversal)  # Now we have ID
-
-    # Update Ledger Ref ID to Reversal ID?
-    # Actually, let's pass reversal.id if we flush first.
-    # But wait, create_inventory_txn might flush too?
-    # It seems okay.
-    # Let's stick with ref_type='dispatch_reversal', ref_id=reversal.id
-    # But we need to update the txn created above?
-    # Or just flush before creating txn.
-
-    # Find relevant order to update status
-    # INTENT INTEGRITY: Prefer explicit link, fallback to heuristic
-    order = None
-    if dispatch.order_id:
-        order = db.get(Order, dispatch.order_id)
-
-    if not order:
-        order = db.scalar(
-            select(Order)
-            .where(
-                Order.item_id == dispatch.item_id,
-                Order.mart_id == dispatch.mart_id,
-                Order.quantity_dispatched > 0,
+        # 2. Calculate Remaining Quantity
+        total_reversed = db.scalar(
+            select(func.sum(DispatchReversal.quantity)).where(
+                DispatchReversal.dispatch_entry_id == dispatch_id
             )
-            .order_by(Order.order_date.desc())
-            .limit(1)
+        ) or Decimal("0")
+
+        # Use Decimal for precision
+        dispatch_qty = Decimal(str(dispatch.quantity))
+        existing_reversed = Decimal(str(total_reversed))
+        remaining_qty = dispatch_qty - existing_reversed
+
+        if remaining_qty <= 0:
+            logger.warning(f"Dispatch {dispatch_id} is already fully reversed")
+            raise AppException("Dispatch is already fully reversed", status_code=409)
+
+        # 3. Determine Reversal Quantity
+        if entry.quantity is None:
+            reversal_qty = remaining_qty
+        else:
+            reversal_qty = Decimal(str(entry.quantity))
+
+        if reversal_qty <= 0:
+            raise AppException("Reversal quantity must be > 0", status_code=400)
+
+        if reversal_qty > remaining_qty:
+            logger.warning(
+                f"Requested reversal {reversal_qty} > remaining {remaining_qty}"
+            )
+            raise AppException(
+                f"Cannot reverse {reversal_qty}. Only {remaining_qty} remaining.",
+                status_code=409,
+            )
+
+        # 4. Create Reversal Record
+        reversal = DispatchReversal(
+            dispatch_entry_id=dispatch_id,
+            quantity=reversal_qty,
+            reason=entry.reason,
+            created_by=created_by,
+            created_at=datetime.utcnow(),
+        )
+        db.add(reversal)
+
+        # 5. Restore Inventory (Ledger IN)
+        batch = db.get(Batch, dispatch.batch_id)
+
+        # Canonical Conversion
+        try:
+            factor = Decimal(
+                str(
+                    get_conversion_factor(
+                        db, dispatch.item_id, dispatch.unit, batch.unit
+                    )
+                )
+            )
+            canonical_qty = reversal_qty * factor
+        except AppException as e:
+            logger.error(f"Conversion failed for reversal: {e}")
+            raise
+
+        # Mutate Batch
+        batch.quantity += canonical_qty
+        batch.updated_at = datetime.utcnow()
+
+        # Create Ledger Entry
+        create_inventory_txn(
+            db,
+            InventoryTxnCreate(
+                item_id=dispatch.item_id,
+                batch_id=batch.id,
+                txn_type="IN",
+                raw_qty=reversal_qty,
+                raw_unit=dispatch.unit,
+                base_qty=canonical_qty,
+                base_unit=batch.unit,
+                ref_type="dispatch_reversal",  # New ref type? or dispatch_entry?
+                # ref_type usually matches table name? usage in codebase implies strict strings
+                # Let's use 'dispatch_reversal' to be clear, ensuring length fits (32 chars)
+                ref_id=dispatch.id,  # Link to dispatch? Or reversal id?
+                # Reversal ID isn't available until flush.
+                # Using dispatch.id might confuse what the txn is for?
+                # But ref_id usually links to the primary key of the *cause*.
+                # We should flush reversal first.
+                remarks=f"Reversal: {entry.reason or 'Manual correction'}",
+            ),
         )
 
-    if order:
-        update_order_status_after_reversal(db, order, reversal_qty)
+        db.flush()
+        db.refresh(reversal)  # Now we have ID
+
+        # Update Ledger Ref ID to Reversal ID?
+        # Actually, let's pass reversal.id if we flush first.
+        # But wait, create_inventory_txn might flush too?
+        # It seems okay.
+        # Let's stick with ref_type='dispatch_reversal', ref_id=reversal.id
+        # But we need to update the txn created above?
+        # Or just flush before creating txn.
+
+        # Find relevant order to update status
+        # INTENT INTEGRITY: Prefer explicit link, fallback to heuristic
+        order = None
+        if dispatch.order_id:
+            order = db.get(Order, dispatch.order_id)
+
+        if not order:
+            order = db.scalar(
+                select(Order)
+                .where(
+                    Order.item_id == dispatch.item_id,
+                    Order.mart_id == dispatch.mart_id,
+                    Order.quantity_dispatched > 0,
+                )
+                .order_by(Order.order_date.desc())
+                .limit(1)
+            )
+
+        if order:
+            update_order_status_after_reversal(db, order, reversal_qty)
+        else:
+            logger.warning(
+                f"No order found to credit reversal for dispatch {dispatch_id}"
+            )
+
         db.commit()
         return reversal
-
-    logger.warning(f"No order found to credit reversal for dispatch {dispatch_id}")
-    db.commit()
-    return reversal
+    except Exception:
+        db.rollback()
+        raise
 
 
 def create_dispatch_entry(
+    db: Session, entry: DispatchEntryCreate, created_by: Optional[str] = None
+) -> DispatchEntry:
+    try:
+        return _create_dispatch_entry_impl(db, entry, created_by)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _create_dispatch_entry_impl(
     db: Session, entry: DispatchEntryCreate, created_by: Optional[str] = None
 ) -> DispatchEntry:
     """
@@ -378,16 +400,13 @@ def create_dispatch_entry(
         logger.error(f"Ledgering failed: {e}")
         raise
 
-    db.commit()
-    logger.debug(f"Created dispatch id={dispatch.id}")
-
     # EMIT DOMAIN EVENT (Outbox)
     event_payload = DispatchCompleted(
         dispatch_id=dispatch.id,
         order_id=dispatch.order_id,
         item_id=dispatch.item_id,
         qty=dispatch.quantity,
-    ).dict()
+    ).model_dump(mode="json")
 
     event = DomainEvent(
         event_type="dispatch.completed",
@@ -398,10 +417,26 @@ def create_dispatch_entry(
     db.add(event)
 
     db.commit()
+    log_event(
+        level="INFO",
+        event="dispatch_created",
+        metadata={"order_id": dispatch.order_id, "quantity": str(dispatch.quantity)},
+    )
+    logger.debug(f"Created dispatch id={dispatch.id}")
     return dispatch
 
 
 def create_dispatch_from_order(
+    db: Session, entry: DispatchEntryMultiCreate, created_by: Optional[str] = None
+) -> List[DispatchEntry]:
+    try:
+        return _create_dispatch_from_order_impl(db, entry, created_by)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _create_dispatch_from_order_impl(
     db: Session, entry: DispatchEntryMultiCreate, created_by: Optional[str] = None
 ) -> List[DispatchEntry]:
     """
@@ -574,7 +609,7 @@ def create_dispatch_from_order(
             order_id=d.order_id,
             item_id=d.item_id,
             qty=d.quantity,
-        ).dict()
+        ).model_dump(mode="json")
 
         event = DomainEvent(
             event_type="dispatch.completed",
@@ -594,7 +629,7 @@ def _update_order_after_dispatch(
     db: Session,
     item_id: int,
     mart_name: str,
-    dispatched_quantity: float,
+    dispatched_quantity: Decimal,
     order_id: Optional[int] = None,
 ) -> None:
     """
@@ -605,7 +640,7 @@ def _update_order_after_dispatch(
         db (Session): Database session.
         item_id (int): Item ID.
         mart_name (str): Mart name.
-        dispatched_quantity (float): Quantity dispatched in this operation.
+        dispatched_quantity (Decimal): Quantity dispatched in this operation.
         order_id (Optional[int]): Explicit order ID.
     """
     if order_id:
@@ -624,7 +659,9 @@ def _update_order_after_dispatch(
     if not order:
         return
 
-    order.quantity_dispatched = (order.quantity_dispatched or 0) + dispatched_quantity
+    order.quantity_dispatched = Decimal(str(order.quantity_dispatched or 0)) + Decimal(
+        str(dispatched_quantity)
+    )
     order.status = (
         "Completed"
         if order.quantity_dispatched >= order.quantity_ordered
@@ -641,7 +678,7 @@ def _update_order_after_dispatch(
             item_id=order.item_id,
             mart_id=order.mart_id,
             total_qty=order.quantity_ordered,
-        ).dict()
+        ).model_dump(mode="json")
 
         event = DomainEvent(
             event_type="order.fulfilled",

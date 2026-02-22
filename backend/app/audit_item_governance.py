@@ -35,14 +35,16 @@ def audit_usage():
 
         unused = total_items - items_with_stock
 
-        print("\n=== ITEM USAGE STATISTICS ===")
-        print(f"Total Items: {total_items}")
-        print(
-            f"Items with Stock History: {items_with_stock} ({(items_with_stock / total_items * 100) if total_items else 0:.1f}%)"
+        logger.warning("=== ITEM USAGE STATISTICS ===")
+        logger.warning("Total Items: %s", total_items)
+        logger.warning(
+            "Items with Stock History: %s (%.1f%%)",
+            items_with_stock,
+            (items_with_stock / total_items * 100) if total_items else 0,
         )
-        print(f"Items with Batches (Inventory): {items_with_batches}")
-        print(f"Fully Unused Items: {unused}")
-        print("=============================\n")
+        logger.warning("Items with Batches (Inventory): %s", items_with_batches)
+        logger.warning("Fully Unused Items: %s", unused)
+        logger.warning("=============================")
 
     finally:
         db.close()
@@ -50,13 +52,13 @@ def audit_usage():
 
 def verify_delete_enforcement():
     db = SessionLocal()
-    print("\n=== DELETE ENFORCEMENT VERIFICATION ===")
+    logger.warning("=== DELETE ENFORCEMENT VERIFICATION ===")
     test_item = None
     try:
         # 1. Create Test Item
         uom = db.query(UOM).first()
         if not uom:
-            print("No UOMs found, cannot run test.")
+            logger.warning("No UOMs found, cannot run test.")
             return
 
         test_item = Item(
@@ -65,7 +67,7 @@ def verify_delete_enforcement():
         db.add(test_item)
         db.commit()
         db.refresh(test_item)
-        print(f"[TEST] Created Item ID: {test_item.id}")
+        logger.warning("[TEST] Created Item ID: %s", test_item.id)
 
         # 2. Create Dependency (Stock Entry)
         test_batch = Batch(
@@ -87,25 +89,25 @@ def verify_delete_enforcement():
         )
         db.add(test_stock)
         db.commit()
-        print(f"[TEST] Created Dependency (StockEntry ID: {test_stock.id})")
+        logger.warning("[TEST] Created Dependency (StockEntry ID: %s)", test_stock.id)
 
         # 3. Attempt Delete
-        print("[TEST] Attempting DELETE...")
+        logger.warning("[TEST] Attempting DELETE...")
         db.delete(test_item)
         db.commit()
-        print(
+        logger.warning(
             "[FAIL] Delete SUCCESS (Unexpected!) - Backend does not enforce constraint?"
         )
 
     except IntegrityError as e:
-        print("[SUCCESS] Delete BLOCKED by Database.")
-        print(f"Exception Type: {type(e).__name__}")
-        print(f"Message: {e.orig}")
+        logger.warning("[SUCCESS] Delete BLOCKED by Database.")
+        logger.warning("Exception Type: %s", type(e).__name__)
+        logger.warning("Message: %s", e.orig)
         db.rollback()
 
     except Exception as e:
-        print(f"[ERROR] Unexpected Exception: {type(e).__name__}")
-        print(str(e))
+        logger.error("[ERROR] Unexpected Exception: %s", type(e).__name__)
+        logger.error("%s", e)
         db.rollback()
 
     finally:
@@ -124,11 +126,11 @@ def verify_delete_enforcement():
                     text("DELETE FROM item WHERE id = :id"), {"id": test_item.id}
                 )
                 db.commit()
-                print("[TEST] Cleanup Complete")
+                logger.warning("[TEST] Cleanup Complete")
             except Exception as cleanup_err:
-                print(f"[WARN] Cleanup failed: {cleanup_err}")
+                logger.warning("[WARN] Cleanup failed: %s", cleanup_err)
         db.close()
-        print("=======================================\n")
+        logger.warning("=======================================")
 
 
 if __name__ == "__main__":

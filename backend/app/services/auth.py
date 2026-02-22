@@ -47,14 +47,16 @@ def register_user(db: Session, user: UserCreate) -> Token:
     )
     try:
         db.add(new_user)
+        db.flush()
+        refresh_token = create_refresh_token(db, new_user.id, commit=False)
         db.commit()
         db.refresh(new_user)
     except Exception:
+        db.rollback()
         logger.exception("Failed to create user")
         raise AppException("User registration failed", status_code=500)
 
     access_token = create_access_token(data={"sub": new_user.username})
-    refresh_token = create_refresh_token(db, new_user.id)
 
     logger.info(f"User '{user.username}' registered successfully")
     return Token(
@@ -88,7 +90,12 @@ def login_user(db: Session, user: UserLogin) -> Token:
         )
 
     access_token = create_access_token(data={"sub": db_user.username})
-    refresh_token = create_refresh_token(db, db_user.id)
+    try:
+        refresh_token = create_refresh_token(db, db_user.id, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     logger.info(f"User '{user.username}' authenticated successfully")
     return Token(
@@ -99,7 +106,7 @@ def login_user(db: Session, user: UserLogin) -> Token:
     )
 
 
-def create_refresh_token(db: Session, user_id: int) -> str:
+def create_refresh_token(db: Session, user_id: int, commit: bool = True) -> str:
     """Generates a secure random refresh token and saves to DB."""
     token_str = "".join(
         secrets.choice(string.ascii_letters + string.digits) for _ in range(64)
@@ -111,7 +118,14 @@ def create_refresh_token(db: Session, user_id: int) -> str:
         + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
     db.add(refresh_token)
-    db.commit()
+    if commit:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+    else:
+        db.flush()
     return token_str
 
 
@@ -142,13 +156,17 @@ def refresh_token(db: Session, token_str: str) -> Token:
             "Refresh token expired", status_code=status.HTTP_401_UNAUTHORIZED
         )
 
-    # 4. Rotation: Revoke old, issue new
-    db_token.revoked_at = datetime.utcnow()
-    db.commit()
+    try:
+        # 4. Rotation: Revoke old, issue new
+        db_token.revoked_at = datetime.utcnow()
 
-    user = db_token.user
-    new_access_token = create_access_token(data={"sub": user.username})
-    new_refresh_token = create_refresh_token(db, user.id)
+        user = db_token.user
+        new_access_token = create_access_token(data={"sub": user.username})
+        new_refresh_token = create_refresh_token(db, user.id, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return Token(
         access_token=new_access_token,

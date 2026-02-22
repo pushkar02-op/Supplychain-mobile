@@ -3,6 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional
 
+from app.core.structured_logging import log_event
 from app.db.models.batch import Batch
 from app.db.models.domain_event import DomainEvent
 from app.db.models.item import Item
@@ -10,6 +11,7 @@ from app.db.models.reconciliation_record import DriftStatus, ReconciliationRecor
 from app.db.models.views.batch_ledger_balance import BatchLedgerBalance
 from app.db.schemas.domain_event import ReconciliationResolved
 from app.db.schemas.inventory_txn import InventoryTxnCreate
+from app.domain.drift_policy import classify_drift_ratio
 from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
@@ -72,11 +74,7 @@ def check_batch_drift(
         # Avoid division by zero
         denom = abs(ledger_qty) if ledger_qty != 0 else Decimal("1")
         drift_ratio = abs(drift) / denom
-
-        if drift_ratio > Decimal("0.05"):
-            severity = "CRITICAL"
-        else:
-            severity = "MAJOR"
+        severity = classify_drift_ratio(drift_ratio)
 
     return {
         "batch_id": batch_id,
@@ -97,6 +95,16 @@ def check_batch_drift(
 
 
 def create_drift_record(db: Session, batch_id: int) -> Optional[ReconciliationRecord]:
+    try:
+        return _create_drift_record_impl(db, batch_id)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _create_drift_record_impl(
+    db: Session, batch_id: int
+) -> Optional[ReconciliationRecord]:
     """
     Persists the current drift state as a ReconciliationRecord.
     Reference Point for resolution.
@@ -107,6 +115,17 @@ def create_drift_record(db: Session, batch_id: int) -> Optional[ReconciliationRe
 
     if not drift_data["is_drifted"]:
         return None
+
+    existing = (
+        db.query(ReconciliationRecord)
+        .filter(
+            ReconciliationRecord.batch_id == batch_id,
+            ReconciliationRecord.status == DriftStatus.OPEN,
+        )
+        .first()
+    )
+    if existing:
+        return existing
 
     record = ReconciliationRecord(
         batch_id=batch_id,
@@ -128,20 +147,56 @@ def resolve_drift(
     user_id: int,
     apply_to_batch: bool = True,
 ) -> Dict:
+    try:
+        result = _resolve_drift_impl(
+            db, record_id, adjustment_qty, user_id, apply_to_batch
+        )
+        if result.get("status") == "success":
+            record = result.get("record")
+            if record:
+                log_event(
+                    level="INFO",
+                    event="drift_resolved",
+                    metadata={
+                        "record_id": record.id,
+                        "batch_id": record.batch_id,
+                        "resolved_by": record.resolved_by,
+                    },
+                )
+        return result
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _resolve_drift_impl(
+    db: Session,
+    record_id: int,
+    adjustment_qty: Decimal,
+    user_id: int,
+    apply_to_batch: bool = True,
+) -> Dict:
     """
     Resolves a drift record by creating an ADJUST transaction.
     - Creates InventoryTxn (ADJUST).
     - Updates Batch.quantity (State) IF apply_to_batch is True.
     - Marks Record as RESOLVED.
     """
-    record = db.get(ReconciliationRecord, record_id)
+    record = (
+        db.query(ReconciliationRecord)
+        .filter(ReconciliationRecord.id == record_id)
+        .with_for_update()
+        .first()
+    )
     if not record:
         return {"error": "Record not found"}
 
     if record.status != DriftStatus.OPEN:
         return {"error": "Record is not open"}
 
-    batch = db.get(Batch, record.batch_id)
+    batch = (
+        db.query(Batch).filter(Batch.id == record.batch_id).with_for_update().first()
+    )
     if not batch:
         return {"error": "Batch via record not found"}
 
@@ -180,7 +235,7 @@ def resolve_drift(
         batch_id=record.batch_id,
         drift_resolved=adjustment_qty,
         adjustment_txn_id=txn.id,
-    ).dict()
+    ).model_dump(mode="json")
 
     event = DomainEvent(
         event_type="reconciliation.resolved",

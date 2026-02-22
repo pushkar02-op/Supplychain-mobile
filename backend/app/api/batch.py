@@ -6,7 +6,7 @@ Provides CRUD operations for batches, including creation, retrieval, update, and
 import logging
 from typing import List
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_active_admin
 from app.core.exceptions import AppException
 from app.db.models.user import User
 from app.db.schemas.batch import BatchCreate, BatchRead, BatchUpdate
@@ -19,7 +19,7 @@ from app.services.batch import (
     get_batches_by_item_with_quantity,
     update_batch,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/batch", tags=["Batches"])
 def create(
     entry: BatchCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_admin),
 ) -> BatchRead:
     """
     Create a new batch entry.
@@ -43,10 +43,6 @@ def create(
     Returns:
         BatchRead: The created batch object.
     """
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-        )
     # SAFETY WARNING:
     # - This endpoint bypasses ledger logic
     # - It is admin-only by design
@@ -128,7 +124,7 @@ def update(
     batch_id: int,
     entry_update: BatchUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_admin),
 ) -> BatchRead:
     """
     Update a batch by ID.
@@ -145,10 +141,6 @@ def update(
     Raises:
         AppException: If the batch is not found (404).
     """
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-        )
     # SAFETY WARNING:
     # - This endpoint bypasses ledger logic
     # - It is admin-only by design
@@ -172,7 +164,7 @@ def update(
 def delete(
     batch_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_admin),
 ) -> None:
     """
     Delete a batch.
@@ -188,10 +180,6 @@ def delete(
         AppException: If the batch is not found (404).
     """
     logger.info(f"Deleting batch_id={batch_id}")
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-        )
     # SAFETY WARNING:
     # - This endpoint bypasses ledger logic
     # - It is admin-only by design

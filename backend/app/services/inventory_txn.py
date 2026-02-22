@@ -40,7 +40,7 @@ def create_inventory_txn(db: Session, data: InventoryTxnCreate) -> InventoryTxn:
         qty=txn.raw_qty,
         unit=txn.raw_unit,
         txn_type=txn.txn_type,
-    ).dict()
+    ).model_dump(mode="json")
 
     event = DomainEvent(
         event_type="inventory_txn.committed",
