@@ -27,6 +27,19 @@ def create_stock_entry(
     created_by: Optional[int] = None,
     idempotency_key: Optional[str] = None,
 ) -> StockEntry:
+    try:
+        return _create_stock_entry_impl(db, entry, created_by, idempotency_key)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _create_stock_entry_impl(
+    db: Session,
+    entry: StockEntryCreate,
+    created_by: Optional[int] = None,
+    idempotency_key: Optional[str] = None,
+) -> StockEntry:
     """
     Create a stock entry, grouping into an existing batch or creating a new one.
 
@@ -250,6 +263,23 @@ def create_stock_adjustment(
     reason: str,
     user_id: Optional[int] = None,
 ):
+    try:
+        return _create_stock_adjustment_impl(
+            db, batch_id, quantity_delta, unit, reason, user_id
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _create_stock_adjustment_impl(
+    db: Session,
+    batch_id: int,
+    quantity_delta: Decimal,
+    unit: str,
+    reason: str,
+    user_id: Optional[int] = None,
+):
     """
     Create a stock adjustment (correction/drift fix).
     Directly impacts Batch and creates an 'ADJUST' InventoryTxn.
@@ -320,6 +350,14 @@ def create_stock_adjustment(
 
 
 def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
+    try:
+        return _delete_stock_entry_impl(db, stock_entry_id)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _delete_stock_entry_impl(db: Session, stock_entry_id: int) -> bool:
     """
     Delete a stock entry and adjust batch quantity.
 

@@ -199,6 +199,7 @@ async def save_and_process_mart_bill(
         }
 
     except Exception:
+        db.rollback()
         logger.exception("Failed to process invoice")
         raise AppException("Invoice processing failed", status_code=500)
 
@@ -320,6 +321,16 @@ def get_mart_bills_paginated(
 def update_mart_bill(
     db: Session, invoice_id: int, data: MartBillUpdate
 ) -> Optional[MartBill]:
+    try:
+        return _update_mart_bill_impl(db, invoice_id, data)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _update_mart_bill_impl(
+    db: Session, invoice_id: int, data: MartBillUpdate
+) -> Optional[MartBill]:
     """
     Update an existing invoice.
 
@@ -353,6 +364,16 @@ def update_mart_bill(
 def verify_mart_bill(
     db: Session, invoice_id: int, user_name: str
 ) -> Optional[MartBill]:
+    try:
+        return _verify_mart_bill_impl(db, invoice_id, user_name)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _verify_mart_bill_impl(
+    db: Session, invoice_id: int, user_name: str
+) -> Optional[MartBill]:
     """
     Lock and verify a mart bill.
     """
@@ -375,6 +396,14 @@ def verify_mart_bill(
 
 
 def unverify_mart_bill(db: Session, invoice_id: int) -> Optional[MartBill]:
+    try:
+        return _unverify_mart_bill_impl(db, invoice_id)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _unverify_mart_bill_impl(db: Session, invoice_id: int) -> Optional[MartBill]:
     """
     Unlock a mart bill for editing.
     """
@@ -392,6 +421,14 @@ def unverify_mart_bill(db: Session, invoice_id: int) -> Optional[MartBill]:
 
 
 def delete_mart_bill(db: Session, invoice_id: int) -> bool:
+    try:
+        return _delete_mart_bill_impl(db, invoice_id)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _delete_mart_bill_impl(db: Session, invoice_id: int) -> bool:
     """
     Delete an invoice by ID.
 
@@ -426,6 +463,16 @@ def delete_mart_bill(db: Session, invoice_id: int) -> bool:
 
 
 async def replace_mart_bill_file(
+    db: Session, invoice_id: int, file: UploadFile, user_name: str
+) -> Optional[MartBill]:
+    try:
+        return await _replace_mart_bill_file_impl(db, invoice_id, file, user_name)
+    except Exception:
+        db.rollback()
+        raise
+
+
+async def _replace_mart_bill_file_impl(
     db: Session, invoice_id: int, file: UploadFile, user_name: str
 ) -> Optional[MartBill]:
     """

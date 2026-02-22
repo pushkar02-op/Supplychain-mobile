@@ -18,6 +18,14 @@ EVENT_HANDLERS = {
 
 
 def process_pending_events(db: Session, batch_size: int = 50):
+    try:
+        return _process_pending_events_impl(db, batch_size)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _process_pending_events_impl(db: Session, batch_size: int = 50):
     """
     Polls for unprocessed domain events and dispatches them to handlers.
 

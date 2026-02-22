@@ -94,6 +94,16 @@ def check_batch_drift(
 
 
 def create_drift_record(db: Session, batch_id: int) -> Optional[ReconciliationRecord]:
+    try:
+        return _create_drift_record_impl(db, batch_id)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _create_drift_record_impl(
+    db: Session, batch_id: int
+) -> Optional[ReconciliationRecord]:
     """
     Persists the current drift state as a ReconciliationRecord.
     Reference Point for resolution.
@@ -130,6 +140,22 @@ def create_drift_record(db: Session, batch_id: int) -> Optional[ReconciliationRe
 
 
 def resolve_drift(
+    db: Session,
+    record_id: int,
+    adjustment_qty: Decimal,
+    user_id: int,
+    apply_to_batch: bool = True,
+) -> Dict:
+    try:
+        return _resolve_drift_impl(
+            db, record_id, adjustment_qty, user_id, apply_to_batch
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _resolve_drift_impl(
     db: Session,
     record_id: int,
     adjustment_qty: Decimal,
