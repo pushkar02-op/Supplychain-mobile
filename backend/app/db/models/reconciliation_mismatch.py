@@ -1,10 +1,11 @@
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 
 from app.db.models.base_class import Base
 from sqlalchemy import JSON, Column, DateTime
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import Float, ForeignKey, Integer, String
+from sqlalchemy import ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 
@@ -45,7 +46,9 @@ class ReconciliationMismatch(Base):
     mart_value = Column(JSON, nullable=True)  # e.g. {"qty": 12, "uom": "kg"}
 
     # Meta
-    confidence_score = Column(Float, nullable=False, default=0.0)  # 0.0 to 1.0
+    confidence_score = Column(
+        Numeric(18, 6), nullable=False, default=Decimal("0.000000")
+    )
     status = Column(
         SAEnum(MismatchStatus), default=MismatchStatus.OPEN, nullable=False, index=True
     )

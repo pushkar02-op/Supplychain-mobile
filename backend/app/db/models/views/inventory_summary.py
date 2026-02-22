@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, Integer, String
+from sqlalchemy import Column, Integer, Numeric, String
 
 from ..base_class import Base
 
@@ -10,4 +10,4 @@ class InventorySummary(Base):
     item_id = Column(Integer, primary_key=True)
     name = Column(String)
     unit = Column(String)
-    current_stock = Column(Float)
+    current_stock = Column(Numeric(10, 3))

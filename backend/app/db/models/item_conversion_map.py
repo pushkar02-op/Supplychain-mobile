@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from .base_class import Base
@@ -11,7 +11,7 @@ class ItemConversionMap(Base, AuditMixin):
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
     source_unit = Column(String, nullable=False)
     target_unit = Column(String, nullable=False)
-    conversion_factor = Column(Float, nullable=False)
+    conversion_factor = Column(Numeric(18, 6), nullable=False)
     __table_args__ = (
         UniqueConstraint(
             "item_id", "source_unit", "target_unit", name="uq_item_unit_conversion"

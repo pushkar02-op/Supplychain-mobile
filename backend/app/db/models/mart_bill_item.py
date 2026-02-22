@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 from .base_class import Base
@@ -16,10 +16,10 @@ class MartBillItem(Base, AuditMixin):
     hsn_code = Column(String, nullable=True)
     item_code = Column(String, nullable=True)
     item_name = Column(String, nullable=False)
-    quantity = Column(Float, nullable=False)
+    quantity = Column(Numeric(10, 3), nullable=False)
     uom = Column(String, nullable=False)
-    price = Column(Float, nullable=False)
-    total = Column(Float, nullable=False)
+    price = Column(Numeric(18, 6), nullable=False)
+    total = Column(Numeric(18, 6), nullable=False)
     invoice_date = Column(DateTime, nullable=False)
     store_name = Column(String, nullable=False)
 

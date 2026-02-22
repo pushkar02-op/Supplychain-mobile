@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 from .base_class import Base
@@ -13,7 +13,7 @@ class MartBill(Base, AuditMixin):
     invoice_date = Column(Date, nullable=False)
     file_path = Column(String, nullable=False)
     file_hash = Column(String, nullable=False, unique=True, index=True)
-    total_amount = Column(Float, nullable=True)
+    total_amount = Column(Numeric(18, 6), nullable=True)
     # Lifecycle Status: 'PROCESSING', 'NEEDS_REVIEW', 'VERIFIED'
     status = Column(String, default="PROCESSING", nullable=False)
     locked_at = Column(DateTime, nullable=True)
