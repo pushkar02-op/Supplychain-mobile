@@ -1,7 +1,6 @@
 from decimal import Decimal
 
-DRIFT_RATIO_CRITICAL = Decimal("0.05")
-DRIFT_RATIO_MAJOR = Decimal("0.05")
+from app.core.governance import thresholds
 
 DRIFT_ABS_HIGH = Decimal("50")
 DRIFT_ABS_MEDIUM = Decimal("10")
@@ -12,7 +11,7 @@ def classify_drift_ratio(ratio: Decimal) -> str:
     Central drift severity classification for ratio-based checks.
     Preserves existing behavior: > 5% => CRITICAL, else MAJOR.
     """
-    if ratio > DRIFT_RATIO_CRITICAL:
+    if ratio > thresholds.drift.critical_ratio:
         return "CRITICAL"
     return "MAJOR"
 
