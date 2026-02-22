@@ -6,6 +6,7 @@ import logging
 import re
 from typing import Any
 
+from app.core.structured_logging import log_event
 from fastapi import HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -99,6 +100,12 @@ def register_exception_handlers(app):
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
         logger.warning(f"AppException: {exc.message}")
+        log_event(
+            level="ERROR",
+            event="app_exception",
+            rule_id=exc.rule_id,
+            metadata=exc.metadata,
+        )
         content = jsonable_encoder(_to_envelope(exc.detail, exc.rule_id, exc.metadata))
         return JSONResponse(status_code=exc.status_code, content=content)
 

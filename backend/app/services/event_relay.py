@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+from app.core.structured_logging import log_event
 from app.db.models.domain_event import DomainEvent
 from app.services.event_handlers.drift_history_handler import handle_drift_history
 from app.services.event_handlers.inventory_flow_handler import handle_inventory_flow
@@ -66,6 +67,11 @@ def _process_pending_events_impl(db: Session, batch_size: int = 50):
 
             # Mark processed
             event.processed_at = datetime.utcnow()
+            log_event(
+                level="INFO",
+                event="domain_event_emitted",
+                metadata={"event_type": event.event_type},
+            )
             count += 1
 
         except Exception as e:

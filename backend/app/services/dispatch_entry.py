@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from app.core.decimal_utils import enforce_decimal
 from app.core.exceptions import AppException
+from app.core.structured_logging import log_event
 from app.db.models.batch import Batch
 from app.db.models.dispatch_entry import DispatchEntry
 from app.db.models.dispatch_reversal import DispatchReversal
@@ -416,6 +417,11 @@ def _create_dispatch_entry_impl(
     db.add(event)
 
     db.commit()
+    log_event(
+        level="INFO",
+        event="dispatch_created",
+        metadata={"order_id": dispatch.order_id, "quantity": str(dispatch.quantity)},
+    )
     logger.debug(f"Created dispatch id={dispatch.id}")
     return dispatch
 

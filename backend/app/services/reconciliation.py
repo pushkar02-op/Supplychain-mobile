@@ -3,6 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional
 
+from app.core.structured_logging import log_event
 from app.db.models.batch import Batch
 from app.db.models.domain_event import DomainEvent
 from app.db.models.item import Item
@@ -147,9 +148,22 @@ def resolve_drift(
     apply_to_batch: bool = True,
 ) -> Dict:
     try:
-        return _resolve_drift_impl(
+        result = _resolve_drift_impl(
             db, record_id, adjustment_qty, user_id, apply_to_batch
         )
+        if result.get("status") == "success":
+            record = result.get("record")
+            if record:
+                log_event(
+                    level="INFO",
+                    event="drift_resolved",
+                    metadata={
+                        "record_id": record.id,
+                        "batch_id": record.batch_id,
+                        "resolved_by": record.resolved_by,
+                    },
+                )
+        return result
     except Exception:
         db.rollback()
         raise

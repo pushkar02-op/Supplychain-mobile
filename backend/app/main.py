@@ -18,6 +18,7 @@ from app.api.rejection_entry import router as rejection_router
 from app.api.stock_entry import router as stock_router
 from app.api.stock_history import router as stock_history_router
 from app.api.uom import router as uom_router
+from app.core.correlation import CorrelationIdMiddleware
 from app.core.exceptions import register_exception_handlers
 from app.core.logging_config import setup_logging
 from app.db.seed.seed_all import seed_all
@@ -31,6 +32,9 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(title="AGRO")
+
+# Correlation id propagation middleware
+app.add_middleware(CorrelationIdMiddleware)
 
 # Register global exception handlers
 register_exception_handlers(app)

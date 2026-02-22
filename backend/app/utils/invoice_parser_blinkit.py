@@ -100,11 +100,7 @@ def normalize_rows_from_lines(lines: list) -> list:
         != "Product No Product Name HSN Qty. Ord. Qty. Del. GRN Qty. UoM Amount"
     ]
 
-    # # Print the item lines for inspection
-    # print("\n--- Item lines preview ---")
-    # for i, line in enumerate(filtered_lines):
-    #     print(f"{i}: {line}")
-    # print("--- End of item lines preview ---\n")
+    # Optional debug preview can be logged by callers if needed.
 
     return filtered_lines
 
@@ -241,15 +237,10 @@ def process_pdf_blinkit(input_file: str) -> Tuple[pd.DataFrame, datetime, str]:
     # Now, pass these lines to your new parsing functions:
     store, invoice_date = find_store_and_date_from_lines(lines)
     item_lines = normalize_rows_from_lines(lines)
-    # print("\n=== Item Lines ===")
-    # for i, line in enumerate(item_lines, 1):
-    #     print(f"{i}: {line}")
 
     grouped = group_raw_items(item_lines)
 
     clean_df = parse_grouped_items(grouped, store, invoice_date)
-    # print("\n=== Parsed Invoice Items ===")
-    # print(clean_df.to_string(index=False))
 
     logger.info(f"Processed Blinkit PDF for store {store} on {invoice_date.date()}")
 

@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from app.core.governance import thresholds
+from app.core.structured_logging import log_event
 from app.db.models.inventory_flow_daily import InventoryFlowDaily
 from app.db.models.item import Item
 from app.db.models.item_burn_rate import ItemBurnRate
@@ -187,6 +188,7 @@ def refresh_forecast_for_item(db: Session, item_id: int) -> dict:
     forecast.calculated_at = datetime.utcnow()
 
     db.commit()
+    log_event(level="INFO", event="forecast_refreshed", metadata={"item_id": item_id})
 
     return {
         "item_id": item_id,
