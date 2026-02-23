@@ -25,6 +25,8 @@ from .rejection_entry import RejectionEntry as RejectionEntry
 from .stock_entry import StockEntry as StockEntry
 from .uom import UOM as UOM
 from .user import User as User
+from .user_warehouse_access import UserWarehouseAccess as UserWarehouseAccess
+from .warehouse import Warehouse as Warehouse
 
 # Exported names for `from app.db.models import *` or explicit import consumers.
 __all__ = [
@@ -48,4 +50,6 @@ __all__ = [
     "RefreshToken",
     "IdempotencyRecord",
     "DomainEvent",
+    "Warehouse",
+    "UserWarehouseAccess",
 ]
