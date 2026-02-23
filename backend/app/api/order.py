@@ -7,7 +7,10 @@ import logging
 from datetime import date
 from typing import List, Optional
 
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.order import OrderCreate, OrderRead, OrderUpdate
 from app.db.session import get_db
 from app.services.order import (
@@ -26,7 +29,11 @@ router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
 @router.post("/", response_model=OrderRead, status_code=status.HTTP_201_CREATED)
-def create(entry: OrderCreate, db: Session = Depends(get_db)) -> OrderRead:
+def create(
+    entry: OrderCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> OrderRead:
     """
     Create a new order.
 
@@ -103,7 +110,10 @@ def read_one(order_id: int, db: Session = Depends(get_db)) -> OrderRead:
 
 @router.put("/{order_id}", response_model=OrderRead, summary="Update order")
 def update(
-    order_id: int, entry_update: OrderUpdate, db: Session = Depends(get_db)
+    order_id: int,
+    entry_update: OrderUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> OrderRead:
     """
     Update an existing order.
@@ -132,7 +142,11 @@ def update(
 @router.delete(
     "/{order_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete order"
 )
-def delete(order_id: int, db: Session = Depends(get_db)) -> None:
+def delete(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> None:
     """
     Delete an order by ID.
 

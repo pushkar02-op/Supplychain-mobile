@@ -2,8 +2,9 @@
 
 from typing import List
 
-from app.core.auth import get_current_user
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
 from app.db.models import UOM, Item, ItemAlias, User
 from app.db.models.mart_bill_item import MartBillItem as InvoiceItem
 from app.db.schemas.item_management import (
@@ -45,7 +46,7 @@ def fetchUnmappedInvoiceItems(db: Session = Depends(get_db)) -> List[dict]:
 def create_or_update_item(
     payload: ItemManagementCreateUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> ItemManagementRead:
     item = svc.create_or_update_master_item(db, payload, current_user)
     # We can leverage the existing get_master_items_details to return the full object,
@@ -54,7 +55,11 @@ def create_or_update_item(
 
 
 @router.post("/map-alias")
-def map_alias_to_item(payload: AliasMapInput, db: Session = Depends(get_db)):
+def map_alias_to_item(
+    payload: AliasMapInput,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+):
     alias = db.query(ItemAlias).filter(ItemAlias.id == payload.alias_id).first()
     if not alias:
         raise AppException(
@@ -71,7 +76,7 @@ def map_alias_to_item(payload: AliasMapInput, db: Session = Depends(get_db)):
 def map_invoice_item(
     payload: InvoiceItemMapInput,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
     invoice_item = db.get(InvoiceItem, payload.invoice_item_id)
     if not invoice_item:

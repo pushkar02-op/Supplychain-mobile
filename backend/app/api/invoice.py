@@ -8,7 +8,10 @@ import os
 from datetime import date
 from typing import List, Optional
 
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.mart_bill import MartBillRead as InvoiceRead
 from app.db.schemas.mart_bill import MartBillUpdate as InvoiceUpdate
 from app.db.session import get_db
@@ -35,6 +38,7 @@ router = APIRouter(prefix="/invoices", tags=["Invoices"])
 async def upload_invoices(
     files: List[UploadFile] = File(..., description="One or more PDF files"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> List[dict]:
     """
     Upload and process multiple invoice PDFs.
@@ -127,7 +131,10 @@ def read_invoice(invoice_id: int, db: Session = Depends(get_db)) -> InvoiceRead:
 
 @router.put("/{invoice_id}", response_model=InvoiceRead, summary="Update invoice")
 def update_invoice_route(
-    invoice_id: int, data: InvoiceUpdate, db: Session = Depends(get_db)
+    invoice_id: int,
+    data: InvoiceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> InvoiceRead:
     """
     Update an existing invoice.
@@ -154,7 +161,11 @@ def update_invoice_route(
 @router.delete(
     "/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete invoice"
 )
-def delete_invoice_route(invoice_id: int, db: Session = Depends(get_db)) -> None:
+def delete_invoice_route(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> None:
     """
     Delete an invoice by ID.
 

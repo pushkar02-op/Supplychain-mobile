@@ -6,7 +6,10 @@ Provides CRUD operations for items and retrieval of items with available batches
 import logging
 from typing import List, Optional
 
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.item import ItemCreate, ItemRead, ItemUpdate
 from app.db.session import get_db
 from app.services.item import (
@@ -26,7 +29,11 @@ router = APIRouter(prefix="/item", tags=["Items"])
 
 
 @router.post("/", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
-def create(entry: ItemCreate, db: Session = Depends(get_db)) -> ItemRead:
+def create(
+    entry: ItemCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> ItemRead:
     """
     Create a new item.
 
@@ -136,7 +143,10 @@ def read_one(item_id: int, db: Session = Depends(get_db)) -> ItemRead:
 
 @router.put("/{item_id}", response_model=ItemRead, summary="Update item")
 def update(
-    item_id: int, entry_update: ItemUpdate, db: Session = Depends(get_db)
+    item_id: int,
+    entry_update: ItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> ItemRead:
     """
     Update an existing item by ID.
@@ -167,7 +177,10 @@ def update(
     status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
     summary="Delete item (BLOCKED)",
 )
-def delete(item_id: int) -> None:
+def delete(
+    item_id: int,
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> None:
     """
     Item deletion is not supported. Use archival instead.
 
@@ -185,7 +198,11 @@ def delete(item_id: int) -> None:
 @router.post(
     "/{item_id}/deactivate", response_model=ItemRead, summary="Deactivate item"
 )
-def deactivate(item_id: int, db: Session = Depends(get_db)) -> ItemRead:
+def deactivate(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> ItemRead:
     """
     Deactivate an item (set status to INACTIVE).
 
@@ -203,7 +220,11 @@ def deactivate(item_id: int, db: Session = Depends(get_db)) -> ItemRead:
 @router.post(
     "/{item_id}/reactivate", response_model=ItemRead, summary="Reactivate item"
 )
-def reactivate(item_id: int, db: Session = Depends(get_db)) -> ItemRead:
+def reactivate(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> ItemRead:
     """
     Reactivate an item (set status to ACTIVE).
 

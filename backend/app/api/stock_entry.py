@@ -7,8 +7,9 @@ import logging
 from datetime import date
 from typing import Annotated, List, Optional
 
-from app.core.auth import get_current_user
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.schemas.stock_entry import (
     StockEntryCreate,
@@ -34,7 +35,7 @@ router = APIRouter(prefix="/stock-entry", tags=["Stock Entry"])
 def create(
     entry: StockEntryCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
     idempotency_key: Annotated[str, Header()] = None,
 ) -> StockEntryRead:
     if not idempotency_key:
@@ -135,7 +136,7 @@ def update(
     stock_entry_id: int,
     entry_update: StockEntryUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> StockEntryRead:
     """
     Update an existing stock entry.
@@ -169,7 +170,7 @@ def update(
 def delete(
     stock_entry_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> None:
     """
     Delete a stock entry by ID.

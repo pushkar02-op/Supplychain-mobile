@@ -5,6 +5,9 @@ Handles user registration and login.
 
 import logging
 
+from app.core.auth import require_role
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.auth import Token, TokenRefresh, UserCreate, UserLogin
 from app.db.session import get_db
 from app.services.auth import login_user, refresh_token, register_user
@@ -16,7 +19,11 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=Token)
-def register(user: UserCreate, db: Session = Depends(get_db)) -> Token:
+def register(
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.OWNER)),
+) -> Token:
     """
     Register a new user.
 

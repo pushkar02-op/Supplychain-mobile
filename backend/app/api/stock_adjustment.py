@@ -5,8 +5,9 @@ API endpoint for stock adjustments (corrections).
 import logging
 from decimal import Decimal
 
-from app.core.auth import get_current_user
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.session import get_db
 from app.services.stock_entry import create_stock_adjustment
@@ -44,7 +45,7 @@ class StockAdjustmentResponse(BaseModel):
 def create_adjustment(
     adjustment: StockAdjustmentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> StockAdjustmentResponse:
     """
     Create a stock adjustment (correction) for a batch.

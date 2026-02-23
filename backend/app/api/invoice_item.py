@@ -6,7 +6,10 @@ Provides retrieval, update, and deletion of invoice line items.
 import logging
 from typing import List
 
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.mart_bill_item import MartBillItemRead as InvoiceItemRead
 from app.db.schemas.mart_bill_item import MartBillItemSummary as InvoiceItemSummary
 from app.db.schemas.mart_bill_item import MartBillItemUpdate as InvoiceItemUpdate
@@ -64,7 +67,10 @@ def read_items(invoice_id: int, db: Session = Depends(get_db)) -> List[InvoiceIt
 
 @router.put("/{item_id}", response_model=InvoiceItemRead, summary="Update invoice item")
 def update_item(
-    item_id: int, update_data: InvoiceItemUpdate, db: Session = Depends(get_db)
+    item_id: int,
+    update_data: InvoiceItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> InvoiceItemRead:
     """
     Update a specific invoice item.
@@ -91,7 +97,11 @@ def update_item(
 @router.delete(
     "/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete invoice item"
 )
-def delete_item(item_id: int, db: Session = Depends(get_db)) -> None:
+def delete_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> None:
     """
     Delete a specific invoice item.
 

@@ -1,5 +1,8 @@
 from typing import List
 
+from app.core.auth import require_role
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.mart import MartCreate, MartRead
 from app.db.session import get_db
 from app.services.mart import create_mart, get_marts_by_company
@@ -10,7 +13,11 @@ router = APIRouter(prefix="/marts", tags=["Marts"])
 
 
 @router.post("/", response_model=MartRead)
-def create(mart: MartCreate, db: Session = Depends(get_db)):
+def create(
+    mart: MartCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+):
     return create_mart(db, mart)
 
 
