@@ -10,6 +10,7 @@ from pydantic import Field
 class DispatchEntryBase(SchemaModel):
     item_id: int
     batch_id: int
+    warehouse_id: Optional[int] = None
     mart_name: str
     dispatch_date: date
     quantity: Decimal
@@ -31,6 +32,7 @@ class DispatchEntryUpdate(SchemaModel):
 
 class DispatchEntryRead(DispatchEntryBase):
     id: int
+    warehouse_id: int
     created_at: datetime = Field(..., description="ISO 8601 format")
     updated_at: datetime = Field(..., description="ISO 8601 format")
     created_by: Optional[str]

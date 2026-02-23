@@ -9,6 +9,7 @@ from pydantic import model_validator
 
 class OrderBase(SchemaModel):
     item_id: int
+    warehouse_id: Optional[int] = None
     unit: str
     order_date: date
     quantity_ordered: Decimal  # Validation handled in service layer
@@ -26,6 +27,7 @@ class OrderUpdate(SchemaModel):
 
 class OrderRead(OrderBase):
     id: int
+    warehouse_id: int
     mart_id: int
     mart_name: Optional[str] = None
     item: ItemRead

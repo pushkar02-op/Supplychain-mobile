@@ -14,6 +14,7 @@ class ReconciliationRecordResolve(SchemaModel):
 class ReconciliationRecordRead(SchemaModel):
     id: int
     batch_id: int
+    warehouse_id: int
     observed_ledger_qty: Decimal
     observed_state_qty: Decimal
     drift_amount: Decimal

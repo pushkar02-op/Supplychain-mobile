@@ -17,6 +17,9 @@ class ReconciliationRecord(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     batch_id = Column(Integer, ForeignKey("batch.id"), nullable=False)
+    warehouse_id = Column(
+        Integer, ForeignKey("warehouse.id"), nullable=False, index=True
+    )
 
     # Observed Facts (Immutable snapshot)
     observed_ledger_qty = Column(Numeric(10, 3), nullable=False)
@@ -34,4 +37,5 @@ class ReconciliationRecord(Base):
     resolved_by = Column(Integer, nullable=True)  # User ID
 
     batch = relationship("Batch")
+    warehouse = relationship("Warehouse")
     resolution_txn = relationship("InventoryTxn")

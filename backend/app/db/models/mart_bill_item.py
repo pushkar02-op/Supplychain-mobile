@@ -11,6 +11,9 @@ class MartBillItem(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     invoice_id = Column(Integer, ForeignKey("invoice.id"), nullable=False)
     item_id = Column(Integer, ForeignKey("item.id"), nullable=True)
+    warehouse_id = Column(
+        Integer, ForeignKey("warehouse.id"), nullable=False, index=True
+    )
 
     # fields from your parser
     hsn_code = Column(String, nullable=True)
@@ -25,3 +28,4 @@ class MartBillItem(Base, AuditMixin):
 
     bill = relationship("MartBill", back_populates="items")
     item = relationship("Item")
+    warehouse = relationship("Warehouse")

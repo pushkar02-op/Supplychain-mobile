@@ -6,6 +6,7 @@ from app.db.schemas.base import SchemaModel
 
 
 class MartBillItemBase(SchemaModel):
+    warehouse_id: Optional[int] = None
     hsn_code: Optional[str]
     item_code: Optional[str]
     item_name: str
@@ -32,6 +33,7 @@ class MartBillItemUpdate(SchemaModel):
 
 class MartBillItemRead(MartBillItemBase):
     id: int
+    warehouse_id: int
     created_at: datetime
     updated_at: datetime
     created_by: Optional[str]
@@ -54,6 +56,7 @@ class MartBillItemSummary(SchemaModel):
 class UnresolvedMartBillItemRead(MartBillItemBase):
     id: int
     invoice_id: int
+    warehouse_id: int
     created_at: datetime
 
     class Config:
