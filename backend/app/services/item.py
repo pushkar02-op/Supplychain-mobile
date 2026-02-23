@@ -143,7 +143,11 @@ def get_all_items(
 
 
 def search_advisory_name_matches(
-    db: Session, name: str, uom_code: Optional[str] = None, limit: int = 5
+    db: Session,
+    name: str,
+    warehouse_id: int,
+    uom_code: Optional[str] = None,
+    limit: int = 5,
 ) -> List[dict]:
     """
     Find similar items for "Duplicate Awareness" (Advisory Only).
@@ -196,7 +200,14 @@ def search_advisory_name_matches(
             db.query(ItemAlias).filter(ItemAlias.master_item_id == item.id).count()
         )
         # Usage
-        has_stock = db.query(StockEntry).filter(StockEntry.item_id == item.id).first()
+        has_stock = (
+            db.query(StockEntry)
+            .filter(
+                StockEntry.item_id == item.id,
+                StockEntry.warehouse_id == warehouse_id,
+            )
+            .first()
+        )
 
         results.append(
             {
@@ -211,7 +222,7 @@ def search_advisory_name_matches(
     return results
 
 
-def get_items_with_available_batches(db: Session) -> List[Item]:
+def get_items_with_available_batches(db: Session, warehouse_id: int) -> List[Item]:
     """
     Retrieve items that have at least one batch with positive quantity.
 
@@ -221,8 +232,15 @@ def get_items_with_available_batches(db: Session) -> List[Item]:
     Returns:
         List[Item]: Items in stock.
     """
-    logger.debug("Fetching items with available batches")
-    subq = select(Batch.item_id).where(Batch.quantity > 0).distinct().subquery()
+    logger.debug(
+        f"Fetching items with available batches for warehouse_id={warehouse_id}"
+    )
+    subq = (
+        select(Batch.item_id)
+        .where(Batch.quantity > 0, Batch.warehouse_id == warehouse_id)
+        .distinct()
+        .subquery()
+    )
     items = db.query(Item).filter(Item.id.in_(select(subq.c.item_id))).all()
     uoms = {u.id: u.code for u in db.query(UOM).all()}
     result = []
@@ -279,6 +297,7 @@ def update_item(
             from app.core.exceptions import AppException
             from app.db.models.inventory_txn import InventoryTxn
 
+            # Intentionally global - UOM change must be blocked if ANY warehouse has history (MDU-002).
             has_history = (
                 db.query(InventoryTxn).filter(InventoryTxn.item_id == item.id).first()
             )

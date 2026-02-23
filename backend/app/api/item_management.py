@@ -2,7 +2,7 @@
 
 from typing import List
 
-from app.core.auth import require_role
+from app.core.auth import get_current_user, require_role
 from app.core.exceptions import AppException
 from app.db.enums.role import Role
 from app.db.models import UOM, Item, ItemAlias, User
@@ -15,7 +15,8 @@ from app.db.schemas.item_management import (
 )
 from app.db.session import get_db
 from app.services import item_management as svc
-from fastapi import APIRouter, Depends
+from app.services.warehouse_scope import resolve_warehouse_for_request
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -38,8 +39,20 @@ def get_uoms(db: Session = Depends(get_db)):
 
 
 @router.get("/unmapped-invoice-items", summary="Fetch unmapped invoice items")
-def fetchUnmappedInvoiceItems(db: Session = Depends(get_db)) -> List[dict]:
-    return svc.get_unmapped_invoice_items_with_suggestions(db)
+def fetchUnmappedInvoiceItems(
+    warehouse_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List[dict]:
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user=current_user,
+        warehouse_id=warehouse_id,
+        db=db,
+        operation_type="read",
+    )
+    return svc.get_unmapped_invoice_items_with_suggestions(
+        db, warehouse_id=resolved_warehouse_id
+    )
 
 
 @router.post("/", response_model=ItemManagementRead)

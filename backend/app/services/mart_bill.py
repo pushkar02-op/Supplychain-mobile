@@ -79,6 +79,7 @@ async def save_and_process_mart_bill(
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
 
+    # Intentionally global - duplicate file hashes must be blocked across all warehouses.
     existing = db.query(MartBill).filter_by(file_hash=file_hash).first()
     if existing:
         logger.warning("Duplicate mart bill detected")
