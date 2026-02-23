@@ -4,6 +4,7 @@ from app.api.admin_reconciliation import router as admin_recon_router
 from app.api.audit_log import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.batch import router as batch_router
+from app.api.cost_control import router as cost_control_router
 from app.api.dispatch_entry import router as dispatch_router
 from app.api.inventory_txn import router as inventory_txn_router
 from app.api.invoice import router as invoice_router
@@ -27,6 +28,7 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/v1")
 
 router.include_router(stock_entry_router)
+router.include_router(cost_control_router)
 router.include_router(stock_adjustment_router)
 router.include_router(item_router)
 router.include_router(batch_router)
