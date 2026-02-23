@@ -20,6 +20,8 @@ TARGET_FILES = [
     "inventory_truth.py",
     "item.py",
     "item_management.py",
+    "cost_control.py",
+    "kpi.py",
 ]
 
 TRANSACTIONAL_MODELS = {
@@ -34,6 +36,8 @@ TRANSACTIONAL_MODELS = {
     "ReconciliationRecord",
     "MartBill",
     "MartBillItem",
+    "LabourCostDaily",
+    "TransportCostDaily",
 }
 
 

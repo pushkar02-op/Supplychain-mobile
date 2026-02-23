@@ -22,6 +22,7 @@ TARGET_FILES = [
     "admin_reconciliation.py",
     "admin_identity.py",
     "batch.py",
+    "cost_control.py",
 ]
 
 ROUTE_METHODS = {"post", "put", "patch", "delete"}
