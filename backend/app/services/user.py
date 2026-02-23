@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.schemas.user import UserUpdate
 from sqlalchemy.orm import Session
@@ -80,7 +81,57 @@ def update_user(
     return user
 
 
-def delete_user(db: Session, user_id: int) -> bool:
+def _owner_count(db: Session) -> int:
+    return db.query(User).filter(User.role == Role.OWNER).count()
+
+
+def update_user_role(
+    db: Session,
+    user_id: int,
+    new_role: Role,
+    actor_user_id: int,
+    updated_by: Optional[str] = None,
+) -> Optional[User]:
+    logger.info(f"Updating role for user id={user_id} to {new_role.value}")
+    user = get_user(db, user_id)
+    if not user:
+        logger.error(f"User not found id={user_id}")
+        raise AppException("User not found", status_code=404)
+
+    if actor_user_id == user_id:
+        raise AppException(
+            "Users cannot change their own role",
+            status_code=400,
+            rule_id="AUT-002",
+            metadata={},
+        )
+
+    if user.role == Role.OWNER and new_role != Role.OWNER and _owner_count(db) <= 1:
+        raise AppException(
+            "At least one OWNER must remain in system",
+            status_code=400,
+            rule_id="AUT-003",
+            metadata={},
+        )
+
+    try:
+        user.role = new_role
+        user.updated_by = updated_by
+        user.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(user)
+    except Exception:
+        db.rollback()
+        raise
+    logger.debug(f"User id={user_id} role updated")
+    return user
+
+
+def delete_user(
+    db: Session,
+    user_id: int,
+    deleted_by_user_id: Optional[int] = None,
+) -> bool:
     """
     Delete a user by ID.
 
@@ -96,7 +147,25 @@ def delete_user(db: Session, user_id: int) -> bool:
     if not user:
         logger.error(f"User not found id={user_id}")
         return False
-    db.delete(user)
-    db.commit()
+    if user.role == Role.OWNER and _owner_count(db) <= 1:
+        raise AppException(
+            "At least one OWNER must remain in system",
+            status_code=400,
+            rule_id="AUT-003",
+            metadata={},
+        )
+    if deleted_by_user_id is not None and deleted_by_user_id == user_id:
+        raise AppException(
+            "Users cannot delete themselves",
+            status_code=400,
+            rule_id="AUT-004",
+            metadata={},
+        )
+    try:
+        db.delete(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     logger.debug(f"User id={user_id} deleted")
     return True

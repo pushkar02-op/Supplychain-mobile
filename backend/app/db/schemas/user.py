@@ -25,3 +25,7 @@ class UserRead(UserBase):
 class UserUpdate(BaseModel):
     full_name: Optional[str]
     is_active: Optional[bool]
+
+
+class UserRoleUpdate(BaseModel):
+    role: Role
