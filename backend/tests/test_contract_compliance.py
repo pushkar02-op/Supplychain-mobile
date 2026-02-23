@@ -5,11 +5,9 @@ from app.db.models.item import Item
 from starlette.testclient import TestClient
 from app.main import app
 
-client = TestClient(app)
-
 
 def test_ord_009_zero_quantity_order_error_contract(
-    db_session, create_mart, create_item
+    db_session, create_mart, create_item, client
 ):
     """
     Verifies that attempting to create an order with 0 quantity returns:
