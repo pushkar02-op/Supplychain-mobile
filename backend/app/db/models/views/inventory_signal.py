@@ -6,6 +6,7 @@ class InventorySignal(Base):
     __tablename__ = "inventory_signal_view"
     __table_args__ = {"info": {"is_view": True}}
 
+    warehouse_id = Column(Integer, primary_key=True)
     item_id = Column(Integer, primary_key=True)
     out_last_7d = Column(Numeric(10, 3))
     out_prev_7d = Column(Numeric(10, 3))

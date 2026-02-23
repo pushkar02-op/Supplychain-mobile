@@ -4,6 +4,7 @@ from app.db.schemas.base import SchemaModel
 
 
 class InventorySummaryRead(SchemaModel):
+    warehouse_id: int
     item_id: int
     name: str
     unit: str
@@ -18,6 +19,7 @@ class InventorySummaryRead(SchemaModel):
 
 
 class ReconciliationItem(SchemaModel):
+    warehouse_id: int
     item_id: int
     item_name: str
     state_qty: Decimal
