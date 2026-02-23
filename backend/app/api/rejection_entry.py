@@ -22,6 +22,7 @@ from app.services.rejection_entry import (
     get_all_rejections,
     get_rejections_by_date_and_items,
 )
+from app.services.warehouse_scope import resolve_warehouse_for_request
 from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.orm import Session
 
@@ -34,6 +35,7 @@ router = APIRouter(prefix="/rejection-entries", tags=["Rejection Entries"])
 )
 def create_route(
     entry: RejectionEntryCreate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
     idempotency_key: Annotated[str, Header()] = None,
@@ -51,13 +53,24 @@ def create_route(
         RejectionEntryRead: The created rejection entry.
     """
     logger.info("Creating new rejection entry")
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "create"
+    )
     return create_rejection_entry(
-        db=db, entry=entry, created_by="system", idempotency_key=idempotency_key
+        db=db,
+        entry=entry,
+        created_by="system",
+        idempotency_key=idempotency_key,
+        warehouse_id=resolved_warehouse_id,
     )
 
 
 @router.get("/", response_model=List[RejectionEntryRead], summary="List rejections")
-def read_all(db: Session = Depends(get_db)) -> List[RejectionEntryRead]:
+def read_all(
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> List[RejectionEntryRead]:
     """
     Retrieve all rejection entries.
 
@@ -68,16 +81,21 @@ def read_all(db: Session = Depends(get_db)) -> List[RejectionEntryRead]:
         List[RejectionEntryRead]: List of rejections.
     """
     logger.info("Fetching all rejection entries")
-    return get_all_rejections(db)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_all_rejections(db, warehouse_id=resolved_warehouse_id)
 
 
 @router.get("/list", response_model=RejectionPagination, summary="Filter rejections")
 def get_filtered_rejections(
+    warehouse_id: Optional[int] = Query(None),
     rejection_date: date = Query(..., description="Rejection date"),
     item_ids: Optional[List[int]] = Query(None, description="Filter by item IDs"),
     skip: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(50, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> RejectionPagination:
     """
     Retrieve rejection entries filtered by date and item IDs with pagination.
@@ -95,8 +113,16 @@ def get_filtered_rejections(
     logger.info(
         f"Fetching rejections for date={rejection_date}, item_ids={item_ids}, skip={skip}, limit={limit}"
     )
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
     return get_rejections_by_date_and_items(
-        db=db, rejection_date=rejection_date, item_ids=item_ids, skip=skip, limit=limit
+        db=db,
+        warehouse_id=resolved_warehouse_id,
+        rejection_date=rejection_date,
+        item_ids=item_ids,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -105,6 +131,7 @@ def get_filtered_rejections(
 )
 def reverse_rejection(
     id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
@@ -114,5 +141,8 @@ def reverse_rejection(
     from app.services.rejection_entry import reverse_rejection_entry
 
     logger.info(f"User {current_user.id} reversing rejection {id}")
-    reverse_rejection_entry(db, id, current_user.id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    reverse_rejection_entry(db, id, current_user.id, warehouse_id=resolved_warehouse_id)
     return None

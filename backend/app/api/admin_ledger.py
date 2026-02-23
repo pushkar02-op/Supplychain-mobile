@@ -5,7 +5,8 @@ from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.session import get_db
 from app.services.reconciliation import get_ledger_health_report
-from fastapi import APIRouter, Depends, Response
+from app.services.warehouse_scope import resolve_warehouse_for_request
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/admin/ledger", tags=["Admin Ledger"])
@@ -19,6 +20,7 @@ def set_no_cache(response: Response):
 @router.get("/health", summary="Get high-level ledger health summary")
 def get_health_summary(
     response: Response,
+    warehouse_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> Dict:
@@ -27,13 +29,18 @@ def get_health_summary(
     Strictly read-only. Non-cacheable.
     """
     set_no_cache(response)
-    report = get_ledger_health_report(db)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    report = get_ledger_health_report(db, warehouse_id=resolved_warehouse_id)
 
     # Actually get_ledger_health_report returns only drifted/issues
     # Let's get counts
     from app.db.models.batch import Batch
 
-    all_batch_count = db.query(Batch).count()
+    all_batch_count = (
+        db.query(Batch).filter(Batch.warehouse_id == resolved_warehouse_id).count()
+    )
     drifted_count = len([r for r in report if r.get("is_drifted")])
     negative_count = len([r for r in report if r.get("state_qty", 0) < 0])
 
@@ -51,6 +58,7 @@ def get_health_summary(
 )
 def get_reconciliation_report(
     response: Response,
+    warehouse_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[Dict]:
@@ -59,4 +67,7 @@ def get_reconciliation_report(
     Strictly read-only. Non-cacheable.
     """
     set_no_cache(response)
-    return get_ledger_health_report(db)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_ledger_health_report(db, warehouse_id=resolved_warehouse_id)

@@ -21,6 +21,7 @@ from app.services.order import (
     get_orders,
     update_order,
 )
+from app.services.warehouse_scope import resolve_warehouse_for_request
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
@@ -31,6 +32,7 @@ router = APIRouter(prefix="/orders", tags=["Orders"])
 @router.post("/", response_model=OrderRead, status_code=status.HTTP_201_CREATED)
 def create(
     entry: OrderCreate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> OrderRead:
@@ -45,14 +47,21 @@ def create(
         OrderRead: The created order.
     """
     logger.info("Creating new order")
-    return create_order(db=db, entry=entry, created_by="system")
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "create"
+    )
+    return create_order(
+        db=db, entry=entry, created_by="system", warehouse_id=resolved_warehouse_id
+    )
 
 
 @router.get("/", response_model=List[OrderRead], summary="List orders")
 def read_all(
+    warehouse_id: Optional[int] = Query(None),
     order_date: Optional[date] = Query(None, description="Filter by order date"),
     mart_name: Optional[str] = Query(None, description="Filter by mart name"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[OrderRead]:
     """
     Retrieve orders with optional filters.
@@ -66,12 +75,24 @@ def read_all(
         List[OrderRead]: List of orders.
     """
     logger.info(f"Fetching orders date={order_date}, mart={mart_name}")
-    orders = get_orders(db=db, order_date=order_date, mart_name=mart_name)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    orders = get_orders(
+        db=db,
+        warehouse_id=resolved_warehouse_id,
+        order_date=order_date,
+        mart_name=mart_name,
+    )
     return orders
 
 
 @router.get("/mart-names", response_model=List[dict], summary="List mart names")
-def get_mart_names(db: Session = Depends(get_db)) -> List[dict]:
+def get_mart_names(
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> List[dict]:
     """
     Retrieve distinct mart names from orders.
 
@@ -82,11 +103,19 @@ def get_mart_names(db: Session = Depends(get_db)) -> List[dict]:
         List[dict]: List of mart names.
     """
     logger.info("Fetching distinct mart names")
-    return get_distinct_mart_names(db)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_distinct_mart_names(db, warehouse_id=resolved_warehouse_id)
 
 
 @router.get("/{order_id}", response_model=OrderRead, summary="Get order by ID")
-def read_one(order_id: int, db: Session = Depends(get_db)) -> OrderRead:
+def read_one(
+    order_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> OrderRead:
     """
     Retrieve a single order by ID.
 
@@ -101,7 +130,10 @@ def read_one(order_id: int, db: Session = Depends(get_db)) -> OrderRead:
         AppException: If order not found (404).
     """
     logger.info(f"Fetching order id={order_id}")
-    order = get_order(db=db, order_id=order_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    order = get_order(db=db, order_id=order_id, warehouse_id=resolved_warehouse_id)
     if not order:
         logger.error(f"Order not found: id={order_id}")
         raise AppException("Order not found", status_code=404)
@@ -112,6 +144,7 @@ def read_one(order_id: int, db: Session = Depends(get_db)) -> OrderRead:
 def update(
     order_id: int,
     entry_update: OrderUpdate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> OrderRead:
@@ -130,8 +163,15 @@ def update(
         AppException: If order not found (404).
     """
     logger.info(f"Updating order id={order_id}")
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
     updated = update_order(
-        db=db, order_id=order_id, entry_update=entry_update, updated_by="system"
+        db=db,
+        order_id=order_id,
+        entry_update=entry_update,
+        updated_by="system",
+        warehouse_id=resolved_warehouse_id,
     )
     if not updated:
         logger.error(f"Order not found: id={order_id}")
@@ -144,6 +184,7 @@ def update(
 )
 def delete(
     order_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> None:
@@ -158,7 +199,10 @@ def delete(
         AppException: If order not found (404).
     """
     logger.info(f"Deleting order id={order_id}")
-    success = delete_order(db=db, order_id=order_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "delete"
+    )
+    success = delete_order(db=db, order_id=order_id, warehouse_id=resolved_warehouse_id)
     if not success:
         logger.error(f"Order not found: id={order_id}")
         raise AppException("Order not found", status_code=404)

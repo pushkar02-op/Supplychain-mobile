@@ -28,6 +28,7 @@ from app.services.dispatch_entry import (
     get_all_dispatch_entries,
     get_dispatch_entry,
 )
+from app.services.warehouse_scope import resolve_warehouse_for_request
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
@@ -38,6 +39,7 @@ router = APIRouter(prefix="/dispatch-entries", tags=["Dispatch Entries"])
 @router.post("/", response_model=DispatchEntryRead, status_code=status.HTTP_201_CREATED)
 def create_route(
     entry: DispatchEntryCreate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> DispatchEntryRead:
@@ -52,7 +54,12 @@ def create_route(
         DispatchEntryRead: The created dispatch entry.
     """
     logger.info("Creating new dispatch entry")
-    return create_dispatch_entry(db, entry, created_by=current_user.username)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "create"
+    )
+    return create_dispatch_entry(
+        db, entry, created_by=current_user.username, warehouse_id=resolved_warehouse_id
+    )
 
 
 @router.post(
@@ -62,6 +69,7 @@ def create_route(
 )
 def dispatch_from_order(
     entry: DispatchEntryMultiCreate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[DispatchEntryRead]:
@@ -80,7 +88,15 @@ def dispatch_from_order(
     """
     logger.info("Creating dispatch entries from order")
     try:
-        return create_dispatch_from_order(db, entry, created_by=current_user.username)
+        resolved_warehouse_id = resolve_warehouse_for_request(
+            current_user, warehouse_id, db, "create"
+        )
+        return create_dispatch_from_order(
+            db,
+            entry,
+            created_by=current_user.username,
+            warehouse_id=resolved_warehouse_id,
+        )
     except Exception as e:
         logger.exception("Failed to create dispatch from order")
         raise AppException(str(e), status_code=400)
@@ -88,12 +104,14 @@ def dispatch_from_order(
 
 @router.get("/", response_model=List[DispatchEntryNetRead])
 def get_dispatches(
+    warehouse_id: Optional[int] = Query(None),
     skip: int = 0,
     limit: int = 100,
     dispatch_date: Optional[date] = Query(None),
     mart_name: Optional[str] = Query(None),
     hide_fully_reversed: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[DispatchEntry]:
     """
     Retrieve all dispatch entries.
@@ -102,8 +120,12 @@ def get_dispatches(
     logger.info(
         f"Fetching dispatch entries skip={skip}, limit={limit}, hide_reversed={hide_fully_reversed}"
     )
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
     return get_all_dispatch_entries(
         db=db,
+        warehouse_id=resolved_warehouse_id,
         skip=skip,
         limit=limit,
         dispatch_date=dispatch_date,
@@ -113,7 +135,12 @@ def get_dispatches(
 
 
 @router.get("/{id}", response_model=DispatchEntryRead)
-def read_one(id: int, db: Session = Depends(get_db)) -> DispatchEntryRead:
+def read_one(
+    id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> DispatchEntryRead:
     """
     Retrieve a single dispatch entry by ID.
 
@@ -128,7 +155,10 @@ def read_one(id: int, db: Session = Depends(get_db)) -> DispatchEntryRead:
         AppException: If the entry is not found (404).
     """
     logger.info(f"Fetching dispatch entry id={id}")
-    entry = get_dispatch_entry(db, id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    entry = get_dispatch_entry(db, id, warehouse_id=resolved_warehouse_id)
     if not entry:
         logger.error(f"Dispatch entry not found: id={id}")
         raise AppException("Dispatch entry not found", status_code=404)
@@ -143,6 +173,7 @@ def read_one(id: int, db: Session = Depends(get_db)) -> DispatchEntryRead:
 def reverse_dispatch(
     id: int,
     entry: DispatchReversalCreate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> DispatchReversalRead:
@@ -151,4 +182,13 @@ def reverse_dispatch(
     """
     logger.info(f"Reversing dispatch {id} by user {current_user.username}")
 
-    return create_reversal_entry(db, id, entry, created_by=current_user.username)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    return create_reversal_entry(
+        db,
+        id,
+        entry,
+        created_by=current_user.username,
+        warehouse_id=resolved_warehouse_id,
+    )

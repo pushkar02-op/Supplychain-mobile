@@ -16,9 +16,10 @@ from app.db.schemas.mart_item_alias import (
     ResolutionRequest,
 )
 from app.db.session import get_db
+from app.services.warehouse_scope import resolve_warehouse_for_request
 
 # from app.services.item_alias import resolve_item_for_mart
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -26,13 +27,24 @@ router = APIRouter()
 
 @router.get("/invoices/unresolved", response_model=List[UnresolvedInvoiceItemRead])
 def get_unresolved_invoice_items(
+    warehouse_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     List all invoice items that haven't been mapped to a canonical Item.
     """
-    items = db.query(MartBillItem).filter(MartBillItem.item_id.is_(None)).all()
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    items = (
+        db.query(MartBillItem)
+        .filter(
+            MartBillItem.item_id.is_(None),
+            MartBillItem.warehouse_id == resolved_warehouse_id,
+        )
+        .all()
+    )
     return items
 
 
@@ -85,6 +97,7 @@ def create_mart_alias(
 @router.post("/resolve", response_model=dict)
 def resolve_invoice_items(
     request: ResolutionRequest,
+    warehouse_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ):
@@ -93,10 +106,17 @@ def resolve_invoice_items(
     """
     from app.db.models.mart_bill import MartBill
 
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
     unresolved = (
         db.query(MartBillItem)
         .join(MartBill)
-        .filter(MartBill.mart_id == request.mart_id, MartBillItem.item_id.is_(None))
+        .filter(
+            MartBill.mart_id == request.mart_id,
+            MartBill.warehouse_id == resolved_warehouse_id,
+            MartBillItem.item_id.is_(None),
+        )
         .all()
     )
 

@@ -14,7 +14,8 @@ from app.services.reconciliation import (
     get_all_reconciliation_records,
     resolve_drift,
 )
-from fastapi import APIRouter, Depends, Response
+from app.services.warehouse_scope import resolve_warehouse_for_request
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/admin/reconciliation", tags=["Admin Reconciliation"])
@@ -28,6 +29,7 @@ def set_no_cache(response: Response):
 @router.get("/records", response_model=List[ReconciliationRecordRead])
 def list_reconciliation_records(
     response: Response,
+    warehouse_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ):
@@ -35,20 +37,27 @@ def list_reconciliation_records(
     List all reconciliation records (drift history).
     """
     set_no_cache(response)
-    records = get_all_reconciliation_records(db)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    records = get_all_reconciliation_records(db, warehouse_id=resolved_warehouse_id)
     return records
 
 
 @router.post("/records/{batch_id}", response_model=ReconciliationRecordRead)
 def create_reconciliation_record(
     batch_id: int,
+    warehouse_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     Manually create a reconciliation record for a batch if drift is detected.
     """
-    record = create_drift_record(db, batch_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "create"
+    )
+    record = create_drift_record(db, batch_id, warehouse_id=resolved_warehouse_id)
     if not record:
         raise AppException(
             status_code=400,
@@ -62,18 +71,23 @@ def create_reconciliation_record(
 @router.post("/resolve", response_model=ReconciliationRecordRead)
 def resolve_reconciliation_drift(
     data: ReconciliationRecordResolve,
+    warehouse_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     Resolve a drift record by creating an adjustment transaction.
     """
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
     result = resolve_drift(
         db,
         record_id=data.record_id,
         adjustment_qty=data.adjustment_qty,
         user_id=current_user.id,
         apply_to_batch=data.apply_to_batch,
+        warehouse_id=resolved_warehouse_id,
     )
     if "error" in result:
         raise AppException(

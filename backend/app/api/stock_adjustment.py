@@ -11,7 +11,8 @@ from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.session import get_db
 from app.services.stock_entry import create_stock_adjustment
-from fastapi import APIRouter, Depends, status
+from app.services.warehouse_scope import resolve_warehouse_for_request
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -44,6 +45,7 @@ class StockAdjustmentResponse(BaseModel):
 )
 def create_adjustment(
     adjustment: StockAdjustmentCreate,
+    warehouse_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> StockAdjustmentResponse:
@@ -56,6 +58,9 @@ def create_adjustment(
     logger.info(f"Creating stock adjustment for batch_id={adjustment.batch_id}")
 
     try:
+        resolved_warehouse_id = resolve_warehouse_for_request(
+            current_user, warehouse_id, db, "update"
+        )
         txn = create_stock_adjustment(
             db=db,
             batch_id=adjustment.batch_id,
@@ -63,6 +68,7 @@ def create_adjustment(
             unit=adjustment.unit,
             reason=adjustment.reason,
             user_id=current_user.id if current_user else None,
+            warehouse_id=resolved_warehouse_id,
         )
 
         return StockAdjustmentResponse(

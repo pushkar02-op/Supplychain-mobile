@@ -24,6 +24,7 @@ from app.services.stock_entry import (
     get_stock_entry,
     update_stock_entry,
 )
+from app.services.warehouse_scope import resolve_warehouse_for_request
 from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.orm import Session
 
@@ -34,6 +35,7 @@ router = APIRouter(prefix="/stock-entry", tags=["Stock Entry"])
 @router.post("/", response_model=StockEntryRead, status_code=status.HTTP_201_CREATED)
 def create(
     entry: StockEntryCreate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
     idempotency_key: Annotated[str, Header()] = None,
@@ -51,17 +53,26 @@ def create(
         StockEntryRead: The created stock entry.
     """
     logger.info("Creating new stock entry")
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "create"
+    )
     return create_stock_entry(
-        db=db, entry=entry, created_by=1, idempotency_key=idempotency_key
+        db=db,
+        entry=entry,
+        created_by=1,
+        idempotency_key=idempotency_key,
+        warehouse_id=resolved_warehouse_id,
     )
 
 
 @router.get("/", response_model=List[StockEntryRead], summary="List stock entries")
 def read_all(
     date: Optional[date] = Query(None, description="Filter by date"),
+    warehouse_id: Optional[int] = Query(None),
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[StockEntryRead]:
     """
     Retrieve all stock entries with optional date filter.
@@ -77,7 +88,12 @@ def read_all(
         List[StockEntryRead]: List of stock entries with batch quantities.
     """
     logger.info(f"Fetching stock entries date={date}, skip={skip}, limit={limit}")
-    entries = get_all_stock_entries(db=db, date=date, skip=skip, limit=limit)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    entries = get_all_stock_entries(
+        db=db, warehouse_id=resolved_warehouse_id, date=date, skip=skip, limit=limit
+    )
 
     # Enrich with batch quantity
     result = []
@@ -107,7 +123,12 @@ def read_all(
 @router.get(
     "/{stock_entry_id}", response_model=StockEntryRead, summary="Get stock entry by ID"
 )
-def read_one(stock_entry_id: int, db: Session = Depends(get_db)) -> StockEntryRead:
+def read_one(
+    stock_entry_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> StockEntryRead:
     """
     Retrieve a single stock entry by ID.
 
@@ -122,7 +143,12 @@ def read_one(stock_entry_id: int, db: Session = Depends(get_db)) -> StockEntryRe
         AppException: If entry not found (404).
     """
     logger.info(f"Fetching stock entry id={stock_entry_id}")
-    entry = get_stock_entry(db=db, stock_entry_id=stock_entry_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    entry = get_stock_entry(
+        db=db, stock_entry_id=stock_entry_id, warehouse_id=resolved_warehouse_id
+    )
     if not entry:
         logger.error(f"Stock entry not found: id={stock_entry_id}")
         raise AppException("Stock entry not found", status_code=404)
@@ -135,6 +161,7 @@ def read_one(stock_entry_id: int, db: Session = Depends(get_db)) -> StockEntryRe
 def update(
     stock_entry_id: int,
     entry_update: StockEntryUpdate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> StockEntryRead:
@@ -153,6 +180,17 @@ def update(
         AppException: If entry not found (404).
     """
     logger.info(f"Updating stock entry id={stock_entry_id}")
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    entry = get_stock_entry(db=db, stock_entry_id=stock_entry_id)
+    if entry and entry.warehouse_id != resolved_warehouse_id:
+        raise AppException(
+            "Unauthorized warehouse access",
+            status_code=403,
+            rule_id="AUT-004",
+            metadata={"warehouse_id": resolved_warehouse_id},
+        )
     updated = update_stock_entry(
         db=db, stock_entry_id=stock_entry_id, entry_update=entry_update, updated_by=1
     )
@@ -169,6 +207,7 @@ def update(
 )
 def delete(
     stock_entry_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> None:
@@ -183,7 +222,12 @@ def delete(
         AppException: If entry not found (404).
     """
     logger.info(f"Deleting stock entry id={stock_entry_id}")
-    success = delete_stock_entry(db=db, stock_entry_id=stock_entry_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "delete"
+    )
+    success = delete_stock_entry(
+        db=db, stock_entry_id=stock_entry_id, warehouse_id=resolved_warehouse_id
+    )
     if not success:
         logger.error(f"Stock entry not found: id={stock_entry_id}")
         raise AppException("Stock entry not found", status_code=404)

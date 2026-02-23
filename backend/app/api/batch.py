@@ -4,7 +4,7 @@ Provides CRUD operations for batches, including creation, retrieval, update, and
 """
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from app.core.auth import require_role
 from app.core.exceptions import AppException
@@ -20,7 +20,8 @@ from app.services.batch import (
     get_batches_by_item_with_quantity,
     update_batch,
 )
-from fastapi import APIRouter, Depends, status
+from app.services.warehouse_scope import resolve_warehouse_for_request
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ router = APIRouter(prefix="/batch", tags=["Batches"])
 @router.post("/", response_model=BatchRead, status_code=status.HTTP_201_CREATED)
 def create(
     entry: BatchCreate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> BatchRead:
@@ -49,14 +51,24 @@ def create(
     # - It is admin-only by design
     # - It must be used only for controlled recovery or maintenance
     logger.info(f"Creating new batch by {current_user.username}")
-    return create_batch(db=db, batch=entry, created_by=current_user.username)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "create"
+    )
+    return create_batch(
+        db=db,
+        batch=entry,
+        created_by=current_user.username,
+        warehouse_id=resolved_warehouse_id,
+    )
 
 
 @router.get("/", response_model=List[BatchRead], summary="List batches")
 def read_all(
+    warehouse_id: Optional[int] = Query(None),
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[BatchRead]:
     """
     Get all batch entries.
@@ -70,7 +82,12 @@ def read_all(
         List[BatchRead]: List of batch objects.
     """
     logger.info(f"Fetching batches skip={skip}, limit={limit}")
-    return get_all_batches(db=db, skip=skip, limit=limit)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_all_batches(
+        db=db, warehouse_id=resolved_warehouse_id, skip=skip, limit=limit
+    )
 
 
 @router.get(
@@ -78,7 +95,9 @@ def read_all(
 )
 def get_batches_by_item(
     item_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[BatchRead]:
     """
     Get batches for a specific item with available quantity.
@@ -91,13 +110,18 @@ def get_batches_by_item(
         List[BatchRead]: List of batch objects for the item.
     """
     logger.info(f"Fetching batches for item_id={item_id}")
-    return get_batches_by_item_with_quantity(db, item_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_batches_by_item_with_quantity(db, item_id, resolved_warehouse_id)
 
 
 @router.get("/{batch_id}", response_model=BatchRead, summary="Get batch by ID")
 def read_one(
     batch_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> BatchRead:
     """
     Get a batch by ID.
@@ -113,7 +137,10 @@ def read_one(
         AppException: If the batch is not found (404).
     """
     logger.info(f"Fetching batch_id={batch_id}")
-    batch = get_batch(db=db, batch_id=batch_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    batch = get_batch(db=db, batch_id=batch_id, warehouse_id=resolved_warehouse_id)
     if not batch:
         logger.error(f"Batch not found: batch_id={batch_id}")
         raise AppException("Batch not found", status_code=404)
@@ -124,6 +151,7 @@ def read_one(
 def update(
     batch_id: int,
     entry_update: BatchUpdate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> BatchRead:
@@ -147,11 +175,15 @@ def update(
     # - It is admin-only by design
     # - It must be used only for controlled recovery or maintenance
     logger.info(f"Updating batch_id={batch_id} by {current_user.username}")
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
     updated = update_batch(
         db=db,
         batch_id=batch_id,
         entry_update=entry_update,
         updated_by=current_user.username,
+        warehouse_id=resolved_warehouse_id,
     )
     if not updated:
         logger.error(f"Batch not found: batch_id={batch_id}")
@@ -164,6 +196,7 @@ def update(
 )
 def delete(
     batch_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> None:
@@ -185,7 +218,10 @@ def delete(
     # - This endpoint bypasses ledger logic
     # - It is admin-only by design
     # - It must be used only for controlled recovery or maintenance
-    success = delete_batch(db=db, batch_id=batch_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "delete"
+    )
+    success = delete_batch(db=db, batch_id=batch_id, warehouse_id=resolved_warehouse_id)
     if not success:
         logger.error(f"Batch not found: batch_id={batch_id}")
         raise AppException("Batch not found", status_code=404)
