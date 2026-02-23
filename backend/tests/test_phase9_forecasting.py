@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.inventory_flow_daily import InventoryFlowDaily
@@ -22,6 +23,7 @@ from app.db.models.item_burn_rate import ItemBurnRate
 from app.db.models.stock_depletion_forecast import StockDepletionForecast
 from app.db.models.uom import UOM
 from app.db.models.batch import Batch
+from app.db.models.warehouse import Warehouse
 from app.services.forecasting import (
     classify_signal,
     compute_burn_rate,
@@ -36,16 +38,18 @@ from app.services.forecasting import (
 
 @pytest.fixture(scope="function")
 def db_session():
-    import os
-
-    DATABASE_URL = os.getenv(
-        "DATABASE_URL", "postgresql://user:password@db:5432/supply_chain"
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
-    engine = create_engine(DATABASE_URL)
     Session = sessionmaker(bind=engine)
     session = Session()
 
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    session.add(Warehouse(name="Main Warehouse", code="MAIN", is_active=True))
+    session.commit()
 
     # Cleanup Phase 9 tables
     session.rollback()
@@ -157,7 +161,13 @@ def test_depletion_forecast_normal(db_session):
     db_session.query(Batch).filter(Batch.item_id == 902).delete()
 
     # Add batch with 100 units
-    batch = Batch(item_id=902, quantity=100.0, unit="kg", received_at=datetime.utcnow())
+    batch = Batch(
+        item_id=902,
+        warehouse_id=1,
+        quantity=100.0,
+        unit="kg",
+        received_at=datetime.utcnow(),
+    )
     db_session.add(batch)
     db_session.commit()
 
@@ -210,7 +220,13 @@ def test_refresh_forecast_for_item(db_session):
     db_session.query(Batch).filter(Batch.item_id == 903).delete()
 
     # Add batch
-    batch = Batch(item_id=903, quantity=50.0, unit="kg", received_at=datetime.utcnow())
+    batch = Batch(
+        item_id=903,
+        warehouse_id=1,
+        quantity=50.0,
+        unit="kg",
+        received_at=datetime.utcnow(),
+    )
     db_session.add(batch)
 
     # Add flow data

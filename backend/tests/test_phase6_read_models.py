@@ -2,94 +2,107 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.batch import Batch
 from app.db.models.inventory_txn import InventoryTxn
 from app.db.models.item import Item
 from app.db.models.uom import UOM
+from app.db.models.warehouse import Warehouse
 from app.db.models.views.batch_ledger_balance import BatchLedgerBalance
 from app.db.models.views.inventory_signal import InventorySignal
-from app.db.session import SessionLocal
 
 
 @pytest.fixture(scope="function")
 def db_session():
     """
-    Runs against local DATABASE_URL and creates read-model views when using SQLite.
+    Isolated SQLite session and recreated read-model views.
     """
-    engine = SessionLocal.kw["bind"]
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SessionLocal = sessionmaker(bind=engine)
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
-    if engine.dialect.name == "sqlite":
-        for object_name in ("batch_ledger_balance_view", "inventory_signal_view"):
-            try:
-                session.execute(text(f"DROP VIEW IF EXISTS {object_name}"))
-            except Exception:
-                session.rollback()
-            try:
-                session.execute(text(f"DROP TABLE IF EXISTS {object_name}"))
-            except Exception:
-                session.rollback()
-        session.execute(
-            text(
-                """
-                CREATE VIEW batch_ledger_balance_view AS
-                SELECT
-                    batch_id,
-                    ROUND(
-                        SUM(
-                            CASE
-                                WHEN txn_type = 'IN' THEN base_qty
-                                WHEN txn_type = 'OUT' THEN -base_qty
-                                WHEN txn_type = 'ADJUST' THEN base_qty
-                                ELSE 0
-                            END
-                        ),
-                        3
-                    ) AS ledger_qty
-                FROM inventory_txn
-                WHERE batch_id IS NOT NULL
-                GROUP BY batch_id
-                """
-            )
+    session.add(Warehouse(name="Main Warehouse", code="MAIN", is_active=True))
+    session.commit()
+
+    for object_name in ("batch_ledger_balance_view", "inventory_signal_view"):
+        try:
+            session.execute(text(f"DROP VIEW IF EXISTS {object_name}"))
+        except Exception:
+            session.rollback()
+        try:
+            session.execute(text(f"DROP TABLE IF EXISTS {object_name}"))
+        except Exception:
+            session.rollback()
+
+    session.execute(
+        text(
+            """
+            CREATE VIEW batch_ledger_balance_view AS
+            SELECT
+                warehouse_id,
+                batch_id,
+                ROUND(
+                    SUM(
+                        CASE
+                            WHEN txn_type = 'IN' THEN base_qty
+                            WHEN txn_type = 'OUT' THEN -base_qty
+                            WHEN txn_type = 'ADJUST' THEN base_qty
+                            ELSE 0
+                        END
+                    ),
+                    3
+                ) AS ledger_qty
+            FROM inventory_txn
+            WHERE batch_id IS NOT NULL
+            GROUP BY warehouse_id, batch_id
+            """
         )
-        session.execute(
-            text(
-                """
-                CREATE VIEW inventory_signal_view AS
-                SELECT
-                    item_id,
-                    ROUND(
-                        SUM(
-                            CASE
-                                WHEN txn_type = 'OUT'
-                                     AND date(created_at) >= date('now', '-7 day')
-                                THEN base_qty
-                                ELSE 0
-                            END
-                        ),
-                        3
-                    ) AS out_last_7d,
-                    ROUND(
-                        SUM(
-                            CASE
-                                WHEN txn_type = 'OUT'
-                                     AND date(created_at) < date('now', '-7 day')
-                                     AND date(created_at) >= date('now', '-14 day')
-                                THEN base_qty
-                                ELSE 0
-                            END
-                        ),
-                        3
-                    ) AS out_prev_7d
-                FROM inventory_txn
-                GROUP BY item_id
-                """
-            )
+    )
+    session.execute(
+        text(
+            """
+            CREATE VIEW inventory_signal_view AS
+            SELECT
+                warehouse_id,
+                item_id,
+                ROUND(
+                    SUM(
+                        CASE
+                            WHEN txn_type = 'OUT'
+                                 AND date(created_at) >= date('now', '-7 day')
+                            THEN base_qty
+                            ELSE 0
+                        END
+                    ),
+                    3
+                ) AS out_last_7d,
+                ROUND(
+                    SUM(
+                        CASE
+                            WHEN txn_type = 'OUT'
+                                 AND date(created_at) < date('now', '-7 day')
+                                 AND date(created_at) >= date('now', '-14 day')
+                            THEN base_qty
+                            ELSE 0
+                        END
+                    ),
+                    3
+                ) AS out_prev_7d
+            FROM inventory_txn
+            GROUP BY warehouse_id, item_id
+            """
         )
-        session.commit()
+    )
+    session.commit()
     try:
         yield session
     finally:
@@ -116,7 +129,11 @@ def create_item(db, name="Test Item", unit="kg"):
 
 def create_batch(db, item_id, qty=100.0, unit="kg"):
     batch = Batch(
-        item_id=item_id, quantity=qty, unit=unit, received_at=datetime.utcnow()
+        item_id=item_id,
+        warehouse_id=1,
+        quantity=qty,
+        unit=unit,
+        received_at=datetime.utcnow(),
     )
     db.add(batch)
     db.commit()
@@ -129,6 +146,7 @@ def create_txn(db, item_id, batch_id, txn_type, qty, unit="kg", days_ago=0):
     txn = InventoryTxn(
         item_id=item_id,
         batch_id=batch_id,
+        warehouse_id=1,
         txn_type=txn_type,
         raw_qty=qty,
         raw_unit=unit,
@@ -168,7 +186,7 @@ def test_batch_ledger_balance_view(db_session):
     # Verify View (Must query fresh)
     # Since we committed, the view should see it.
 
-    balance = db.get(BatchLedgerBalance, batch.id)
+    balance = db.get(BatchLedgerBalance, (1, batch.id))
     assert balance is not None
     assert float(balance.ledger_qty) == 35.0
 
@@ -190,7 +208,7 @@ def test_inventory_signal_view(db_session):
     create_txn(db, item.id, None, "OUT", 100.0, days_ago=20)
 
     # Verify View
-    sig = db.get(InventorySignal, item.id)
+    sig = db.get(InventorySignal, (1, item.id))
     assert sig is not None
     # Depending on float/decimal mapping, use float for compare
     assert float(sig.out_last_7d) == 10.0

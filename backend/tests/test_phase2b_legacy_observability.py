@@ -152,10 +152,17 @@ def test_legacy_pagination_emits_warning(caplog):
 
     # Mock auth
     from app.core.auth import get_current_user
-    from collections import namedtuple
+    from app.db.enums.role import Role
+    from types import SimpleNamespace
 
-    UserMock = namedtuple("UserMock", ["id", "username", "full_name", "is_admin"])
-    mock_user = UserMock(id=1, username="tester", full_name="Test User", is_admin=True)
+    mock_user = SimpleNamespace(
+        id=1,
+        username="tester",
+        full_name="Test User",
+        is_admin=True,
+        is_active=True,
+        role=Role.OWNER,
+    )
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     try:

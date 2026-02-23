@@ -3,6 +3,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.domain_event import DomainEvent
@@ -11,6 +12,7 @@ from app.db.models.batch import Batch
 from app.db.models.uom import UOM
 from app.db.models.mart import Mart
 from app.db.models.order import Order
+from app.db.models.warehouse import Warehouse
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.inventory_txn import create_inventory_txn
 from app.services.dispatch_entry import create_dispatch_entry
@@ -20,24 +22,21 @@ from app.db.schemas.order import OrderCreate
 from app.services.order import create_order
 from app.db.models.inventory_txn import InventoryTxn
 
-# Use the real DB from the environment (or fallback to test config)
-# Ideally, we reuse the conftest.py fixtures, but for standalone clarity:
 
-
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def db_session():
-    # Assuming running in Docker with env vars set, or valid local URL
-    import os
-
-    DATABASE_URL = os.getenv(
-        "DATABASE_URL", "postgresql://user:password@db:5432/supply_chain"
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
-    engine = create_engine(DATABASE_URL)
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    # Ensure schema exists (including ReconciliationRecord)
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    session.add(Warehouse(name="Main Warehouse", code="MAIN", is_active=True))
+    session.commit()
 
     # Cleanup before test
     from app.db.models.reconciliation_record import ReconciliationRecord
@@ -111,7 +110,6 @@ def setup_base_data(db):
     # Ensure Mart
     mart = db.query(Mart).filter_by(name="Event Test Mart").first()
     if not mart:
-        print("DEBUG: Creating Event Test Mart with company_name")
         mart = Mart(name="Event Test Mart", company_name="Event Test Company")
         db.add(mart)
         db.commit()
@@ -123,7 +121,13 @@ def test_inventory_txn_emits_event(db_session):
     item, _ = setup_base_data(db_session)
 
     # Create Batch
-    batch = Batch(item_id=item.id, unit="kg", quantity=100.0, received_at=date.today())
+    batch = Batch(
+        item_id=item.id,
+        warehouse_id=1,
+        unit="kg",
+        quantity=100.0,
+        received_at=date.today(),
+    )
     db_session.add(batch)
     db_session.commit()
 
@@ -161,7 +165,13 @@ def test_dispatch_emits_event(db_session):
     item, mart = setup_base_data(db_session)
 
     # Create Batch with enough stock
-    batch = Batch(item_id=item.id, unit="kg", quantity=200.0, received_at=date.today())
+    batch = Batch(
+        item_id=item.id,
+        warehouse_id=1,
+        unit="kg",
+        quantity=200.0,
+        received_at=date.today(),
+    )
     db_session.add(batch)
     db_session.commit()
 
@@ -223,11 +233,17 @@ def test_order_fulfillment_event(db_session):
         db_session.delete(existing)
         db_session.commit()
 
-    order = create_order(db_session, order_data)
+    order = create_order(db_session, order_data, warehouse_id=1)
     db_session.commit()
 
     # 2. Fulfill Order via Dispatch (Qty 10)
-    batch = Batch(item_id=item.id, unit="kg", quantity=100.0, received_at=date.today())
+    batch = Batch(
+        item_id=item.id,
+        warehouse_id=1,
+        unit="kg",
+        quantity=100.0,
+        received_at=date.today(),
+    )
     db_session.add(batch)
     db_session.commit()
 
@@ -259,7 +275,13 @@ def test_reconciliation_resolved_event(db_session):
     item, _ = setup_base_data(db_session)
 
     # 1. Create Batch
-    batch = Batch(item_id=item.id, unit="kg", quantity=100.0, received_at=date.today())
+    batch = Batch(
+        item_id=item.id,
+        warehouse_id=1,
+        unit="kg",
+        quantity=100.0,
+        received_at=date.today(),
+    )
     db_session.add(batch)
     db_session.commit()
 

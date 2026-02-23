@@ -13,10 +13,14 @@ from app.db.enums.role import Role
 from app.db.base import Base
 from app.db.models.item import Item
 from app.db.models.mart import Mart
+from app.db.models.user import User
+from app.db.models.user_warehouse_access import UserWarehouseAccess
 from app.db.models.uom import UOM
+from app.db.models.warehouse import Warehouse
 from app.db.session import get_db
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, insert, select
+from sqlalchemy import event
+from sqlalchemy.orm import Session as SASession, sessionmaker
 
 # Use in-memory SQLite for speed and isolation
 from sqlalchemy.pool import StaticPool
@@ -32,12 +36,57 @@ engine = create_engine(
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+def _ensure_main_warehouse(session: SASession) -> int:
+    conn = session.connection()
+    table = Warehouse.__table__
+    main_id = conn.execute(
+        select(table.c.id).where(table.c.code == "MAIN")
+    ).scalar_one_or_none()
+    if main_id is None:
+        conn.execute(
+            insert(table).values(name="Main Warehouse", code="MAIN", is_active=True)
+        )
+        main_id = conn.execute(
+            select(table.c.id).where(table.c.code == "MAIN")
+        ).scalar_one()
+    return int(main_id)
+
+
+@event.listens_for(SASession, "before_flush")
+def _inject_default_warehouse(session, _flush_context, _instances):
+    main_warehouse_id = None
+    for obj in list(session.new):
+        if hasattr(obj, "warehouse_id") and getattr(obj, "warehouse_id", None) is None:
+            if main_warehouse_id is None:
+                main_warehouse_id = _ensure_main_warehouse(session)
+            setattr(obj, "warehouse_id", main_warehouse_id)
+
+
 @pytest.fixture(scope="function")
 def db_session():
     # Create tables
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     try:
+        main_warehouse_id = _ensure_main_warehouse(session)
+        users = session.query(User).all()
+        for user in users:
+            exists = (
+                session.query(UserWarehouseAccess)
+                .filter(
+                    UserWarehouseAccess.user_id == user.id,
+                    UserWarehouseAccess.warehouse_id == main_warehouse_id,
+                )
+                .first()
+            )
+            if not exists:
+                session.add(
+                    UserWarehouseAccess(
+                        user_id=user.id,
+                        warehouse_id=main_warehouse_id,
+                    )
+                )
+        session.flush()
         yield session
     finally:
         session.close()
