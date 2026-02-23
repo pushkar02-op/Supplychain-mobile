@@ -13,12 +13,15 @@ from app.db.models.mart import Mart
 from app.db.models.mart_bill import MartBill
 from app.db.models.order import Order
 from app.db.schemas.order import OrderCreate, OrderUpdate
+from app.services.warehouse_scope import resolve_system_warehouse_id
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 
-def get_distinct_mart_names(db: Session) -> List[dict]:
+def get_distinct_mart_names(
+    db: Session, warehouse_id: Optional[int] = None
+) -> List[dict]:
     """
     Retrieve unique mart names from invoices.
 
@@ -28,20 +31,21 @@ def get_distinct_mart_names(db: Session) -> List[dict]:
     Returns:
         List[str]: List of mart names.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug("Fetching distinct mart names from invoices")
-    results = (
-        db.query(Mart.id, Mart.name)
-        .join(MartBill, MartBill.mart_id == Mart.id)
-        .distinct()
-        .all()
-    )
+    q = db.query(Mart.id, Mart.name).join(MartBill, MartBill.mart_id == Mart.id)
+    q = q.filter(MartBill.warehouse_id == resolved_warehouse_id)
+    results = q.distinct().all()
     marts = [{"id": r.id, "name": r.name} for r in results if r.name]
     logger.info(f"Found {len(marts)} distinct marts")
     return marts
 
 
 def create_order(
-    db: Session, entry: OrderCreate, created_by: Optional[str] = None
+    db: Session,
+    entry: OrderCreate,
+    created_by: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> Order:
     """
     Create a new order unless duplicate exists.
@@ -60,6 +64,9 @@ def create_order(
     """
     logger.info(
         f"Creating order for item_id={entry.item_id}, mart_name={entry.mart_name}, date={entry.order_date}"
+    )
+    resolved_warehouse_id = resolve_system_warehouse_id(
+        db, warehouse_id if warehouse_id is not None else entry.warehouse_id
     )
 
     # ORD-009: Reject Zero Quantity
@@ -85,6 +92,7 @@ def create_order(
             item_id=entry.item_id,
             order_date=entry.order_date,
             mart_id=resolved_mart_id,
+            warehouse_id=resolved_warehouse_id,
         )
         .first()
     )
@@ -100,6 +108,7 @@ def create_order(
     # Remove transient mart_name, inject resolved mart_id
     order_data.pop("mart_name", None)
     order_data["mart_id"] = resolved_mart_id
+    order_data["warehouse_id"] = resolved_warehouse_id
 
     from app.utils.audit import resolve_user_audit
 
@@ -115,7 +124,9 @@ def create_order(
     return ord_
 
 
-def get_order(db: Session, order_id: int) -> Optional[Order]:
+def get_order(
+    db: Session, order_id: int, warehouse_id: Optional[int] = None
+) -> Optional[Order]:
     """
     Retrieve an order by ID.
 
@@ -126,12 +137,19 @@ def get_order(db: Session, order_id: int) -> Optional[Order]:
     Returns:
         Optional[Order]: The order or None.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug(f"Retrieving order id={order_id}")
-    return db.query(Order).filter(Order.id == order_id).first()
+    q = db.query(Order).filter(
+        Order.id == order_id, Order.warehouse_id == resolved_warehouse_id
+    )
+    return q.first()
 
 
 def get_orders(
-    db: Session, order_date: Optional[date] = None, mart_name: Optional[str] = None
+    db: Session,
+    warehouse_id: Optional[int] = None,
+    order_date: Optional[date] = None,
+    mart_name: Optional[str] = None,
 ) -> List[Order]:
     """
     Retrieve orders with optional filters.
@@ -144,8 +162,9 @@ def get_orders(
     Returns:
         List[Order]: List of orders.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug(f"Fetching orders date={order_date}, mart={mart_name}")
-    q = db.query(Order)
+    q = db.query(Order).filter(Order.warehouse_id == resolved_warehouse_id)
     if order_date:
         q = q.filter(Order.order_date == order_date)
     if mart_name:
@@ -175,6 +194,7 @@ def update_order(
     order_id: int,
     entry_update: OrderUpdate,
     updated_by: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> Optional[Order]:
     """
     Update an existing order and adjust status automatically.
@@ -189,8 +209,8 @@ def update_order(
         Optional[Order]: Updated order or None.
     """
     logger.info(f"Updating order id={order_id}")
-    ord_ = get_order(db, order_id)
-    ord_ = get_order(db, order_id)
+    ord_ = get_order(db, order_id, warehouse_id=warehouse_id)
+    ord_ = get_order(db, order_id, warehouse_id=warehouse_id)
     if not ord_:
         logger.error(f"Order not found id={order_id}")
         return None
@@ -234,7 +254,9 @@ def update_order(
     return ord_
 
 
-def delete_order(db: Session, order_id: int) -> bool:
+def delete_order(
+    db: Session, order_id: int, warehouse_id: Optional[int] = None
+) -> bool:
     """
     Delete an order by ID.
 
@@ -246,7 +268,7 @@ def delete_order(db: Session, order_id: int) -> bool:
         bool: True if deleted, False otherwise.
     """
     logger.info(f"Deleting order id={order_id}")
-    ord_ = get_order(db, order_id)
+    ord_ = get_order(db, order_id, warehouse_id=warehouse_id)
     if not ord_:
         logger.error(f"Order not found id={order_id}")
         return False

@@ -2,6 +2,8 @@ import logging
 from decimal import ROUND_HALF_UP, Decimal
 from typing import List, Optional
 
+from app.core.exceptions import AppException
+from app.db.models.batch import Batch
 from app.db.models.domain_event import DomainEvent
 from app.db.models.inventory_txn import InventoryTxn
 from app.db.schemas.domain_event import InventoryTxnCommitted
@@ -22,10 +24,40 @@ def create_inventory_txn(db: Session, data: InventoryTxnCreate) -> InventoryTxn:
         Decimal("0.001"), rounding=ROUND_HALF_UP
     )
 
+    # Derive warehouse provenance from authoritative parent entities.
+    warehouse_id = None
+    if data.batch_id is not None:
+        batch = db.get(Batch, data.batch_id)
+        if not batch:
+            raise AppException(
+                "Batch not found for inventory transaction", status_code=404
+            )
+        warehouse_id = batch.warehouse_id
+        if data.warehouse_id is not None and data.warehouse_id != warehouse_id:
+            raise AppException(
+                "Inventory transaction warehouse mismatch with batch",
+                status_code=409,
+                rule_id="INV-001",
+                metadata={
+                    "batch_id": data.batch_id,
+                    "batch_warehouse_id": batch.warehouse_id,
+                    "provided_warehouse_id": data.warehouse_id,
+                },
+            )
+    else:
+        warehouse_id = data.warehouse_id
+
+    if warehouse_id is None:
+        raise AppException(
+            "warehouse_id is required for inventory transactions",
+            status_code=400,
+        )
+
     # Update data object with quantized values
     txn_data = data.dict()
     txn_data["raw_qty"] = quantized_raw
     txn_data["base_qty"] = quantized_base
+    txn_data["warehouse_id"] = warehouse_id
 
     txn = InventoryTxn(**txn_data)
     db.add(txn)
@@ -57,13 +89,17 @@ def create_inventory_txn(db: Session, data: InventoryTxnCreate) -> InventoryTxn:
 def get_inventory_txns(
     db: Session,
     item_id: int,
+    warehouse_id: int,
     unit: Optional[str] = None,
     limit: int = 10,
 ) -> List[InventoryTxn]:
     """
     Fetch recent inventory transactions for an item (optionally filtered by unit).
     """
-    q = db.query(InventoryTxn).filter(InventoryTxn.item_id == item_id)
+    q = db.query(InventoryTxn).filter(
+        InventoryTxn.item_id == item_id,
+        InventoryTxn.warehouse_id == warehouse_id,
+    )
     if unit:
         q = q.filter(InventoryTxn.raw_unit == unit)
     q = q.order_by(InventoryTxn.created_at.desc()).limit(limit)

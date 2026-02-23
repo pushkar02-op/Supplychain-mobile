@@ -38,6 +38,7 @@ def create_reversal_entry(
     dispatch_id: int,
     entry: DispatchReversalCreate,
     created_by: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> DispatchReversal:
     """
     Create a reversal for a dispatch entry.
@@ -60,6 +61,13 @@ def create_reversal_entry(
         if not dispatch:
             logger.error(f"Dispatch {dispatch_id} not found")
             raise AppException("Dispatch entry not found", status_code=404)
+        if warehouse_id is not None and dispatch.warehouse_id != warehouse_id:
+            raise AppException(
+                "Unauthorized warehouse access",
+                status_code=403,
+                rule_id="AUT-004",
+                metadata={"warehouse_id": warehouse_id},
+            )
 
         # 2. Calculate Remaining Quantity
         total_reversed = db.scalar(
@@ -193,17 +201,23 @@ def create_reversal_entry(
 
 
 def create_dispatch_entry(
-    db: Session, entry: DispatchEntryCreate, created_by: Optional[str] = None
+    db: Session,
+    entry: DispatchEntryCreate,
+    created_by: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> DispatchEntry:
     try:
-        return _create_dispatch_entry_impl(db, entry, created_by)
+        return _create_dispatch_entry_impl(db, entry, created_by, warehouse_id)
     except Exception:
         db.rollback()
         raise
 
 
 def _create_dispatch_entry_impl(
-    db: Session, entry: DispatchEntryCreate, created_by: Optional[str] = None
+    db: Session,
+    entry: DispatchEntryCreate,
+    created_by: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> DispatchEntry:
     """
     Create a single dispatch entry, decrementing batch stock and updating order status.
@@ -229,6 +243,13 @@ def _create_dispatch_entry_impl(
     if not batch:
         logger.error("Invalid batch_id provided")
         raise AppException("Invalid batch_id provided", status_code=400)
+    if warehouse_id is not None and batch.warehouse_id != warehouse_id:
+        raise AppException(
+            "Unauthorized warehouse access",
+            status_code=403,
+            rule_id="AUT-004",
+            metadata={"warehouse_id": warehouse_id},
+        )
 
     mart = db.scalar(select(Mart).where(Mart.name == entry.mart_name))
     if not mart:
@@ -244,6 +265,13 @@ def _create_dispatch_entry_impl(
         order = db.get(Order, entry.order_id)
         if not order:
             raise AppException(f"Order {entry.order_id} not found", status_code=404)
+        if order.warehouse_id != batch.warehouse_id:
+            raise AppException(
+                "Unauthorized warehouse access",
+                status_code=403,
+                rule_id="AUT-004",
+                metadata={"warehouse_id": order.warehouse_id},
+            )
     else:
         # LEGACY PATH — DO NOT DEPEND ON FOR NEW FEATURES
         # Heuristic Fallback (Legacy): Implicit order linking when order_id not provided
@@ -251,6 +279,7 @@ def _create_dispatch_entry_impl(
             select(Order).where(
                 Order.item_id == entry.item_id,
                 Order.mart_id == mart.id,
+                Order.warehouse_id == batch.warehouse_id,
                 Order.status.notin_(["Cancelled", "Completed"]),
             )
         )
@@ -293,6 +322,7 @@ def _create_dispatch_entry_impl(
         select(Order).where(
             Order.item_id == entry.item_id,
             Order.mart_id == mart.id,
+            Order.warehouse_id == batch.warehouse_id,
             Order.status.in_(["Cancelled", "Completed"]),
         )
     )
@@ -336,6 +366,7 @@ def _create_dispatch_entry_impl(
         .filter(
             DispatchEntry.item_id == entry.item_id,
             DispatchEntry.mart_id == mart.id,
+            DispatchEntry.warehouse_id == batch.warehouse_id,
             DispatchEntry.dispatch_date == entry.dispatch_date,
         )
         .first()
@@ -351,6 +382,7 @@ def _create_dispatch_entry_impl(
     dispatch = DispatchEntry(
         batch_id=entry.batch_id,
         item_id=entry.item_id,
+        warehouse_id=batch.warehouse_id,
         mart_id=mart.id,
         dispatch_date=entry.dispatch_date,
         quantity=entry.quantity,  # Store raw user request
@@ -372,6 +404,7 @@ def _create_dispatch_entry_impl(
         entry.item_id,
         entry.mart_name,
         entry.quantity,
+        warehouse_id=batch.warehouse_id,
         order_id=order.id if order else None,
     )
     db.flush()
@@ -427,17 +460,23 @@ def _create_dispatch_entry_impl(
 
 
 def create_dispatch_from_order(
-    db: Session, entry: DispatchEntryMultiCreate, created_by: Optional[str] = None
+    db: Session,
+    entry: DispatchEntryMultiCreate,
+    created_by: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> List[DispatchEntry]:
     try:
-        return _create_dispatch_from_order_impl(db, entry, created_by)
+        return _create_dispatch_from_order_impl(db, entry, created_by, warehouse_id)
     except Exception:
         db.rollback()
         raise
 
 
 def _create_dispatch_from_order_impl(
-    db: Session, entry: DispatchEntryMultiCreate, created_by: Optional[str] = None
+    db: Session,
+    entry: DispatchEntryMultiCreate,
+    created_by: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> List[DispatchEntry]:
     """
     Create dispatch entries from an order allocation across batches.
@@ -462,12 +501,19 @@ def _create_dispatch_from_order_impl(
         order = db.get(Order, entry.order_id)
         if not order:
             raise AppException(f"Order {entry.order_id} not found", status_code=404)
+        if warehouse_id is not None and order.warehouse_id != warehouse_id:
+            raise AppException(
+                "Unauthorized warehouse access",
+                status_code=403,
+                rule_id="AUT-004",
+                metadata={"warehouse_id": warehouse_id},
+            )
         if order.status == "Completed":
             # Optional: Allow dispatch against completed if strictly specified? No, usually forbidden.
             # But if user insists... No, logic below checks pending.
             pass
     else:
-        order = db.scalar(
+        stmt = (
             select(Order)
             .join(Mart)
             .where(
@@ -476,6 +522,9 @@ def _create_dispatch_from_order_impl(
                 Order.status != "Completed",
             )
         )
+        if warehouse_id is not None:
+            stmt = stmt.where(Order.warehouse_id == warehouse_id)
+        order = db.scalar(stmt)
     if not order:
         msg = f"No pending order for item {entry.item_id} at mart {entry.mart_name}"
         logger.error(msg)
@@ -485,14 +534,14 @@ def _create_dispatch_from_order_impl(
     # 1) Deterministically lock all involved batches to prevent deadlocks
     params_batch_ids = sorted(list({b.batch_id for b in entry.batches}))
 
-    locked_batches = (
+    batch_query = (
         db.query(Batch)
         .filter(Batch.id.in_(params_batch_ids))
         .filter(Batch.item_id == entry.item_id)
-        .order_by(Batch.id)
-        .with_for_update()
-        .all()
     )
+    if warehouse_id is not None:
+        batch_query = batch_query.filter(Batch.warehouse_id == warehouse_id)
+    locked_batches = batch_query.order_by(Batch.id).with_for_update().all()
 
     batch_map = {b.id: b for b in locked_batches}
 
@@ -554,6 +603,7 @@ def _create_dispatch_from_order_impl(
             disp = DispatchEntry(
                 item_id=entry.item_id,
                 batch_id=batch.id,
+                warehouse_id=batch.warehouse_id,
                 mart_id=order.mart_id,
                 dispatch_date=entry.dispatch_date,
                 quantity=b.quantity,  # Raw
@@ -597,7 +647,12 @@ def _create_dispatch_from_order_impl(
 
     # 5) Finalize Order and Transactions
     _update_order_after_dispatch(
-        db, entry.item_id, entry.mart_name, total_req, order_id=order.id
+        db,
+        entry.item_id,
+        entry.mart_name,
+        total_req,
+        warehouse_id=warehouse_id,
+        order_id=order.id,
     )
     db.flush()
     for d in results:
@@ -630,6 +685,7 @@ def _update_order_after_dispatch(
     item_id: int,
     mart_name: str,
     dispatched_quantity: Decimal,
+    warehouse_id: Optional[int] = None,
     order_id: Optional[int] = None,
 ) -> None:
     """
@@ -646,7 +702,7 @@ def _update_order_after_dispatch(
     if order_id:
         order = db.get(Order, order_id)
     else:
-        order = db.scalar(
+        stmt = (
             select(Order)
             .join(Mart)
             .where(
@@ -655,6 +711,9 @@ def _update_order_after_dispatch(
                 Order.status != "Completed",
             )
         )
+        if warehouse_id is not None:
+            stmt = stmt.where(Order.warehouse_id == warehouse_id)
+        order = db.scalar(stmt)
 
     if not order:
         return
@@ -689,7 +748,9 @@ def _update_order_after_dispatch(
         db.add(event)
 
 
-def get_dispatch_entry(db: Session, dispatch_id: int) -> Optional[DispatchEntry]:
+def get_dispatch_entry(
+    db: Session, dispatch_id: int, warehouse_id: Optional[int] = None
+) -> Optional[DispatchEntry]:
     """
     Retrieve a dispatch entry by ID.
 
@@ -701,11 +762,15 @@ def get_dispatch_entry(db: Session, dispatch_id: int) -> Optional[DispatchEntry]
         Optional[DispatchEntry]: The dispatch entry or None.
     """
     logger.debug(f"Retrieving dispatch id={dispatch_id}")
-    return db.get(DispatchEntry, dispatch_id)
+    q = db.query(DispatchEntry).filter(DispatchEntry.id == dispatch_id)
+    if warehouse_id is not None:
+        q = q.filter(DispatchEntry.warehouse_id == warehouse_id)
+    return q.first()
 
 
 def get_all_dispatch_entries(
     db: Session,
+    warehouse_id: Optional[int] = None,
     skip: int = 0,
     limit: int = 100,
     dispatch_date: Optional[date] = None,
@@ -747,6 +812,8 @@ def get_all_dispatch_entries(
         )
         .group_by(DispatchEntry.id)
     )
+    if warehouse_id is not None:
+        stmt = stmt.where(DispatchEntry.warehouse_id == warehouse_id)
 
     if dispatch_date:
         stmt = stmt.where(DispatchEntry.dispatch_date == dispatch_date)

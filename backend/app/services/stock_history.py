@@ -9,17 +9,21 @@ from app.db.schemas.stock_history import (
     StockHistoryResponse,
 )
 from app.services.stock_entry import get_stock_entry
+from app.services.warehouse_scope import resolve_system_warehouse_id
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 
-def get_stock_history(db: Session, stock_entry_id: int) -> StockHistoryResponse:
+def get_stock_history(
+    db: Session, stock_entry_id: int, warehouse_id: int | None = None
+) -> StockHistoryResponse:
     """
     Constructs the history of a stock entry from its receipt and subsequent adjustments.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     # 1. Fetch Receipt (StockEntry)
-    entry = get_stock_entry(db, stock_entry_id)
+    entry = get_stock_entry(db, stock_entry_id, warehouse_id=resolved_warehouse_id)
     if not entry:
         raise AppException("Stock entry not found", status_code=404)
 
@@ -39,6 +43,7 @@ def get_stock_history(db: Session, stock_entry_id: int) -> StockHistoryResponse:
     txns = (
         db.query(InventoryTxn)
         .filter(InventoryTxn.batch_id == entry.batch_id)
+        .filter(InventoryTxn.warehouse_id == resolved_warehouse_id)
         .filter(InventoryTxn.txn_type == "ADJUST")
         .order_by(InventoryTxn.created_at.desc())
         .all()
@@ -66,6 +71,7 @@ def get_stock_history(db: Session, stock_entry_id: int) -> StockHistoryResponse:
             db.query(InventoryTxn)
             .filter(
                 InventoryTxn.txn_type == "OUT",
+                InventoryTxn.warehouse_id == resolved_warehouse_id,
                 InventoryTxn.ref_type == "stock_entry",
                 InventoryTxn.ref_id == entry.id,
             )
