@@ -9,8 +9,10 @@ import os
 from datetime import date
 from typing import List, Optional
 
-from app.core.auth import get_current_user
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
 from app.db.session import get_db
 from app.services.mart_bill import (
@@ -40,6 +42,7 @@ router = APIRouter(prefix="/mart-bills", tags=["Mart Bills"])
 async def upload_mart_bills(
     files: List[UploadFile] = File(..., description="One or more PDF files"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> List[dict]:
     """
     Upload and process multiple mart bill PDFs.
@@ -159,7 +162,10 @@ def read_mart_bill(bill_id: int, db: Session = Depends(get_db)) -> MartBillRead:
 
 @router.put("/{bill_id}", response_model=MartBillRead, summary="Update Mart Bill")
 def update_mart_bill_route(
-    bill_id: int, data: MartBillUpdate, db: Session = Depends(get_db)
+    bill_id: int,
+    data: MartBillUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> MartBillRead:
     """
     Update an existing mart bill.
@@ -187,7 +193,7 @@ def update_mart_bill_route(
 def verify_mart_bill_endpoint(
     bill_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
     """
     Verify and lock a mart bill.
@@ -206,7 +212,7 @@ def verify_mart_bill_endpoint(
 def unverify_mart_bill_endpoint(
     bill_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
     """
     Unlock a mart bill (revert to NEEDS_REVIEW).
@@ -229,7 +235,7 @@ async def replace_mart_bill_file_endpoint(
     bill_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
     """
     Replace the PDF file for a mart bill.
@@ -260,7 +266,11 @@ async def replace_mart_bill_file_endpoint(
 @router.delete(
     "/{bill_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete Mart Bill"
 )
-def delete_mart_bill_route(bill_id: int, db: Session = Depends(get_db)) -> None:
+def delete_mart_bill_route(
+    bill_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> None:
     """
     Delete a mart bill by ID.
 

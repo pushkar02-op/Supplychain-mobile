@@ -1,7 +1,8 @@
 from typing import List
 
-from app.core.auth import get_current_active_admin
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.schemas.reconciliation import (
     ReconciliationRecordRead,
@@ -28,7 +29,7 @@ def set_no_cache(response: Response):
 def list_reconciliation_records(
     response: Response,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     List all reconciliation records (drift history).
@@ -42,7 +43,7 @@ def list_reconciliation_records(
 def create_reconciliation_record(
     batch_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     Manually create a reconciliation record for a batch if drift is detected.
@@ -62,7 +63,7 @@ def create_reconciliation_record(
 def resolve_reconciliation_drift(
     data: ReconciliationRecordResolve,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     Resolve a drift record by creating an adjustment transaction.

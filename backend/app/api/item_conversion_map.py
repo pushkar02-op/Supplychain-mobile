@@ -6,7 +6,10 @@ Provides CRUD operations to manage unit/item conversion mappings.
 import logging
 from typing import List
 
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.item_conversion_map import (
     ItemConversionCreate,
     ItemConversionRead,
@@ -31,7 +34,9 @@ router = APIRouter(prefix="/conversions", tags=["Item Conversions"])
     "/", response_model=ItemConversionRead, status_code=status.HTTP_201_CREATED
 )
 def create_conv(
-    entry: ItemConversionCreate, db: Session = Depends(get_db)
+    entry: ItemConversionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> ItemConversionRead:
     """
     Create a new item conversion mapping.
@@ -91,7 +96,10 @@ def read_conv(conv_id: int, db: Session = Depends(get_db)) -> ItemConversionRead
     "/{conv_id}", response_model=ItemConversionRead, summary="Update conversion"
 )
 def update_conv(
-    conv_id: int, entry: ItemConversionUpdate, db: Session = Depends(get_db)
+    conv_id: int,
+    entry: ItemConversionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> ItemConversionRead:
     """
     Update an existing conversion mapping.
@@ -118,7 +126,11 @@ def update_conv(
 @router.delete(
     "/{conv_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete conversion"
 )
-def delete_conv(conv_id: int, db: Session = Depends(get_db)) -> None:
+def delete_conv(
+    conv_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> None:
     """
     Delete a conversion mapping by ID.
 

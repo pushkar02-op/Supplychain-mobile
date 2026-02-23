@@ -127,7 +127,7 @@ def test_api_layer_should_not_access_db_directly():
 @pytest.mark.unit
 def test_admin_routes_must_be_secured():
     """
-    Admin routes (admin_*) must strictly require get_current_active_admin.
+    Admin routes (admin_*) must strictly require require_role(Role.OWNER).
     """
     api_files = get_python_files(API_DIR)
     errors = []
@@ -139,9 +139,9 @@ def test_admin_routes_must_be_secured():
 
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
-            if "get_current_active_admin" not in content:
+            if "require_role(Role.OWNER)" not in content:
                 errors.append(
-                    f"{basename} does not import/use get_current_active_admin"
+                    f"{basename} does not import/use require_role(Role.OWNER)"
                 )
 
     assert not errors, "\n".join(errors)

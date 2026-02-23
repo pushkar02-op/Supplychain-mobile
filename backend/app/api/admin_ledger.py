@@ -1,6 +1,7 @@
 from typing import Dict, List
 
-from app.core.auth import get_current_active_admin
+from app.core.auth import require_role
+from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.session import get_db
 from app.services.reconciliation import get_ledger_health_report
@@ -19,7 +20,7 @@ def set_no_cache(response: Response):
 def get_health_summary(
     response: Response,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> Dict:
     """
     Returns a summary of ledger health.
@@ -51,7 +52,7 @@ def get_health_summary(
 def get_reconciliation_report(
     response: Response,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[Dict]:
     """
     Returns detailed drift records for any batch with health issues.

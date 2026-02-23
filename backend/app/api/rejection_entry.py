@@ -7,8 +7,9 @@ import logging
 from datetime import date
 from typing import Annotated, List, Optional
 
-from app.core.auth import get_current_user
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.schemas.rejection_entry import (
     RejectionEntryCreate,
@@ -34,7 +35,7 @@ router = APIRouter(prefix="/rejection-entries", tags=["Rejection Entries"])
 def create_route(
     entry: RejectionEntryCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
     idempotency_key: Annotated[str, Header()] = None,
 ) -> RejectionEntryRead:
     if not idempotency_key:
@@ -105,7 +106,7 @@ def get_filtered_rejections(
 def reverse_rejection(
     id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
     """
     Reverse a rejection entry. See docs/architecture/rejections-model.md.

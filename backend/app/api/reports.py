@@ -6,7 +6,10 @@ Provides inventory and P&L summary reports.
 import logging
 from typing import List, Optional
 
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.inventory_summary import (
     InventorySignalResponse,
     InventorySummaryRead,
@@ -104,6 +107,7 @@ def pnl(
     start: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
     end: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[PnlSummaryRead]:
     """
     Retrieve profit and loss summary report.

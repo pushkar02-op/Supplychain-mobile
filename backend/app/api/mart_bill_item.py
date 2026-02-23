@@ -7,7 +7,10 @@ Aliases logic from legacy /invoice-items.
 import logging
 from typing import List
 
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
+from app.db.models.user import User
 from app.db.schemas.mart_bill_item import (
     MartBillItemRead,
     MartBillItemSummary,
@@ -69,7 +72,10 @@ def read_items(bill_id: int, db: Session = Depends(get_db)) -> List[MartBillItem
     "/{item_id}", response_model=MartBillItemRead, summary="Update mart bill item"
 )
 def update_item(
-    item_id: int, update_data: MartBillItemUpdate, db: Session = Depends(get_db)
+    item_id: int,
+    update_data: MartBillItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> MartBillItemRead:
     """
     Update a specific mart bill item.
@@ -98,7 +104,11 @@ def update_item(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete mart bill item",
 )
-def delete_item(item_id: int, db: Session = Depends(get_db)) -> None:
+def delete_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> None:
     """
     Delete a specific mart bill item.
 

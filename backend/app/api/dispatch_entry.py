@@ -7,8 +7,9 @@ import logging
 from datetime import date
 from typing import List, Optional
 
-from app.core.auth import get_current_active_admin, get_current_user
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
 from app.db.models.dispatch_entry import DispatchEntry  # Added
 from app.db.models.user import User
 from app.db.schemas.dispatch_entry import (
@@ -38,7 +39,7 @@ router = APIRouter(prefix="/dispatch-entries", tags=["Dispatch Entries"])
 def create_route(
     entry: DispatchEntryCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> DispatchEntryRead:
     """
     Create a new dispatch entry.
@@ -62,7 +63,7 @@ def create_route(
 def dispatch_from_order(
     entry: DispatchEntryMultiCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[DispatchEntryRead]:
     """
     Create multiple dispatch entries from an order.
@@ -143,7 +144,7 @@ def reverse_dispatch(
     id: int,
     entry: DispatchReversalCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> DispatchReversalRead:
     """
     Reverse a dispatch entry (Admin Only).

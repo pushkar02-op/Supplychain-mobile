@@ -1,6 +1,7 @@
 import logging
 
-from app.core.auth import get_current_active_admin
+from app.core.auth import require_role
+from app.db.enums.role import Role
 from app.db.models.item import Item
 from app.db.models.user import User
 from app.db.session import get_db
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 @router.get("/diagnostics/uom/missing-default", status_code=200)
 def get_items_missing_default_uom(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     List items that have no default UOM configured.

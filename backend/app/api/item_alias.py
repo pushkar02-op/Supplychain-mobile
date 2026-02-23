@@ -1,6 +1,9 @@
 from typing import List
 
+from app.core.auth import require_role
+from app.db.enums.role import Role
 from app.db.models.item_alias import ItemAlias
+from app.db.models.user import User
 from app.db.schemas.item_alias import ItemAliasCreate, ItemAliasRead
 from app.db.session import get_db
 from app.services.item_alias import create_alias, get_all_aliases
@@ -11,7 +14,11 @@ router = APIRouter(prefix="/item-alias", tags=["Item Alias"])
 
 
 @router.post("/", response_model=ItemAliasRead)
-def create(entry: ItemAliasCreate, db: Session = Depends(get_db)):
+def create(
+    entry: ItemAliasCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+):
     return create_alias(db, entry, created_by="system")
 
 
