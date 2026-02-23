@@ -4,6 +4,7 @@ Provides inventory and P&L summary reports.
 """
 
 import logging
+from datetime import date
 from typing import List, Optional
 
 from app.core.auth import require_role
@@ -16,8 +17,10 @@ from app.db.schemas.inventory_summary import (
     ReconciliationDetail,
     ReconciliationItem,
 )
+from app.db.schemas.kpi import FinancialKpiResponse, OperationalKpiResponse
 from app.db.schemas.pnl_summary import PnlSummaryRead
 from app.db.session import get_db
+from app.services.kpi import get_financial_kpi, get_operational_kpi
 from app.services.reports import get_inventory_report, get_pnl_report
 from app.services.warehouse_scope import resolve_warehouse_for_request
 from fastapi import APIRouter, Depends, Query
@@ -155,4 +158,54 @@ def pnl(
     )
     return get_pnl_report(
         db=db, warehouse_id=resolved_warehouse_id, start=start, end=end
+    )
+
+
+@router.get(
+    "/financial-kpi",
+    response_model=FinancialKpiResponse,
+    summary="Warehouse financial KPI report",
+)
+def financial_kpi(
+    start_date: date = Query(..., description="Start date YYYY-MM-DD"),
+    end_date: date = Query(..., description="End date YYYY-MM-DD"),
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> FinancialKpiResponse:
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return FinancialKpiResponse(
+        **get_financial_kpi(
+            db=db,
+            warehouse_id=resolved_warehouse_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    )
+
+
+@router.get(
+    "/operational-kpi",
+    response_model=OperationalKpiResponse,
+    summary="Warehouse operational KPI report",
+)
+def operational_kpi(
+    start_date: date = Query(..., description="Start date YYYY-MM-DD"),
+    end_date: date = Query(..., description="End date YYYY-MM-DD"),
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> OperationalKpiResponse:
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return OperationalKpiResponse(
+        **get_operational_kpi(
+            db=db,
+            warehouse_id=resolved_warehouse_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
     )
