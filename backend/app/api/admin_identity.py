@@ -1,7 +1,8 @@
 from typing import List
 
-from app.core.auth import get_current_active_admin
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
 from app.db.models.mart import Mart
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.mart_item_alias import MartItemAlias
@@ -26,7 +27,7 @@ router = APIRouter()
 @router.get("/invoices/unresolved", response_model=List[UnresolvedInvoiceItemRead])
 def get_unresolved_invoice_items(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     List all invoice items that haven't been mapped to a canonical Item.
@@ -39,7 +40,7 @@ def get_unresolved_invoice_items(
 def create_mart_alias(
     alias_in: MartItemAliasCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     Create a Mart-Scoped Alias to map external names/codes to a canonical Item.
@@ -85,7 +86,7 @@ def create_mart_alias(
 def resolve_invoice_items(
     request: ResolutionRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
     Trigger re-resolution for unresolved items of a specific Mart.

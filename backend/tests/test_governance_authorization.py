@@ -18,7 +18,7 @@ def _is_router_http_decorator(node: ast.AST) -> bool:
 
 
 def _has_admin_dependency_in_node(node: ast.AST) -> bool:
-    return "Depends(get_current_active_admin)" in ast.unparse(node)
+    return "Depends(require_role(Role.OWNER))" in ast.unparse(node)
 
 
 def test_no_inline_admin_checks_in_routers() -> None:
@@ -72,6 +72,6 @@ def test_all_admin_routes_use_dependency() -> None:
                 violations.append(f"{rel}:{node.lineno}:{node.name}")
 
     assert not violations, (
-        "Admin routes missing Depends(get_current_active_admin):\n"
+        "Admin routes missing Depends(require_role(Role.OWNER)):\n"
         + "\n".join(violations)
     )

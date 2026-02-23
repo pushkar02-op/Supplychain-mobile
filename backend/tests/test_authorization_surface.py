@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.core.auth import get_current_user
+from app.db.enums.role import Role
 from app.db.models.batch import Batch
 from app.db.models.item import Item
 from app.db.models.mart import Mart
@@ -54,7 +55,7 @@ def test_admin_only_route_rejects_non_admin_user(db_session):
         id=2,
         username="operator",
         full_name="Operator User",
-        is_admin=False,
+        role=Role.WORKER,
         is_active=True,
     )
 
@@ -104,7 +105,7 @@ def test_previously_allowed_non_admin_dispatch_still_allowed(db_session):
         id=2,
         username="operator",
         full_name="Operator User",
-        is_admin=False,
+        role=Role.WORKER,
         is_active=True,
     )
 

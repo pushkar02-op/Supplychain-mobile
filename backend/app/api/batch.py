@@ -6,8 +6,9 @@ Provides CRUD operations for batches, including creation, retrieval, update, and
 import logging
 from typing import List
 
-from app.core.auth import get_current_active_admin
+from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.schemas.batch import BatchCreate, BatchRead, BatchUpdate
 from app.db.session import get_db
@@ -30,7 +31,7 @@ router = APIRouter(prefix="/batch", tags=["Batches"])
 def create(
     entry: BatchCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> BatchRead:
     """
     Create a new batch entry.
@@ -124,7 +125,7 @@ def update(
     batch_id: int,
     entry_update: BatchUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> BatchRead:
     """
     Update a batch by ID.
@@ -164,7 +165,7 @@ def update(
 def delete(
     batch_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_admin),
+    current_user: User = Depends(require_role(Role.OWNER)),
 ) -> None:
     """
     Delete a batch.
