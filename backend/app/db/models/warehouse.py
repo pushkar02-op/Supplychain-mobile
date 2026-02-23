@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy.orm import relationship
 
 from .base_class import Base
 
@@ -15,4 +16,15 @@ class Warehouse(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    labour_cost_entries = relationship(
+        "LabourCostDaily",
+        back_populates="warehouse",
+        cascade="all, delete-orphan",
+    )
+    transport_cost_entries = relationship(
+        "TransportCostDaily",
+        back_populates="warehouse",
+        cascade="all, delete-orphan",
     )
