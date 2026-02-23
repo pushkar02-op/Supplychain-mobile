@@ -95,8 +95,15 @@ def test_manager_cannot_create_users_or_change_roles(db_session):
     assert role_change_response.json()["rule_id"] == "AUT-001"
 
 
-def test_owner_can_create_users_and_change_roles(db_session):
+def test_owner_can_create_users_and_change_roles(db_session, monkeypatch):
     target = _create_user(db_session, username="worker_change", role=Role.WORKER)
+    import app.services.auth as auth_service
+
+    monkeypatch.setattr(
+        auth_service,
+        "create_access_token",
+        lambda data, expires_delta=None: "test-token",
+    )
 
     app.dependency_overrides[get_db] = _override_db(db_session)
     app.dependency_overrides[get_current_user] = _override_user(
