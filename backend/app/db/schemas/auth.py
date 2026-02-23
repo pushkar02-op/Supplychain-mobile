@@ -1,3 +1,4 @@
+from app.db.enums.role import Role
 from pydantic import BaseModel
 
 
@@ -21,6 +22,7 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    role: Role
     is_admin: bool = False
     refresh_token: str
 

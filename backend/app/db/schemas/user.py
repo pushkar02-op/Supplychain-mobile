@@ -1,12 +1,14 @@
 from datetime import datetime
 from typing import Optional
 
+from app.db.enums.role import Role
 from pydantic import BaseModel
 
 
 class UserBase(BaseModel):
     username: str
     full_name: str
+    role: Role
     is_admin: bool
     is_active: bool
 
@@ -22,5 +24,4 @@ class UserRead(UserBase):
 
 class UserUpdate(BaseModel):
     full_name: Optional[str]
-    is_admin: Optional[bool]
     is_active: Optional[bool]

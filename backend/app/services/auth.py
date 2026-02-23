@@ -56,12 +56,19 @@ def register_user(db: Session, user: UserCreate) -> Token:
         logger.exception("Failed to create user")
         raise AppException("User registration failed", status_code=500)
 
-    access_token = create_access_token(data={"sub": new_user.username})
+    access_token = create_access_token(
+        data={
+            "sub": new_user.username,
+            "uid": new_user.id,
+            "role": new_user.role.value,
+        }
+    )
 
     logger.info(f"User '{user.username}' registered successfully")
     return Token(
         access_token=access_token,
         token_type="bearer",
+        role=new_user.role,
         is_admin=new_user.is_admin,
         refresh_token=refresh_token,
     )
@@ -89,7 +96,13 @@ def login_user(db: Session, user: UserLogin) -> Token:
             "Invalid credentials", status_code=status.HTTP_401_UNAUTHORIZED
         )
 
-    access_token = create_access_token(data={"sub": db_user.username})
+    access_token = create_access_token(
+        data={
+            "sub": db_user.username,
+            "uid": db_user.id,
+            "role": db_user.role.value,
+        }
+    )
     try:
         refresh_token = create_refresh_token(db, db_user.id, commit=False)
         db.commit()
@@ -101,6 +114,7 @@ def login_user(db: Session, user: UserLogin) -> Token:
     return Token(
         access_token=access_token,
         token_type="bearer",
+        role=db_user.role,
         is_admin=db_user.is_admin,
         refresh_token=refresh_token,
     )
@@ -161,7 +175,13 @@ def refresh_token(db: Session, token_str: str) -> Token:
         db_token.revoked_at = datetime.utcnow()
 
         user = db_token.user
-        new_access_token = create_access_token(data={"sub": user.username})
+        new_access_token = create_access_token(
+            data={
+                "sub": user.username,
+                "uid": user.id,
+                "role": user.role.value,
+            }
+        )
         new_refresh_token = create_refresh_token(db, user.id, commit=False)
         db.commit()
     except Exception:
@@ -171,6 +191,7 @@ def refresh_token(db: Session, token_str: str) -> Token:
     return Token(
         access_token=new_access_token,
         token_type="bearer",
+        role=user.role,
         is_admin=user.is_admin,
         refresh_token=new_refresh_token,
     )
