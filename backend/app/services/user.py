@@ -14,6 +14,7 @@ from app.db.models.user import User
 from app.db.models.user_warehouse_access import UserWarehouseAccess
 from app.db.models.warehouse import Warehouse
 from app.db.schemas.user import UserCreateGoverned, UserUpdate
+from app.services.audit import log_action
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -123,6 +124,15 @@ def create_user_governed(
             updated_by=actor_user.username,
         )
         db.add(user)
+        db.flush()
+        log_action(
+            db=db,
+            actor_user_id=actor_user.id,
+            action_type="user_created",
+            entity_type="user",
+            entity_id=user.id,
+            metadata={"role": user.role.value, "username": user.username},
+        )
         db.commit()
         db.refresh(user)
     except Exception:
@@ -164,6 +174,14 @@ def update_user_role(
         user.role = new_role
         user.updated_by = updated_by
         user.updated_at = datetime.utcnow()
+        log_action(
+            db=db,
+            actor_user_id=actor_user_id,
+            action_type="user_role_changed",
+            entity_type="user",
+            entity_id=user.id,
+            metadata={"new_role": new_role.value},
+        )
         db.commit()
         db.refresh(user)
     except Exception:
@@ -177,6 +195,7 @@ def assign_warehouse_to_user(
     db: Session,
     user_id: int,
     warehouse_id: int,
+    actor_user_id: int,
 ) -> UserWarehouseAccess:
     user = get_user(db, user_id)
     if not user:
@@ -206,6 +225,15 @@ def assign_warehouse_to_user(
     try:
         access = UserWarehouseAccess(user_id=user_id, warehouse_id=warehouse_id)
         db.add(access)
+        db.flush()
+        log_action(
+            db=db,
+            actor_user_id=actor_user_id,
+            action_type="warehouse_assigned",
+            entity_type="user_warehouse_access",
+            entity_id=access.id,
+            metadata={"user_id": user_id, "warehouse_id": warehouse_id},
+        )
         db.commit()
         db.refresh(access)
     except Exception:
@@ -218,6 +246,7 @@ def remove_warehouse_from_user(
     db: Session,
     user_id: int,
     warehouse_id: int,
+    actor_user_id: int,
 ) -> None:
     user = get_user(db, user_id)
     if not user:
@@ -253,6 +282,14 @@ def remove_warehouse_from_user(
         )
 
     try:
+        log_action(
+            db=db,
+            actor_user_id=actor_user_id,
+            action_type="warehouse_removed",
+            entity_type="user_warehouse_access",
+            entity_id=access.id,
+            metadata={"user_id": user_id, "warehouse_id": warehouse_id},
+        )
         db.delete(access)
         db.commit()
     except Exception:
@@ -323,6 +360,15 @@ def delete_user(
     try:
         user.is_active = False
         user.updated_at = datetime.utcnow()
+        if deleted_by_user_id is not None:
+            log_action(
+                db=db,
+                actor_user_id=deleted_by_user_id,
+                action_type="user_deactivated",
+                entity_type="user",
+                entity_id=user.id,
+                metadata={"username": user.username},
+            )
         db.commit()
         db.refresh(user)
     except Exception:

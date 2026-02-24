@@ -24,6 +24,7 @@ from app.db.schemas.dispatch_entry import (
 )
 from app.db.schemas.domain_event import DispatchCompleted, OrderFulfilled
 from app.db.schemas.inventory_txn import InventoryTxnCreate
+from app.services.audit import log_action
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
 from app.services.order import update_order_status_after_reversal
@@ -38,6 +39,7 @@ def create_reversal_entry(
     dispatch_id: int,
     entry: DispatchReversalCreate,
     created_by: Optional[str] = None,
+    created_by_user_id: Optional[int] = None,
     warehouse_id: Optional[int] = None,
 ) -> DispatchReversal:
     """
@@ -193,6 +195,19 @@ def create_reversal_entry(
                 f"No order found to credit reversal for dispatch {dispatch_id}"
             )
 
+        if created_by_user_id is not None:
+            log_action(
+                db=db,
+                actor_user_id=created_by_user_id,
+                action_type="dispatch_reversed",
+                entity_type="dispatch_reversal",
+                entity_id=reversal.id,
+                metadata={
+                    "dispatch_entry_id": dispatch_id,
+                    "warehouse_id": dispatch.warehouse_id,
+                    "quantity": str(reversal_qty),
+                },
+            )
         db.commit()
         return reversal
     except Exception:

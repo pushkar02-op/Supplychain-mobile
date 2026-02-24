@@ -25,7 +25,7 @@ def get_all_audit_logs(db: Session) -> List[AuditLog]:
     """
     logger.info("Retrieving all audit logs")
     try:
-        logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).all()
+        logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).all()
         logger.debug(f"Retrieved {len(logs)} audit logs")
         return logs
     except Exception:

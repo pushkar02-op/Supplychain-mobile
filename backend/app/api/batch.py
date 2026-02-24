@@ -221,7 +221,12 @@ def delete(
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "delete"
     )
-    success = delete_batch(db=db, batch_id=batch_id, warehouse_id=resolved_warehouse_id)
+    success = delete_batch(
+        db=db,
+        batch_id=batch_id,
+        warehouse_id=resolved_warehouse_id,
+        deleted_by_user_id=current_user.id,
+    )
     if not success:
         logger.error(f"Batch not found: batch_id={batch_id}")
         raise AppException("Batch not found", status_code=404)

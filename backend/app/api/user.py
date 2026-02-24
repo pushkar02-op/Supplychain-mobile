@@ -125,7 +125,12 @@ def assign_warehouse_route(
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> UserWarehouseAccessRead:
     logger.info(f"Assigning warehouse {warehouse_id} to user {user_id}")
-    access = assign_warehouse_to_user(db=db, user_id=user_id, warehouse_id=warehouse_id)
+    access = assign_warehouse_to_user(
+        db=db,
+        user_id=user_id,
+        warehouse_id=warehouse_id,
+        actor_user_id=current_user.id,
+    )
     warehouse = db.get(Warehouse, access.warehouse_id)
     return UserWarehouseAccessRead(
         warehouse_id=access.warehouse_id,
@@ -146,7 +151,12 @@ def remove_warehouse_route(
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> None:
     logger.info(f"Removing warehouse {warehouse_id} from user {user_id}")
-    remove_warehouse_from_user(db=db, user_id=user_id, warehouse_id=warehouse_id)
+    remove_warehouse_from_user(
+        db=db,
+        user_id=user_id,
+        warehouse_id=warehouse_id,
+        actor_user_id=current_user.id,
+    )
     return None
 
 

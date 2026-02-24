@@ -12,6 +12,7 @@ from app.db.models.views.batch_ledger_balance import BatchLedgerBalance
 from app.db.schemas.domain_event import ReconciliationResolved
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.domain.drift_policy import classify_drift_ratio
+from app.services.audit import log_action
 from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
@@ -267,6 +268,18 @@ def _resolve_drift_impl(
         payload=event_payload,
     )
     db.add(event)
+    log_action(
+        db=db,
+        actor_user_id=user_id,
+        action_type="drift_resolved",
+        entity_type="reconciliation_record",
+        entity_id=record.id,
+        metadata={
+            "batch_id": record.batch_id,
+            "warehouse_id": record.warehouse_id,
+            "adjustment_qty": str(adjustment_qty),
+        },
+    )
 
     db.commit()
     db.refresh(record)
