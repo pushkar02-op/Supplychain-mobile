@@ -25,6 +25,7 @@ from app.db.schemas.dispatch_entry import (
 from app.db.schemas.domain_event import DispatchCompleted, OrderFulfilled
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.audit import log_action
+from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
 from app.services.order import update_order_status_after_reversal
@@ -70,6 +71,7 @@ def create_reversal_entry(
                 rule_id="AUT-004",
                 metadata={"warehouse_id": warehouse_id},
             )
+        enforce_lock_for_entity(db, dispatch, dispatch.dispatch_date)
 
         # 2. Calculate Remaining Quantity
         total_reversed = db.scalar(
@@ -265,6 +267,7 @@ def _create_dispatch_entry_impl(
             rule_id="AUT-004",
             metadata={"warehouse_id": warehouse_id},
         )
+    enforce_financial_lock(db, batch.warehouse_id, entry.dispatch_date)
 
     mart = db.scalar(select(Mart).where(Mart.name == entry.mart_name))
     if not mart:
@@ -544,6 +547,7 @@ def _create_dispatch_from_order_impl(
         msg = f"No pending order for item {entry.item_id} at mart {entry.mart_name}"
         logger.error(msg)
         raise AppException(msg, status_code=400)
+    enforce_financial_lock(db, order.warehouse_id, entry.dispatch_date)
 
     total_req = sum(b.quantity for b in entry.batches)
     # 1) Deterministically lock all involved batches to prevent deadlocks

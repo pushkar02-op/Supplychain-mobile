@@ -7,6 +7,7 @@ from typing import List
 from app.db.models.labour_cost_daily import LabourCostDaily
 from app.db.models.transport_cost_daily import TransportCostDaily
 from app.services.audit import log_action
+from app.services.financial_lock import enforce_financial_lock
 from sqlalchemy.orm import Session
 
 
@@ -23,6 +24,7 @@ def upsert_labour_cost(
     notes: str | None = None,
 ) -> LabourCostDaily:
     try:
+        enforce_financial_lock(db, warehouse_id, date)
         record = (
             db.query(LabourCostDaily)
             .filter(
@@ -77,6 +79,7 @@ def upsert_transport_cost(
     notes: str | None = None,
 ) -> TransportCostDaily:
     try:
+        enforce_financial_lock(db, warehouse_id, date)
         record = (
             db.query(TransportCostDaily)
             .filter(

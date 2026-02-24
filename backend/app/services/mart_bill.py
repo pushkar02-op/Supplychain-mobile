@@ -18,6 +18,7 @@ from app.db.models.mart_bill import MartBill
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.uom import UOM
 from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
+from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.item_alias import get_alias_by_code_or_name
 from app.services.warehouse_scope import resolve_system_warehouse_id
 from app.utils.invoice_parser import process_pdf
@@ -105,6 +106,7 @@ async def save_and_process_mart_bill(
         from decimal import Decimal as _D
 
         total_amount = _D(str(df["Total"].sum()))
+        enforce_financial_lock(db, resolved_warehouse_id, invoice_date)
 
         mart = db.query(Mart).filter(Mart.name == mart_name).first()
         if not mart:
@@ -373,6 +375,7 @@ def _update_mart_bill_impl(
     if not inv:
         logger.error(f"Invoice not found id={invoice_id}")
         return None
+    enforce_lock_for_entity(db, inv, inv.invoice_date)
 
     if inv.status == "VERIFIED":
         raise AppException(
@@ -409,6 +412,7 @@ def _verify_mart_bill_impl(
     inv = get_mart_bill_by_id(db, invoice_id, warehouse_id=warehouse_id)
     if not inv:
         return None
+    enforce_lock_for_entity(db, inv, inv.invoice_date)
 
     if inv.status == "VERIFIED":
         return inv
@@ -481,6 +485,7 @@ def _delete_mart_bill_impl(
     if not inv:
         logger.error(f"Invoice not found id={invoice_id}")
         return False
+    enforce_lock_for_entity(db, inv, inv.invoice_date)
     # Optional: Block delete if VERIFIED? Plan said "Delete (Restricted)".
     # "Forbidden Actions" for VERIFIED include Delete (Restricted).
     # I should check status.
@@ -530,6 +535,7 @@ async def _replace_mart_bill_file_impl(
     inv = get_mart_bill_by_id(db, invoice_id, warehouse_id=warehouse_id)
     if not inv:
         return None
+    enforce_lock_for_entity(db, inv, inv.invoice_date)
 
     # Delete old file if it exists
     if inv.file_path and storage.exists(inv.file_path):

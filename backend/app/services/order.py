@@ -13,6 +13,7 @@ from app.db.models.mart import Mart
 from app.db.models.mart_bill import MartBill
 from app.db.models.order import Order
 from app.db.schemas.order import OrderCreate, OrderUpdate
+from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.warehouse_scope import resolve_system_warehouse_id
 from sqlalchemy.orm import Session
 
@@ -68,6 +69,7 @@ def create_order(
     resolved_warehouse_id = resolve_system_warehouse_id(
         db, warehouse_id if warehouse_id is not None else entry.warehouse_id
     )
+    enforce_financial_lock(db, resolved_warehouse_id, entry.order_date)
 
     # ORD-009: Reject Zero Quantity
     if entry.quantity_ordered <= 0:
@@ -214,6 +216,7 @@ def update_order(
     if not ord_:
         logger.error(f"Order not found id={order_id}")
         return None
+    enforce_lock_for_entity(db, ord_, ord_.order_date)
 
     # ORD-004: Block Update After Dispatch
     current_dispatched = ord_.quantity_dispatched or 0

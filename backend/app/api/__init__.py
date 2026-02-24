@@ -24,6 +24,7 @@ from app.api.stock_adjustment import router as stock_adjustment_router
 from app.api.stock_entry import router as stock_entry_router
 from app.api.uom import router as uom_router
 from app.api.user import router as user_router
+from app.api.warehouse import router as warehouse_router
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/v1")
@@ -38,6 +39,7 @@ router.include_router(dispatch_router)
 router.include_router(rejection_router)
 router.include_router(audit_router)
 router.include_router(user_router)
+router.include_router(warehouse_router)
 router.include_router(invoice_router)
 router.include_router(invoice_item_router)
 router.include_router(order_router)

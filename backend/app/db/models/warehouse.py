@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, Date, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 
 from .base_class import Base
@@ -13,6 +13,7 @@ class Warehouse(Base):
     name = Column(String, unique=True, nullable=False)
     code = Column(String, unique=True, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
+    financial_lock_date = Column(Date, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow

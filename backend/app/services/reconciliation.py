@@ -13,6 +13,7 @@ from app.db.schemas.domain_event import ReconciliationResolved
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.domain.drift_policy import classify_drift_ratio
 from app.services.audit import log_action
+from app.services.financial_lock import enforce_lock_for_entity
 from app.services.inventory_truth import calculate_ledger_balance
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
@@ -222,6 +223,7 @@ def _resolve_drift_impl(
     )
     if not batch:
         return {"error": "Batch via record not found"}
+    enforce_lock_for_entity(db, batch, batch.created_at.date())
 
     item = db.get(Item, batch.item_id)
 
