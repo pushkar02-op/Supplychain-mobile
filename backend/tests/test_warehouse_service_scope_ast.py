@@ -194,3 +194,94 @@ def test_services_have_per_query_warehouse_scope_guards():
     assert not violations, "Unscoped transactional queries found:\n" + "\n".join(
         violations
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 (R1-4): Financial Lock Enforcement AST Guard
+# ---------------------------------------------------------------------------
+
+# Mapping: service file -> list of mutation functions that MUST call
+# enforce_financial_lock() or enforce_lock_for_entity().
+FINANCIAL_LOCK_ENFORCED_FUNCTIONS: dict[str, list[str]] = {
+    "dispatch_entry.py": [
+        "_create_dispatch_entry_impl",
+        "_create_dispatch_from_order_impl",
+        "create_reversal_entry",
+    ],
+    "stock_entry.py": [
+        "_create_stock_entry_impl",
+        "_create_stock_adjustment_impl",
+        "_delete_stock_entry_impl",
+    ],
+    "rejection_entry.py": [
+        "create_rejection_entry",
+        "reverse_rejection_entry",
+    ],
+    "order.py": [
+        "create_order",
+        "update_order",
+    ],
+    "mart_bill.py": [
+        "save_and_process_mart_bill",
+        "_update_mart_bill_impl",
+        "_verify_mart_bill_impl",
+        "_delete_mart_bill_impl",
+        "_replace_mart_bill_file_impl",
+    ],
+    "cost_control.py": [
+        "upsert_labour_cost",
+        "upsert_transport_cost",
+    ],
+    "reconciliation.py": [
+        "_resolve_drift_impl",
+    ],
+}
+
+LOCK_CALL_NAMES = {"enforce_financial_lock", "enforce_lock_for_entity"}
+
+
+def _function_contains_lock_call(
+    func_node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> bool:
+    """Return True if the function body contains a call to a financial lock function."""
+    for node in ast.walk(func_node):
+        if not isinstance(node, ast.Call):
+            continue
+        # Direct call: enforce_financial_lock(...)
+        if isinstance(node.func, ast.Name) and node.func.id in LOCK_CALL_NAMES:
+            return True
+        # Attribute call: module.enforce_financial_lock(...)
+        if isinstance(node.func, ast.Attribute) and node.func.attr in LOCK_CALL_NAMES:
+            return True
+    return False
+
+
+def test_mutation_functions_have_financial_lock_enforcement():
+    """AST guard: every mutation function listed in FINANCIAL_LOCK_ENFORCED_FUNCTIONS
+    must contain a call to enforce_financial_lock() or enforce_lock_for_entity()."""
+    missing = []
+
+    for file_name, required_functions in FINANCIAL_LOCK_ENFORCED_FUNCTIONS.items():
+        path = SERVICES_ROOT / file_name
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        # Build name -> node map for top-level functions
+        func_map: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                func_map[node.name] = node
+
+        for func_name in required_functions:
+            func_node = func_map.get(func_name)
+            if func_node is None:
+                missing.append(f"{file_name}::{func_name} — function not found")
+                continue
+            if not _function_contains_lock_call(func_node):
+                missing.append(
+                    f"{file_name}::{func_name} — missing enforce_financial_lock / enforce_lock_for_entity call"
+                )
+
+    assert not missing, (
+        "Mutation functions missing financial lock enforcement:\n" + "\n".join(missing)
+    )
