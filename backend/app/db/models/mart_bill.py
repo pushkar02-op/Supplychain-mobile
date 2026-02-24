@@ -10,6 +10,9 @@ class MartBill(Base, AuditMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     mart_id = Column(Integer, ForeignKey("mart.id"), nullable=False)
+    warehouse_id = Column(
+        Integer, ForeignKey("warehouse.id"), nullable=False, index=True
+    )
     invoice_date = Column(Date, nullable=False)
     file_path = Column(String, nullable=False)
     file_hash = Column(String, nullable=False, unique=True, index=True)
@@ -22,6 +25,7 @@ class MartBill(Base, AuditMixin):
     remarks = Column(String, nullable=True)
 
     mart = relationship("Mart")
+    warehouse = relationship("Warehouse")
     items = relationship(
         "MartBillItem", back_populates="bill", cascade="all, delete-orphan"
     )

@@ -22,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 def check_batch_drift(
-    db: Session, batch_id: int, ledger_qty_override: Optional[Decimal] = None
+    db: Session,
+    batch_id: int,
+    ledger_qty_override: Optional[Decimal] = None,
+    warehouse_id: Optional[int] = None,
 ) -> Dict:
     """
     Compares Batch.quantity (cached) vs Ledger Sum (via inventory_truth).
@@ -31,6 +34,8 @@ def check_batch_drift(
     batch = db.get(Batch, batch_id)
     if not batch:
         return {"error": "Batch not found"}
+    if warehouse_id is not None and batch.warehouse_id != warehouse_id:
+        return {"error": "Unauthorized warehouse access"}
 
     item = db.get(Item, batch.item_id)
     if not item:
@@ -43,8 +48,17 @@ def check_batch_drift(
     if ledger_qty_override is not None:
         ledger_qty = ledger_qty_override
     else:
-        ledger_balance = db.get(BatchLedgerBalance, batch_id)
-        if ledger_balance:
+        ledger_balance_query = db.query(BatchLedgerBalance).filter(
+            BatchLedgerBalance.batch_id == batch_id
+        )
+        if warehouse_id is not None:
+            ledger_balance_query = ledger_balance_query.filter(
+                BatchLedgerBalance.warehouse_id == warehouse_id
+            )
+        ledger_balance = ledger_balance_query.first()
+        if ledger_balance and (
+            warehouse_id is None or ledger_balance.warehouse_id == warehouse_id
+        ):
             ledger_qty = ledger_balance.ledger_qty
         else:
             # Fallback: View might be unpopulated (SQLite) or Batch truly has no Txns.
@@ -78,6 +92,7 @@ def check_batch_drift(
 
     return {
         "batch_id": batch_id,
+        "warehouse_id": batch.warehouse_id,
         "item_id": item.id,
         "item_name": item.name,
         "batch_qty_raw": batch.quantity,
@@ -94,22 +109,24 @@ def check_batch_drift(
     }
 
 
-def create_drift_record(db: Session, batch_id: int) -> Optional[ReconciliationRecord]:
+def create_drift_record(
+    db: Session, batch_id: int, warehouse_id: Optional[int] = None
+) -> Optional[ReconciliationRecord]:
     try:
-        return _create_drift_record_impl(db, batch_id)
+        return _create_drift_record_impl(db, batch_id, warehouse_id)
     except Exception:
         db.rollback()
         raise
 
 
 def _create_drift_record_impl(
-    db: Session, batch_id: int
+    db: Session, batch_id: int, warehouse_id: Optional[int] = None
 ) -> Optional[ReconciliationRecord]:
     """
     Persists the current drift state as a ReconciliationRecord.
     Reference Point for resolution.
     """
-    drift_data = check_batch_drift(db, batch_id)
+    drift_data = check_batch_drift(db, batch_id, warehouse_id=warehouse_id)
     if drift_data.get("error"):
         return None
 
@@ -129,6 +146,7 @@ def _create_drift_record_impl(
 
     record = ReconciliationRecord(
         batch_id=batch_id,
+        warehouse_id=drift_data.get("warehouse_id"),
         observed_ledger_qty=drift_data["ledger_qty"],
         observed_state_qty=drift_data["state_qty"],
         drift_amount=drift_data["drift"],
@@ -146,10 +164,11 @@ def resolve_drift(
     adjustment_qty: Decimal,
     user_id: int,
     apply_to_batch: bool = True,
+    warehouse_id: Optional[int] = None,
 ) -> Dict:
     try:
         result = _resolve_drift_impl(
-            db, record_id, adjustment_qty, user_id, apply_to_batch
+            db, record_id, adjustment_qty, user_id, apply_to_batch, warehouse_id
         )
         if result.get("status") == "success":
             record = result.get("record")
@@ -175,6 +194,7 @@ def _resolve_drift_impl(
     adjustment_qty: Decimal,
     user_id: int,
     apply_to_batch: bool = True,
+    warehouse_id: Optional[int] = None,
 ) -> Dict:
     """
     Resolves a drift record by creating an ADJUST transaction.
@@ -190,6 +210,8 @@ def _resolve_drift_impl(
     )
     if not record:
         return {"error": "Record not found"}
+    if warehouse_id is not None and record.warehouse_id != warehouse_id:
+        return {"error": "Unauthorized warehouse access"}
 
     if record.status != DriftStatus.OPEN:
         return {"error": "Record is not open"}
@@ -206,6 +228,7 @@ def _resolve_drift_impl(
     txn_data = InventoryTxnCreate(
         item_id=batch.item_id,
         batch_id=batch.id,
+        warehouse_id=record.warehouse_id,
         txn_type="ADJUST",
         raw_qty=adjustment_qty,
         raw_unit=item.default_uom_code,
@@ -250,7 +273,9 @@ def _resolve_drift_impl(
     return {"status": "success", "record": record}
 
 
-def get_ledger_health_report(db: Session) -> List[Dict]:
+def get_ledger_health_report(
+    db: Session, warehouse_id: Optional[int] = None
+) -> List[Dict]:
     """
     Returns health report for all batches with non-zero drift or issues.
     Optimized to use Read Models (O(1) vs O(N)).
@@ -259,8 +284,14 @@ def get_ledger_health_report(db: Session) -> List[Dict]:
     # 2. Get all ledger balances (bulk)
     # 3. Compute drift in memory (faster than N DB roundtrips)
 
-    batches = db.query(Batch).all()
-    balances = db.query(BatchLedgerBalance).all()
+    batch_q = db.query(Batch)
+    if warehouse_id is not None:
+        batch_q = batch_q.filter(Batch.warehouse_id == warehouse_id)
+    batches = batch_q.all()
+    balance_q = db.query(BatchLedgerBalance)
+    if warehouse_id is not None:
+        balance_q = balance_q.filter(BatchLedgerBalance.warehouse_id == warehouse_id)
+    balances = balance_q.all()
     balance_map = {b.batch_id: b.ledger_qty for b in balances}
 
     report = []
@@ -277,17 +308,27 @@ def get_ledger_health_report(db: Session) -> List[Dict]:
         # This triggers fallback in check_batch_drift (crucial for SQLite/Tests).
         ledger_qty = balance_map.get(batch.id)
 
-        metrics = check_batch_drift(db, batch.id, ledger_qty_override=ledger_qty)
+        metrics = check_batch_drift(
+            db,
+            batch.id,
+            ledger_qty_override=ledger_qty,
+            warehouse_id=warehouse_id,
+        )
         if metrics.get("is_drifted") or metrics.get("status") != "healthy":
             report.append(metrics)
 
     return report
 
 
-def get_all_reconciliation_records(db: Session) -> List[ReconciliationRecord]:
+def get_all_reconciliation_records(
+    db: Session, warehouse_id: Optional[int] = None
+) -> List[ReconciliationRecord]:
     """
     Returns all reconciliation records, ordered by detection time.
     """
-    return db.scalars(
-        select(ReconciliationRecord).order_by(ReconciliationRecord.detected_at.desc())
-    ).all()
+    stmt = select(ReconciliationRecord).order_by(
+        ReconciliationRecord.detected_at.desc()
+    )
+    if warehouse_id is not None:
+        stmt = stmt.where(ReconciliationRecord.warehouse_id == warehouse_id)
+    return db.scalars(stmt).all()

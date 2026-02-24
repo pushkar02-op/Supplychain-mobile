@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_inventory_report(
-    db: Session, item_id: Optional[int]
+    db: Session, warehouse_id: int, item_id: Optional[int]
 ) -> List[InventorySummaryRead]:
     """
     Retrieve inventory summary report, optionally filtered by item.
@@ -43,7 +43,7 @@ def get_inventory_report(
         List[InventorySummaryRead]: Inventory summary data.
     """
     logger.info(f"Fetching inventory report for item_id={item_id}")
-    q = db.query(InventorySummary)
+    q = db.query(InventorySummary).filter(InventorySummary.warehouse_id == warehouse_id)
     if item_id:
         q = q.filter(InventorySummary.item_id == item_id)
     results = q.all()
@@ -56,9 +56,11 @@ def get_inventory_report(
     from app.db.models.batch import Batch
     from sqlalchemy import func
 
-    batch_q = db.query(
-        Batch.item_id, Batch.unit, func.sum(Batch.quantity).label("total_qty")
-    ).group_by(Batch.item_id, Batch.unit)
+    batch_q = (
+        db.query(Batch.item_id, Batch.unit, func.sum(Batch.quantity).label("total_qty"))
+        .filter(Batch.warehouse_id == warehouse_id)
+        .group_by(Batch.item_id, Batch.unit)
+    )
 
     if item_id:
         batch_q = batch_q.filter(Batch.item_id == item_id)
@@ -87,7 +89,10 @@ def get_inventory_report(
 
     # Batch Query for Available Stock
     batches = (
-        db.query(Batch).filter(Batch.item_id.in_([r.item_id for r in results])).all()
+        db.query(Batch)
+        .filter(Batch.warehouse_id == warehouse_id)
+        .filter(Batch.item_id.in_([r.item_id for r in results]))
+        .all()
     )
 
     # Pre-fetch conversion factors if possible, or query individually (caching helps)
@@ -113,7 +118,8 @@ def get_inventory_report(
 
     # Signal Calculation via Read Model
     sig_q = db.query(InventorySignal).filter(
-        InventorySignal.item_id.in_([r.item_id for r in results])
+        InventorySignal.warehouse_id == warehouse_id,
+        InventorySignal.item_id.in_([r.item_id for r in results]),
     )
     signals_data = sig_q.all()
 
@@ -163,6 +169,7 @@ def get_inventory_report(
             signals.append("STABLE")
 
         display_obj = InventorySummaryRead(
+            warehouse_id=warehouse_id,
             item_id=r.item_id,
             name=r.name,
             unit=r.unit,
@@ -177,7 +184,9 @@ def get_inventory_report(
     return final_list
 
 
-def get_reconciliation_report(db: Session) -> List[ReconciliationItem]:
+def get_reconciliation_report(
+    db: Session, warehouse_id: int
+) -> List[ReconciliationItem]:
     """
     Get detailed reconciliation report using Phase 5 Reconciliation Service.
     Standardized Logic.
@@ -185,12 +194,13 @@ def get_reconciliation_report(db: Session) -> List[ReconciliationItem]:
     from app.services.reconciliation import get_ledger_health_report
 
     # get_ledger_health_report returns standardized dicts now
-    data = get_ledger_health_report(db)
+    data = get_ledger_health_report(db, warehouse_id=warehouse_id)
 
     recon_items = []
     for d in data:
         recon_items.append(
             ReconciliationItem(
+                warehouse_id=d["warehouse_id"],
                 item_id=d["item_id"],
                 item_name=d["item_name"],
                 state_qty=d["state_qty"],
@@ -205,17 +215,24 @@ def get_reconciliation_report(db: Session) -> List[ReconciliationItem]:
 
 
 def get_item_reconciliation(
-    db: Session, item_id: int
+    db: Session, warehouse_id: int, item_id: int
 ) -> Optional[ReconciliationDetail]:
     # 1. Get Basic Stats
-    report_list = get_reconciliation_report(db)
-    target = next((x for x in report_list if x.item_id == item_id), None)
+    report_list = get_reconciliation_report(db, warehouse_id=warehouse_id)
+    target = next(
+        (
+            x
+            for x in report_list
+            if x.item_id == item_id and x.warehouse_id == warehouse_id
+        ),
+        None,
+    )
 
     if not target:
         return None
 
     # 2. Get Item Summary (for full object)
-    summary_list = get_inventory_report(db, item_id)
+    summary_list = get_inventory_report(db, warehouse_id=warehouse_id, item_id=item_id)
     if not summary_list:
         return None
     summary = summary_list[0]
@@ -223,7 +240,10 @@ def get_item_reconciliation(
     # 3. Recent Transactions (Last 20)
     txns = (
         db.query(InventoryTxn)
-        .filter(InventoryTxn.item_id == item_id)
+        .filter(
+            InventoryTxn.item_id == item_id,
+            InventoryTxn.warehouse_id == warehouse_id,
+        )
         .order_by(InventoryTxn.created_at.desc())
         .limit(20)
         .all()
@@ -242,7 +262,11 @@ def get_item_reconciliation(
         )
 
     # 4. Batch Snapshot
-    batches = db.query(Batch).filter(Batch.item_id == item_id).all()
+    batches = (
+        db.query(Batch)
+        .filter(Batch.item_id == item_id, Batch.warehouse_id == warehouse_id)
+        .all()
+    )
     recon_batches = []
     for b in batches:
         recon_batches.append(
@@ -262,7 +286,7 @@ def get_item_reconciliation(
     )
 
 
-def get_item_signals(db: Session, item_id: int):
+def get_item_signals(db: Session, warehouse_id: int, item_id: int):
     """
     Retrieve signal breakdown for a specific item.
     """
@@ -272,9 +296,18 @@ def get_item_signals(db: Session, item_id: int):
     from app.db.schemas.inventory_summary import InventorySignalResponse
 
     # 1. Available Stock from Batches
-    batches = db.query(Batch).filter(Batch.item_id == item_id).all()
+    batches = (
+        db.query(Batch)
+        .filter(Batch.item_id == item_id, Batch.warehouse_id == warehouse_id)
+        .all()
+    )
     inv_summary = (
-        db.query(InventorySummary).filter(InventorySummary.item_id == item_id).first()
+        db.query(InventorySummary)
+        .filter(
+            InventorySummary.item_id == item_id,
+            InventorySummary.warehouse_id == warehouse_id,
+        )
+        .first()
     )
 
     if not inv_summary:
@@ -295,7 +328,14 @@ def get_item_signals(db: Session, item_id: int):
     # 2. Transaction Aggregation via Read Model
     from app.db.models.views.inventory_signal import InventorySignal
 
-    sig = db.get(InventorySignal, item_id)
+    sig = (
+        db.query(InventorySignal)
+        .filter(
+            InventorySignal.warehouse_id == warehouse_id,
+            InventorySignal.item_id == item_id,
+        )
+        .first()
+    )
 
     out_last_7d = (
         Decimal(str(sig.out_last_7d)) if sig and sig.out_last_7d else Decimal("0.0")
@@ -342,7 +382,7 @@ def get_item_signals(db: Session, item_id: int):
 
 
 def get_pnl_report(
-    db: Session, start: Optional[str], end: Optional[str]
+    db: Session, warehouse_id: int, start: Optional[str], end: Optional[str]
 ) -> List[PnlSummaryRead]:
     """
     Retrieve profit & loss summary report between dates.
@@ -356,7 +396,7 @@ def get_pnl_report(
         List[PnlSummaryRead]: P&L summary data.
     """
     logger.info(f"Fetching P&L report from {start} to {end}")
-    q = db.query(PnlSummary)
+    q = db.query(PnlSummary).filter(PnlSummary.warehouse_id == warehouse_id)
     if start:
         q = q.filter(PnlSummary.date >= start)
     if end:

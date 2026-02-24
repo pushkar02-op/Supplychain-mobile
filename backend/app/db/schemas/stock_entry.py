@@ -8,6 +8,7 @@ from app.db.schemas.item import ItemRead
 
 class StockEntryBase(SchemaModel):
     item_id: int
+    warehouse_id: Optional[int] = None
     received_date: date
     price_per_unit: Decimal
     total_cost: Decimal
@@ -23,6 +24,7 @@ class StockEntryCreate(StockEntryBase):
 class StockEntryRead(StockEntryBase):
     id: int
     batch_id: int
+    warehouse_id: int
     batch_quantity: Optional[Decimal] = (
         None  # Current batch balance (may differ from receipt qty)
     )

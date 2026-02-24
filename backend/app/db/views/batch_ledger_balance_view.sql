@@ -1,5 +1,6 @@
 CREATE OR REPLACE VIEW batch_ledger_balance_view AS
   SELECT
+    warehouse_id,
     batch_id,
     CAST(SUM(
         CASE
@@ -10,4 +11,4 @@ CREATE OR REPLACE VIEW batch_ledger_balance_view AS
     ) AS NUMERIC(10,3)) AS ledger_qty
   FROM inventory_txn
   WHERE batch_id IS NOT NULL
-  GROUP BY batch_id;
+  GROUP BY warehouse_id, batch_id;

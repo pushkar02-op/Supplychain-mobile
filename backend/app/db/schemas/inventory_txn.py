@@ -8,6 +8,7 @@ from app.db.schemas.base import SchemaModel
 class InventoryTxnCreate(SchemaModel):
     item_id: int
     batch_id: Optional[int]
+    warehouse_id: Optional[int] = None
     txn_type: str
     raw_qty: Decimal
     raw_unit: str
@@ -20,6 +21,7 @@ class InventoryTxnCreate(SchemaModel):
 
 class InventoryTxnRead(InventoryTxnCreate):
     id: int
+    warehouse_id: int
     created_at: datetime
 
     class Config:

@@ -10,6 +10,7 @@ from typing import List, Optional
 from app.core.exceptions import AppException
 from app.db.models.batch import Batch
 from app.db.schemas.batch import BatchCreate, BatchUpdate
+from app.services.warehouse_scope import resolve_system_warehouse_id
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -17,7 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 def create_batch(
-    db: Session, batch: BatchCreate, created_by: Optional[str] = None
+    db: Session,
+    batch: BatchCreate,
+    created_by: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> Batch:
     """
     Create or update a batch for today. If one exists, increase its quantity.
@@ -33,6 +37,9 @@ def create_batch(
     logger.info(
         f"Creating/updating batch for item_id={batch.item_id}, qty={batch.quantity}"
     )
+    resolved_warehouse_id = resolve_system_warehouse_id(
+        db, warehouse_id if warehouse_id is not None else batch.warehouse_id
+    )
     today = date.today()
     try:
         target_batch: Optional[Batch] = None
@@ -41,6 +48,7 @@ def create_batch(
             .filter(
                 and_(
                     Batch.item_id == batch.item_id,
+                    Batch.warehouse_id == resolved_warehouse_id,
                     Batch.created_at >= datetime.combine(today, datetime.min.time()),
                     Batch.created_at <= datetime.combine(today, datetime.max.time()),
                 )
@@ -62,7 +70,8 @@ def create_batch(
             user_name, user_id = resolve_user_audit(db, created_by)
 
             new_batch = Batch(
-                **batch.dict(),
+                **batch.dict(exclude={"warehouse_id"}),
+                warehouse_id=resolved_warehouse_id,
                 created_by=user_name,
                 created_by_id=user_id,
                 updated_by=user_name,
@@ -84,7 +93,7 @@ def create_batch(
         raise AppException("Batch creation failed", status_code=500)
 
 
-def get_batch(db: Session, batch_id: int) -> Batch:
+def get_batch(db: Session, batch_id: int, warehouse_id: Optional[int] = None) -> Batch:
     """
     Retrieve a batch by ID.
 
@@ -98,15 +107,21 @@ def get_batch(db: Session, batch_id: int) -> Batch:
     Raises:
         AppException: If batch not found.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.info(f"Retrieving batch id={batch_id}")
-    batch = db.query(Batch).filter(Batch.id == batch_id).first()
+    q = db.query(Batch).filter(
+        Batch.id == batch_id, Batch.warehouse_id == resolved_warehouse_id
+    )
+    batch = q.first()
     if not batch:
         logger.error(f"Batch not found id={batch_id}")
         raise AppException("Batch not found", status_code=404)
     return batch
 
 
-def get_all_batches(db: Session, skip: int = 0, limit: int = 100) -> List[Batch]:
+def get_all_batches(
+    db: Session, warehouse_id: Optional[int] = None, skip: int = 0, limit: int = 100
+) -> List[Batch]:
     """
     List all batches with pagination.
 
@@ -118,14 +133,18 @@ def get_all_batches(db: Session, skip: int = 0, limit: int = 100) -> List[Batch]
     Returns:
         List[Batch]: List of batch records.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.info(f"Listing batches skip={skip}, limit={limit}")
     from app.utils.pagination import get_pagination_params
 
     offset, limit = get_pagination_params(skip=skip, limit=limit)
-    return db.query(Batch).offset(offset).limit(limit).all()
+    q = db.query(Batch).filter(Batch.warehouse_id == resolved_warehouse_id)
+    return q.offset(offset).limit(limit).all()
 
 
-def get_batches_by_item_with_quantity(db: Session, item_id: int) -> List[Batch]:
+def get_batches_by_item_with_quantity(
+    db: Session, item_id: int, warehouse_id: Optional[int] = None
+) -> List[Batch]:
     """
     List batches for a specific item with available quantity.
 
@@ -136,10 +155,15 @@ def get_batches_by_item_with_quantity(db: Session, item_id: int) -> List[Batch]:
     Returns:
         List[Batch]: List of batch records.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.info(f"Listing batches for item_id={item_id} with quantity > 0")
     batches = (
         db.query(Batch)
-        .filter(Batch.item_id == item_id, Batch.quantity > 0)
+        .filter(
+            Batch.item_id == item_id,
+            Batch.quantity > 0,
+            Batch.warehouse_id == resolved_warehouse_id,
+        )
         .order_by(Batch.received_at.desc())
         .all()
     )
@@ -151,6 +175,7 @@ def update_batch(
     batch_id: int,
     entry_update: BatchUpdate,
     updated_by: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> Batch:
     """
     Update fields of an existing batch.
@@ -167,8 +192,12 @@ def update_batch(
     Raises:
         AppException: If batch not found.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.info(f"Updating batch id={batch_id}")
-    batch = db.query(Batch).filter(Batch.id == batch_id).first()
+    q = db.query(Batch).filter(
+        Batch.id == batch_id, Batch.warehouse_id == resolved_warehouse_id
+    )
+    batch = q.first()
     if not batch:
         logger.error(f"Batch not found id={batch_id}")
         raise AppException("Batch not found", status_code=404)
@@ -184,7 +213,9 @@ def update_batch(
     return batch
 
 
-def delete_batch(db: Session, batch_id: int) -> None:
+def delete_batch(
+    db: Session, batch_id: int, warehouse_id: Optional[int] = None
+) -> None:
     """
     Delete a batch by ID.
 
@@ -195,8 +226,12 @@ def delete_batch(db: Session, batch_id: int) -> None:
     Raises:
         AppException: If batch not found.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.info(f"Deleting batch id={batch_id}")
-    batch = db.query(Batch).filter(Batch.id == batch_id).first()
+    q = db.query(Batch).filter(
+        Batch.id == batch_id, Batch.warehouse_id == resolved_warehouse_id
+    )
+    batch = q.first()
     if not batch:
         logger.error(f"Batch not found id={batch_id}")
         raise AppException("Batch not found", status_code=404)

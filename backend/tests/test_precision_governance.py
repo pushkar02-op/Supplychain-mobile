@@ -3,17 +3,41 @@ import pytest
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.inventory_txn import create_inventory_txn
 from app.db.models.inventory_txn import InventoryTxn
+from app.db.models.batch import Batch
+from app.db.models.item import Item
+from app.db.models.uom import UOM
+from app.db.models.warehouse import Warehouse
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 
 
 @pytest.fixture(scope="function")
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
+    session.add(Warehouse(name="Main Warehouse", code="MAIN", is_active=True))
+    session.flush()
+    uom = UOM(code="kg", description="Kilogram")
+    session.add(uom)
+    session.flush()
+    item = Item(
+        name="Precision Test Item", item_code="PREC-ITEM", default_uom_id=uom.id
+    )
+    session.add(item)
+    session.flush()
+    batch = Batch(
+        item_id=item.id, warehouse_id=1, quantity=Decimal("100.000"), unit="kg"
+    )
+    session.add(batch)
+    session.commit()
     yield session
     session.close()
 

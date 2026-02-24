@@ -16,6 +16,7 @@ from .inventory_txn import InventoryTxn as InventoryTxn
 from .item import Item as Item
 from .item_alias import ItemAlias as ItemAlias
 from .item_conversion_map import ItemConversionMap as ItemConversionMap
+from .labour_cost_daily import LabourCostDaily as LabourCostDaily
 from .mart import Mart as Mart
 from .mart_bill import MartBill as MartBill
 from .mart_bill_item import MartBillItem as MartBillItem
@@ -23,8 +24,11 @@ from .order import Order as Order
 from .reconciliation_record import ReconciliationRecord as ReconciliationRecord
 from .rejection_entry import RejectionEntry as RejectionEntry
 from .stock_entry import StockEntry as StockEntry
+from .transport_cost_daily import TransportCostDaily as TransportCostDaily
 from .uom import UOM as UOM
 from .user import User as User
+from .user_warehouse_access import UserWarehouseAccess as UserWarehouseAccess
+from .warehouse import Warehouse as Warehouse
 
 # Exported names for `from app.db.models import *` or explicit import consumers.
 __all__ = [
@@ -45,7 +49,11 @@ __all__ = [
     "InventoryTxn",
     "UOM",
     "Mart",
+    "LabourCostDaily",
+    "TransportCostDaily",
     "RefreshToken",
     "IdempotencyRecord",
     "DomainEvent",
+    "Warehouse",
+    "UserWarehouseAccess",
 ]

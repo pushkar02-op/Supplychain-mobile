@@ -19,6 +19,7 @@ from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.uom import UOM
 from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
 from app.services.item_alias import get_alias_by_code_or_name
+from app.services.warehouse_scope import resolve_system_warehouse_id
 from app.utils.invoice_parser import process_pdf
 from fastapi import UploadFile
 from sqlalchemy import or_
@@ -56,7 +57,10 @@ storage = LocalDiskStorage(base_path=".")
 
 
 async def save_and_process_mart_bill(
-    file: UploadFile, db: Session, created_by: str = "system"
+    file: UploadFile,
+    db: Session,
+    created_by: str = "system",
+    warehouse_id: Optional[int] = None,
 ) -> Dict[str, Optional[Union[int, str, bool]]]:
     """
     Save uploaded PDF, parse it, insert invoice and items.
@@ -73,7 +77,9 @@ async def save_and_process_mart_bill(
     logger.info(f"Processing invoice file '{filename}'")
     file_bytes = await file.read()
     file_hash = hashlib.sha256(file_bytes).hexdigest()
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
 
+    # Intentionally global - duplicate file hashes must be blocked across all warehouses.
     existing = db.query(MartBill).filter_by(file_hash=file_hash).first()
     if existing:
         logger.warning("Duplicate mart bill detected")
@@ -110,6 +116,7 @@ async def save_and_process_mart_bill(
         inv = MartBill(
             invoice_date=invoice_date,
             mart_id=mart.id,
+            warehouse_id=resolved_warehouse_id,
             total_amount=total_amount,
             file_path=storage_key,  # Store key (which happens to be relative path)
             file_hash=file_hash,
@@ -174,6 +181,7 @@ async def save_and_process_mart_bill(
                 MartBillItem(
                     invoice_id=inv.id,
                     item_id=item_id,
+                    warehouse_id=resolved_warehouse_id,
                     hsn_code=row["HSN_CODE"],
                     item_code=row["ITEM_CODE"],
                     item_name=item_name,
@@ -204,7 +212,9 @@ async def save_and_process_mart_bill(
         raise AppException("Invoice processing failed", status_code=500)
 
 
-def get_mart_bill_by_id(db: Session, invoice_id: int) -> Optional[MartBill]:
+def get_mart_bill_by_id(
+    db: Session, invoice_id: int, warehouse_id: Optional[int] = None
+) -> Optional[MartBill]:
     """
     Retrieve an invoice by ID.
 
@@ -215,12 +225,17 @@ def get_mart_bill_by_id(db: Session, invoice_id: int) -> Optional[MartBill]:
     Returns:
         Optional[Invoice]: Invoice or None.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug(f"Retrieving invoice id={invoice_id}")
-    return db.query(MartBill).filter(MartBill.id == invoice_id).first()
+    q = db.query(MartBill).filter(
+        MartBill.id == invoice_id, MartBill.warehouse_id == resolved_warehouse_id
+    )
+    return q.first()
 
 
 def get_all_mart_bills(
     db: Session,
+    warehouse_id: int,
     invoice_date: Optional[str] = None,
     mart_name: Optional[str] = None,
     search: Optional[str] = None,
@@ -238,7 +253,7 @@ def get_all_mart_bills(
         List[Invoice]: List of invoices.
     """
     logger.debug("Fetching invoices with filters")
-    query = db.query(MartBill)
+    query = db.query(MartBill).filter(MartBill.warehouse_id == warehouse_id)
     if invoice_date:
         query = query.filter(MartBill.invoice_date == invoice_date)
     if mart_name:
@@ -251,6 +266,7 @@ def get_all_mart_bills(
 
 def get_mart_bills_paginated(
     db: Session,
+    warehouse_id: int,
     invoice_date: Optional[date] = None,
     mart_id: Optional[int] = None,
     search: Optional[str] = None,
@@ -275,7 +291,11 @@ def get_mart_bills_paginated(
     logger.debug(
         f"Fetching invoices paginated date={invoice_date}, mart_id={mart_id}, search={search}, skip={skip}, limit={limit}"
     )
-    query = db.query(MartBill).options(joinedload(MartBill.mart))
+    query = (
+        db.query(MartBill)
+        .options(joinedload(MartBill.mart))
+        .filter(MartBill.warehouse_id == warehouse_id)
+    )
 
     if invoice_date:
         query = query.filter(MartBill.invoice_date == invoice_date)
@@ -319,17 +339,23 @@ def get_mart_bills_paginated(
 
 
 def update_mart_bill(
-    db: Session, invoice_id: int, data: MartBillUpdate
+    db: Session,
+    invoice_id: int,
+    data: MartBillUpdate,
+    warehouse_id: Optional[int] = None,
 ) -> Optional[MartBill]:
     try:
-        return _update_mart_bill_impl(db, invoice_id, data)
+        return _update_mart_bill_impl(db, invoice_id, data, warehouse_id)
     except Exception:
         db.rollback()
         raise
 
 
 def _update_mart_bill_impl(
-    db: Session, invoice_id: int, data: MartBillUpdate
+    db: Session,
+    invoice_id: int,
+    data: MartBillUpdate,
+    warehouse_id: Optional[int] = None,
 ) -> Optional[MartBill]:
     """
     Update an existing invoice.
@@ -343,7 +369,7 @@ def _update_mart_bill_impl(
         Optional[Invoice]: Updated invoice or None.
     """
     logger.info(f"Updating mart bill id={invoice_id}")
-    inv = get_mart_bill_by_id(db, invoice_id)
+    inv = get_mart_bill_by_id(db, invoice_id, warehouse_id=warehouse_id)
     if not inv:
         logger.error(f"Invoice not found id={invoice_id}")
         return None
@@ -362,22 +388,25 @@ def _update_mart_bill_impl(
 
 
 def verify_mart_bill(
-    db: Session, invoice_id: int, user_name: str
+    db: Session, invoice_id: int, user_name: str, warehouse_id: Optional[int] = None
 ) -> Optional[MartBill]:
     try:
-        return _verify_mart_bill_impl(db, invoice_id, user_name)
+        return _verify_mart_bill_impl(db, invoice_id, user_name, warehouse_id)
     except Exception:
         db.rollback()
         raise
 
 
 def _verify_mart_bill_impl(
-    db: Session, invoice_id: int, user_name: str
+    db: Session,
+    invoice_id: int,
+    user_name: str,
+    warehouse_id: Optional[int] = None,
 ) -> Optional[MartBill]:
     """
     Lock and verify a mart bill.
     """
-    inv = get_mart_bill_by_id(db, invoice_id)
+    inv = get_mart_bill_by_id(db, invoice_id, warehouse_id=warehouse_id)
     if not inv:
         return None
 
@@ -395,19 +424,23 @@ def _verify_mart_bill_impl(
     return inv
 
 
-def unverify_mart_bill(db: Session, invoice_id: int) -> Optional[MartBill]:
+def unverify_mart_bill(
+    db: Session, invoice_id: int, warehouse_id: Optional[int] = None
+) -> Optional[MartBill]:
     try:
-        return _unverify_mart_bill_impl(db, invoice_id)
+        return _unverify_mart_bill_impl(db, invoice_id, warehouse_id)
     except Exception:
         db.rollback()
         raise
 
 
-def _unverify_mart_bill_impl(db: Session, invoice_id: int) -> Optional[MartBill]:
+def _unverify_mart_bill_impl(
+    db: Session, invoice_id: int, warehouse_id: Optional[int] = None
+) -> Optional[MartBill]:
     """
     Unlock a mart bill for editing.
     """
-    inv = get_mart_bill_by_id(db, invoice_id)
+    inv = get_mart_bill_by_id(db, invoice_id, warehouse_id=warehouse_id)
     if not inv:
         return None
 
@@ -420,15 +453,19 @@ def _unverify_mart_bill_impl(db: Session, invoice_id: int) -> Optional[MartBill]
     return inv
 
 
-def delete_mart_bill(db: Session, invoice_id: int) -> bool:
+def delete_mart_bill(
+    db: Session, invoice_id: int, warehouse_id: Optional[int] = None
+) -> bool:
     try:
-        return _delete_mart_bill_impl(db, invoice_id)
+        return _delete_mart_bill_impl(db, invoice_id, warehouse_id)
     except Exception:
         db.rollback()
         raise
 
 
-def _delete_mart_bill_impl(db: Session, invoice_id: int) -> bool:
+def _delete_mart_bill_impl(
+    db: Session, invoice_id: int, warehouse_id: Optional[int] = None
+) -> bool:
     """
     Delete an invoice by ID.
 
@@ -440,7 +477,7 @@ def _delete_mart_bill_impl(db: Session, invoice_id: int) -> bool:
         bool: True if deleted, False otherwise.
     """
     logger.info(f"Deleting mart bill id={invoice_id}")
-    inv = get_mart_bill_by_id(db, invoice_id)
+    inv = get_mart_bill_by_id(db, invoice_id, warehouse_id=warehouse_id)
     if not inv:
         logger.error(f"Invoice not found id={invoice_id}")
         return False
@@ -463,24 +500,34 @@ def _delete_mart_bill_impl(db: Session, invoice_id: int) -> bool:
 
 
 async def replace_mart_bill_file(
-    db: Session, invoice_id: int, file: UploadFile, user_name: str
+    db: Session,
+    invoice_id: int,
+    file: UploadFile,
+    user_name: str,
+    warehouse_id: Optional[int] = None,
 ) -> Optional[MartBill]:
     try:
-        return await _replace_mart_bill_file_impl(db, invoice_id, file, user_name)
+        return await _replace_mart_bill_file_impl(
+            db, invoice_id, file, user_name, warehouse_id
+        )
     except Exception:
         db.rollback()
         raise
 
 
 async def _replace_mart_bill_file_impl(
-    db: Session, invoice_id: int, file: UploadFile, user_name: str
+    db: Session,
+    invoice_id: int,
+    file: UploadFile,
+    user_name: str,
+    warehouse_id: Optional[int] = None,
 ) -> Optional[MartBill]:
     """
     Replace the PDF file for an existing mart bill.
     Resets status to NEEDS_REVIEW to ensure re-verification.
     """
     logger.info(f"Replacing file for mart bill id={invoice_id}")
-    inv = get_mart_bill_by_id(db, invoice_id)
+    inv = get_mart_bill_by_id(db, invoice_id, warehouse_id=warehouse_id)
     if not inv:
         return None
 

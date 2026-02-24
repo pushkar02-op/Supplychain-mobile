@@ -9,6 +9,7 @@ from pydantic import Field
 
 class RejectionEntryBase(SchemaModel):
     batch_id: int
+    warehouse_id: Optional[int] = None
     quantity: Decimal
     unit: str
     reason: Optional[str]
@@ -22,6 +23,7 @@ class RejectionEntryCreate(RejectionEntryBase):
 
 class RejectionEntryRead(RejectionEntryBase):
     id: int
+    warehouse_id: int
     unit: str
     is_active: bool
     created_at: datetime = Field(..., description="ISO 8601 format")

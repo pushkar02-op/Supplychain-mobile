@@ -4,7 +4,7 @@ Provides retrieval, update, and deletion of invoice line items.
 """
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from app.core.auth import require_role
 from app.core.exceptions import AppException
@@ -20,6 +20,7 @@ from app.services.mart_bill_item import (
     get_items_by_mart_bill,
     update_mart_bill_item,
 )
+from app.services.warehouse_scope import resolve_warehouse_for_request
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
@@ -30,7 +31,9 @@ router = APIRouter(prefix="/invoice-items", tags=["Invoice Items"])
 @router.get("/distinct-items", response_model=list[InvoiceItemSummary])
 def distinct_items_for_mart(
     mart_name: str = Query(..., description="Mart name"),
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ):
     """
     Retrieve distinct invoice items for a given mart.
@@ -44,13 +47,23 @@ def distinct_items_for_mart(
         List[InvoiceItemRead]: List of distinct invoice items.
     """
     logger.info(f"API: Fetching distinct items for mart: {mart_name}")
-    return get_distinct_items_for_mart(db, mart_name)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_distinct_items_for_mart(
+        db, mart_name, warehouse_id=resolved_warehouse_id
+    )
 
 
 @router.get(
     "/{invoice_id}", response_model=List[InvoiceItemRead], summary="List invoice items"
 )
-def read_items(invoice_id: int, db: Session = Depends(get_db)) -> List[InvoiceItemRead]:
+def read_items(
+    invoice_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> List[InvoiceItemRead]:
     """
     Retrieve all items for a given invoice.
 
@@ -62,13 +75,17 @@ def read_items(invoice_id: int, db: Session = Depends(get_db)) -> List[InvoiceIt
         List[InvoiceItemRead]: List of items.
     """
     logger.info(f"Fetching items for invoice_id={invoice_id}")
-    return get_items_by_mart_bill(db, invoice_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_items_by_mart_bill(db, invoice_id, warehouse_id=resolved_warehouse_id)
 
 
 @router.put("/{item_id}", response_model=InvoiceItemRead, summary="Update invoice item")
 def update_item(
     item_id: int,
     update_data: InvoiceItemUpdate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> InvoiceItemRead:
@@ -87,7 +104,12 @@ def update_item(
         AppException: If the item is not found (404).
     """
     logger.info(f"Updating invoice item id={item_id}")
-    updated = update_mart_bill_item(db, item_id, update_data)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    updated = update_mart_bill_item(
+        db, item_id, update_data, warehouse_id=resolved_warehouse_id
+    )
     if not updated:
         logger.error(f"Invoice item not found: id={item_id}")
         raise AppException("Item not found", status_code=404)
@@ -99,6 +121,7 @@ def update_item(
 )
 def delete_item(
     item_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> None:
@@ -113,7 +136,10 @@ def delete_item(
         AppException: If the item is not found (404).
     """
     logger.info(f"Deleting invoice item id={item_id}")
-    if not delete_mart_bill_item(db, item_id):
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "delete"
+    )
+    if not delete_mart_bill_item(db, item_id, warehouse_id=resolved_warehouse_id):
         logger.error(f"Invoice item not found: id={item_id}")
         raise AppException("Item not found", status_code=404)
     return None

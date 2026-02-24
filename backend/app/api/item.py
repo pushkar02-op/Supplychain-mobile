@@ -6,7 +6,7 @@ Provides CRUD operations for items and retrieval of items with available batches
 import logging
 from typing import List, Optional
 
-from app.core.auth import require_role
+from app.core.auth import get_current_user, require_role
 from app.core.exceptions import AppException
 from app.db.enums.role import Role
 from app.db.models.user import User
@@ -21,7 +21,8 @@ from app.services.item import (
     reactivate_item,
     update_item,
 )
-from fastapi import APIRouter, Depends, status
+from app.services.warehouse_scope import resolve_warehouse_for_request
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,11 @@ def read_all(
     response_model=List[ItemRead],
     summary="List items with available batches",
 )
-def get_items_with_batches(db: Session = Depends(get_db)) -> List[ItemRead]:
+def get_items_with_batches(
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List[ItemRead]:
     """
     Retrieve items that have available batches.
 
@@ -91,12 +96,22 @@ def get_items_with_batches(db: Session = Depends(get_db)) -> List[ItemRead]:
         List[ItemRead]: List of items with stock.
     """
     logger.info("Fetching items with available batches")
-    return get_items_with_available_batches(db)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user=current_user,
+        warehouse_id=warehouse_id,
+        db=db,
+        operation_type="read",
+    )
+    return get_items_with_available_batches(db, warehouse_id=resolved_warehouse_id)
 
 
 @router.get("/check-similarity", summary="Check for similar items (Advisory)")
 def check_advisory_similarity(
-    name: str, uom: Optional[str] = None, db: Session = Depends(get_db)
+    name: str,
+    uom: Optional[str] = None,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Find similar items for soft duplicate awareness (Advisory Only).
@@ -115,7 +130,18 @@ def check_advisory_similarity(
     """
     from app.services.item import search_advisory_name_matches
 
-    return search_advisory_name_matches(db=db, name=name, uom_code=uom)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user=current_user,
+        warehouse_id=warehouse_id,
+        db=db,
+        operation_type="read",
+    )
+    return search_advisory_name_matches(
+        db=db,
+        name=name,
+        warehouse_id=resolved_warehouse_id,
+        uom_code=uom,
+    )
 
 
 @router.get("/{item_id}", response_model=ItemRead, summary="Get item by ID")

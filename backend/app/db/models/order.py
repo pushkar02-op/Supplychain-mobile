@@ -25,6 +25,9 @@ class Order(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
     mart_id = Column(Integer, ForeignKey("mart.id"), nullable=False)
+    warehouse_id = Column(
+        Integer, ForeignKey("warehouse.id"), nullable=False, index=True
+    )
     order_date = Column(Date, nullable=False)
     quantity_ordered = Column(Numeric(10, 3), nullable=False)
     quantity_dispatched = Column(
@@ -37,3 +40,4 @@ class Order(Base, AuditMixin):
 
     item = relationship("Item")
     mart = relationship("Mart", back_populates="orders")
+    warehouse = relationship("Warehouse")

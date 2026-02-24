@@ -15,6 +15,7 @@ from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.db.schemas.stock_entry import StockEntryCreate, StockEntryUpdate
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
+from app.services.warehouse_scope import resolve_system_warehouse_id
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -26,9 +27,12 @@ def create_stock_entry(
     entry: StockEntryCreate,
     created_by: Optional[int] = None,
     idempotency_key: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> StockEntry:
     try:
-        return _create_stock_entry_impl(db, entry, created_by, idempotency_key)
+        return _create_stock_entry_impl(
+            db, entry, created_by, idempotency_key, warehouse_id
+        )
     except Exception:
         db.rollback()
         raise
@@ -39,6 +43,7 @@ def _create_stock_entry_impl(
     entry: StockEntryCreate,
     created_by: Optional[int] = None,
     idempotency_key: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> StockEntry:
     """
     Create a stock entry, grouping into an existing batch or creating a new one.
@@ -55,6 +60,10 @@ def _create_stock_entry_impl(
         f"Creating stock entry for item_id={entry.item_id}, qty={entry.quantity}, idempotency_key={idempotency_key}"
     )
 
+    resolved_warehouse_id = resolve_system_warehouse_id(
+        db, warehouse_id if warehouse_id is not None else entry.warehouse_id
+    )
+
     if idempotency_key:
         from app.utils.idempotency import check_idempotency, save_idempotency_record
 
@@ -65,19 +74,27 @@ def _create_stock_entry_impl(
             return get_stock_entry(db, existing_record.result_entity_id)
 
     # 1) Find-or-create Batch
-    batch = (
-        db.query(Batch)
-        .filter(
-            and_(
-                Batch.item_id == entry.item_id,
-                Batch.received_at == entry.received_date,
-            )
+    batch_query = db.query(Batch).filter(
+        and_(
+            Batch.item_id == entry.item_id,
+            Batch.received_at == entry.received_date,
         )
-        .with_for_update()
-        .first()
     )
+    if resolved_warehouse_id is not None:
+        batch_query = batch_query.filter(Batch.warehouse_id == resolved_warehouse_id)
+    batch = batch_query.with_for_update().first()
 
     if batch:
+        if (
+            resolved_warehouse_id is not None
+            and batch.warehouse_id != resolved_warehouse_id
+        ):
+            raise AppException(
+                "Unauthorized warehouse access",
+                status_code=403,
+                rule_id="AUT-004",
+                metadata={"warehouse_id": resolved_warehouse_id},
+            )
         # Direct NUMERIC update (Stage 3: Cleanup)
         batch.quantity += Decimal(str(entry.quantity))
         batch.updated_by = created_by
@@ -119,6 +136,7 @@ def _create_stock_entry_impl(
 
         batch = Batch(
             item_id=entry.item_id,
+            warehouse_id=resolved_warehouse_id,
             quantity=qty_to_store,
             unit=target_unit,
             received_at=entry.received_date,
@@ -136,9 +154,11 @@ def _create_stock_entry_impl(
 
     user_name, user_id = resolve_user_audit(db, created_by)
 
+    stock_entry_data = entry.dict(exclude={"warehouse_id"})
     stock_entry = StockEntry(
-        **entry.dict(),
+        **stock_entry_data,
         batch_id=batch.id,
+        warehouse_id=batch.warehouse_id,
         created_by=user_name,
         created_by_id=user_id,
         updated_by=user_name,
@@ -202,7 +222,9 @@ def _create_stock_entry_impl(
     return stock_entry
 
 
-def get_stock_entry(db: Session, stock_entry_id: int) -> Optional[StockEntry]:
+def get_stock_entry(
+    db: Session, stock_entry_id: int, warehouse_id: Optional[int] = None
+) -> Optional[StockEntry]:
     """
     Retrieve a stock entry by ID.
 
@@ -213,12 +235,21 @@ def get_stock_entry(db: Session, stock_entry_id: int) -> Optional[StockEntry]:
     Returns:
         Optional[StockEntry]: Stock entry or None.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug(f"Retrieving stock entry id={stock_entry_id}")
-    return db.query(StockEntry).filter(StockEntry.id == stock_entry_id).first()
+    q = db.query(StockEntry).filter(
+        StockEntry.id == stock_entry_id,
+        StockEntry.warehouse_id == resolved_warehouse_id,
+    )
+    return q.first()
 
 
 def get_all_stock_entries(
-    db: Session, date: Optional[date] = None, skip: int = 0, limit: int = 100
+    db: Session,
+    warehouse_id: Optional[int] = None,
+    date: Optional[date] = None,
+    skip: int = 0,
+    limit: int = 100,
 ) -> List[StockEntry]:
     """
     Retrieve stock entries with optional date filter.
@@ -232,8 +263,11 @@ def get_all_stock_entries(
     Returns:
         List[StockEntry]: List of entries.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug(f"Fetching stock entries date={date}, skip={skip}, limit={limit}")
-    q = db.query(StockEntry).filter(StockEntry.is_active)
+    q = db.query(StockEntry).filter(
+        StockEntry.is_active, StockEntry.warehouse_id == resolved_warehouse_id
+    )
     if date:
         q = q.filter(StockEntry.received_date == date)
     return q.offset(skip).limit(limit).all()
@@ -262,10 +296,11 @@ def create_stock_adjustment(
     unit: str,
     reason: str,
     user_id: Optional[int] = None,
+    warehouse_id: Optional[int] = None,
 ):
     try:
         return _create_stock_adjustment_impl(
-            db, batch_id, quantity_delta, unit, reason, user_id
+            db, batch_id, quantity_delta, unit, reason, user_id, warehouse_id
         )
     except Exception:
         db.rollback()
@@ -279,6 +314,7 @@ def _create_stock_adjustment_impl(
     unit: str,
     reason: str,
     user_id: Optional[int] = None,
+    warehouse_id: Optional[int] = None,
 ):
     """
     Create a stock adjustment (correction/drift fix).
@@ -295,7 +331,13 @@ def _create_stock_adjustment_impl(
         f"Creating stock adjustment batch_id={batch_id} delta={quantity_delta} ({unit})"
     )
 
-    batch = db.query(Batch).filter(Batch.id == batch_id).with_for_update().first()
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
+    batch = (
+        db.query(Batch)
+        .filter(Batch.id == batch_id, Batch.warehouse_id == resolved_warehouse_id)
+        .with_for_update()
+        .first()
+    )
     if not batch:
         raise AppException("Batch not found", status_code=404)
 
@@ -349,15 +391,19 @@ def _create_stock_adjustment_impl(
     return txn
 
 
-def delete_stock_entry(db: Session, stock_entry_id: int) -> bool:
+def delete_stock_entry(
+    db: Session, stock_entry_id: int, warehouse_id: Optional[int] = None
+) -> bool:
     try:
-        return _delete_stock_entry_impl(db, stock_entry_id)
+        return _delete_stock_entry_impl(db, stock_entry_id, warehouse_id)
     except Exception:
         db.rollback()
         raise
 
 
-def _delete_stock_entry_impl(db: Session, stock_entry_id: int) -> bool:
+def _delete_stock_entry_impl(
+    db: Session, stock_entry_id: int, warehouse_id: Optional[int] = None
+) -> bool:
     """
     Delete a stock entry and adjust batch quantity.
 
@@ -368,14 +414,19 @@ def _delete_stock_entry_impl(db: Session, stock_entry_id: int) -> bool:
     Returns:
         bool: True if deleted, False otherwise.
     """
+    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.info(f"Deleting stock entry id={stock_entry_id}")
-    entry = get_stock_entry(db, stock_entry_id)
+    entry = get_stock_entry(db, stock_entry_id, warehouse_id=resolved_warehouse_id)
     if not entry:
         logger.error(f"Stock entry not found id={stock_entry_id}")
         return False
-
     # Lock the batch before deletion to ensure safe quantity restore/check
-    batch = db.query(Batch).filter(Batch.id == entry.batch_id).with_for_update().first()
+    batch = (
+        db.query(Batch)
+        .filter(Batch.id == entry.batch_id, Batch.warehouse_id == resolved_warehouse_id)
+        .with_for_update()
+        .first()
+    )
 
     # 0) Guardrail: Block if downstream dispatches or rejections exist for this batch
     from app.db.models.dispatch_entry import DispatchEntry

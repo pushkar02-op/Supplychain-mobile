@@ -8,6 +8,7 @@ from app.db.schemas.base import SchemaModel
 class MartBillRead(SchemaModel):
     id: int
     mart_id: int
+    warehouse_id: int
     mart_name: Optional[str] = None
     invoice_date: date
     total_amount: Decimal

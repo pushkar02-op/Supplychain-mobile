@@ -12,6 +12,9 @@ class InventoryTxn(Base):
     id = Column(Integer, primary_key=True, index=True)
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
     batch_id = Column(Integer, ForeignKey("batch.id"), nullable=True)
+    warehouse_id = Column(
+        Integer, ForeignKey("warehouse.id"), nullable=False, index=True
+    )
     txn_type = Column(String(16), nullable=False)  # IN, OUT, ADJUST, etc.
     raw_qty = Column(Numeric(10, 3), nullable=False)
     raw_unit = Column(String(16), nullable=False)
@@ -24,3 +27,4 @@ class InventoryTxn(Base):
 
     item = relationship("Item")
     batch = relationship("Batch")
+    warehouse = relationship("Warehouse")

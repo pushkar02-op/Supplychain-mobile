@@ -67,12 +67,21 @@ def get_master_items_details(
     ]
 
 
-def get_unmapped_invoice_items_with_suggestions(db: Session) -> List[dict]:
+def get_unmapped_invoice_items_with_suggestions(
+    db: Session, warehouse_id: int
+) -> List[dict]:
     """
     Returns a list of invoice items that are not mapped to any master Item.
     For each unmapped item, it provides a list of potential mapping suggestions.
     """
-    unmapped_items = db.query(MartBillItem).filter(MartBillItem.item_id.is_(None)).all()
+    unmapped_items = (
+        db.query(MartBillItem)
+        .filter(
+            MartBillItem.item_id.is_(None),
+            MartBillItem.warehouse_id == warehouse_id,
+        )
+        .all()
+    )
     uoms = {u.id: u.code for u in db.query(UOM).all()}
     results = []
 

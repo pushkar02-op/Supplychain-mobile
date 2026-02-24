@@ -11,6 +11,9 @@ class StockEntry(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
     batch_id = Column(Integer, ForeignKey("batch.id"), nullable=False)
+    warehouse_id = Column(
+        Integer, ForeignKey("warehouse.id"), nullable=False, index=True
+    )
     received_date = Column(Date, nullable=False)
     source = Column(String, nullable=True)
     price_per_unit = Column(Numeric(18, 6), nullable=False)
@@ -21,3 +24,4 @@ class StockEntry(Base, AuditMixin):
 
     item = relationship("Item")
     batch = relationship("Batch")
+    warehouse = relationship("Warehouse")

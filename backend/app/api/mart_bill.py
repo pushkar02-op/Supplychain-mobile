@@ -25,6 +25,7 @@ from app.services.mart_bill import (
     update_mart_bill,
     verify_mart_bill,
 )
+from app.services.warehouse_scope import resolve_warehouse_for_request
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -41,6 +42,7 @@ router = APIRouter(prefix="/mart-bills", tags=["Mart Bills"])
 )
 async def upload_mart_bills(
     files: List[UploadFile] = File(..., description="One or more PDF files"),
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> List[dict]:
@@ -56,6 +58,9 @@ async def upload_mart_bills(
     """
     logger.info(f"Uploading {len(files)} mart bill file(s)")
     results = []
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "create"
+    )
     for file in files:
         if not file.filename.endswith(".pdf"):
             logger.warning(f"Skipped non-PDF file: {file.filename}")
@@ -63,7 +68,12 @@ async def upload_mart_bills(
                 {"filename": file.filename, "success": False, "error": "Not a PDF"}
             )
             continue
-        result = await save_and_process_mart_bill(file, db=db, created_by="system")
+        result = await save_and_process_mart_bill(
+            file,
+            db=db,
+            created_by="system",
+            warehouse_id=resolved_warehouse_id,
+        )
         results.append(result)
     return results
 
@@ -74,6 +84,7 @@ async def upload_mart_bills(
     description="Retrieve mart bills with optional date, mart, search, and pagination.",
 )
 def read_mart_bills(
+    warehouse_id: Optional[int] = Query(None),
     invoice_date: Optional[date] = Query(
         None, description="Filter by bill date (YYYY-MM-DD)"
     ),
@@ -87,6 +98,7 @@ def read_mart_bills(
         None, ge=1, le=100, description="Deprecated: Use skip/limit"
     ),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> JSONResponse:
     """
     List mart bills with optional filters and pagination.
@@ -127,8 +139,12 @@ def read_mart_bills(
         effective_skip = skip
         effective_limit = limit
 
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
     return get_mart_bills_paginated(
         db=db,
+        warehouse_id=resolved_warehouse_id,
         invoice_date=invoice_date,
         mart_id=mart_id,
         search=search,
@@ -138,7 +154,12 @@ def read_mart_bills(
 
 
 @router.get("/{bill_id}", response_model=MartBillRead, summary="Get Mart Bill by ID")
-def read_mart_bill(bill_id: int, db: Session = Depends(get_db)) -> MartBillRead:
+def read_mart_bill(
+    bill_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> MartBillRead:
     """
     Retrieve a single mart bill by ID.
 
@@ -153,7 +174,10 @@ def read_mart_bill(bill_id: int, db: Session = Depends(get_db)) -> MartBillRead:
         AppException: If the bill is not found (404).
     """
     logger.info(f"Fetching mart bill id={bill_id}")
-    bill = get_mart_bill_by_id(db, bill_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    bill = get_mart_bill_by_id(db, bill_id, warehouse_id=resolved_warehouse_id)
     if not bill:
         logger.error(f"Mart bill not found: id={bill_id}")
         raise AppException("Mart bill not found", status_code=404)
@@ -164,6 +188,7 @@ def read_mart_bill(bill_id: int, db: Session = Depends(get_db)) -> MartBillRead:
 def update_mart_bill_route(
     bill_id: int,
     data: MartBillUpdate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> MartBillRead:
@@ -182,7 +207,10 @@ def update_mart_bill_route(
         AppException: If the bill is not found (404).
     """
     logger.info(f"Updating mart bill id={bill_id}")
-    updated = update_mart_bill(db, bill_id, data)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    updated = update_mart_bill(db, bill_id, data, warehouse_id=resolved_warehouse_id)
     if not updated:
         logger.error(f"Mart bill not found: id={bill_id}")
         raise AppException("Mart bill not found", status_code=404)
@@ -192,6 +220,7 @@ def update_mart_bill_route(
 @router.post("/{bill_id}/verify", response_model=MartBillRead)
 def verify_mart_bill_endpoint(
     bill_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
@@ -200,7 +229,15 @@ def verify_mart_bill_endpoint(
     """
     # Using username or full_name
     verifier_name = getattr(current_user, "full_name", None) or current_user.username
-    bill = verify_mart_bill(db, invoice_id=bill_id, user_name=verifier_name)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    bill = verify_mart_bill(
+        db,
+        invoice_id=bill_id,
+        user_name=verifier_name,
+        warehouse_id=resolved_warehouse_id,
+    )
     if not bill:
         raise AppException(
             detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
@@ -211,18 +248,26 @@ def verify_mart_bill_endpoint(
 @router.post("/{bill_id}/unverify", response_model=MartBillRead)
 def unverify_mart_bill_endpoint(
     bill_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
     """
     Unlock a mart bill (revert to NEEDS_REVIEW).
     """
-    bill = unverify_mart_bill(db, invoice_id=bill_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    bill = unverify_mart_bill(
+        db, invoice_id=bill_id, warehouse_id=resolved_warehouse_id
+    )
     if not bill:
         raise AppException(
             detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
         )
-    bill = unverify_mart_bill(db, invoice_id=bill_id)
+    bill = unverify_mart_bill(
+        db, invoice_id=bill_id, warehouse_id=resolved_warehouse_id
+    )
     if not bill:
         raise AppException(
             detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
@@ -234,6 +279,7 @@ def unverify_mart_bill_endpoint(
 async def replace_mart_bill_file_endpoint(
     bill_id: int,
     file: UploadFile = File(...),
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
@@ -251,8 +297,15 @@ async def replace_mart_bill_file_endpoint(
         )
 
     user_name = getattr(current_user, "full_name", None) or current_user.username
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
     bill = await replace_mart_bill_file(
-        db, invoice_id=bill_id, file=file, user_name=user_name
+        db,
+        invoice_id=bill_id,
+        file=file,
+        user_name=user_name,
+        warehouse_id=resolved_warehouse_id,
     )
 
     if not bill:
@@ -268,6 +321,7 @@ async def replace_mart_bill_file_endpoint(
 )
 def delete_mart_bill_route(
     bill_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> None:
@@ -282,7 +336,10 @@ def delete_mart_bill_route(
         AppException: If the bill is not found (404).
     """
     logger.info(f"Deleting mart bill id={bill_id}")
-    if not delete_mart_bill(db, bill_id):
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "delete"
+    )
+    if not delete_mart_bill(db, bill_id, warehouse_id=resolved_warehouse_id):
         logger.error(f"Mart bill not found: id={bill_id}")
         raise AppException("Mart bill not found", status_code=404)
     return None
@@ -293,7 +350,12 @@ def delete_mart_bill_route(
     response_class=FileResponse,
     summary="Download Mart Bill PDF",
 )
-def download_mart_bill_pdf(bill_id: int, db: Session = Depends(get_db)) -> FileResponse:
+def download_mart_bill_pdf(
+    bill_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> FileResponse:
     """
     Download the PDF file for a given mart bill.
 
@@ -308,7 +370,10 @@ def download_mart_bill_pdf(bill_id: int, db: Session = Depends(get_db)) -> FileR
         AppException: If bill or file is not found (404).
     """
     logger.info(f"Downloading mart bill PDF id={bill_id}")
-    bill = get_mart_bill_by_id(db, bill_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    bill = get_mart_bill_by_id(db, bill_id, warehouse_id=resolved_warehouse_id)
     if not bill:
         logger.error(f"Mart bill not found: id={bill_id}")
         raise AppException("Mart bill not found", status_code=404)

@@ -10,6 +10,9 @@ class RejectionEntry(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
     batch_id = Column(Integer, ForeignKey("batch.id"), nullable=True)
+    warehouse_id = Column(
+        Integer, ForeignKey("warehouse.id"), nullable=False, index=True
+    )
     quantity = Column(Numeric(18, 6, asdecimal=True), nullable=False)
 
     reason = Column(Text, nullable=True)
@@ -17,5 +20,6 @@ class RejectionEntry(Base, AuditMixin):
     rejected_by = Column(String, nullable=True)
     item = relationship("Item")
     batch = relationship("Batch")
+    warehouse = relationship("Warehouse")
     unit = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)

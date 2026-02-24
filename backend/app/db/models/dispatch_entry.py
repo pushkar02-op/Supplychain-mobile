@@ -24,6 +24,9 @@ class DispatchEntry(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     batch_id = Column(Integer, ForeignKey("batch.id"), nullable=False)
     item_id = Column(Integer, ForeignKey("item.id"), nullable=False)
+    warehouse_id = Column(
+        Integer, ForeignKey("warehouse.id"), nullable=False, index=True
+    )
     dispatch_date = Column(Date, nullable=False)
     mart_id = Column(Integer, ForeignKey("mart.id"), nullable=False)
     quantity = Column(Numeric(10, 3), nullable=False)
@@ -35,6 +38,7 @@ class DispatchEntry(Base, AuditMixin):
     item = relationship("Item")
     mart = relationship("Mart")
     order = relationship("Order")
+    warehouse = relationship("Warehouse")
 
     @property
     def mart_name(self):

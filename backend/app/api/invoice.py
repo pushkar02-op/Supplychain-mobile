@@ -21,6 +21,7 @@ from app.services.mart_bill import (
     save_and_process_mart_bill,
     update_mart_bill,
 )
+from app.services.warehouse_scope import resolve_warehouse_for_request
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -37,6 +38,7 @@ router = APIRouter(prefix="/invoices", tags=["Invoices"])
 )
 async def upload_invoices(
     files: List[UploadFile] = File(..., description="One or more PDF files"),
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> List[dict]:
@@ -52,6 +54,9 @@ async def upload_invoices(
     """
     logger.info(f"Uploading {len(files)} invoice file(s)")
     results = []
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "create"
+    )
     for file in files:
         if not file.filename.endswith(".pdf"):
             logger.warning(f"Skipped non-PDF file: {file.filename}")
@@ -59,7 +64,12 @@ async def upload_invoices(
                 {"filename": file.filename, "success": False, "error": "Not a PDF"}
             )
             continue
-        result = await save_and_process_mart_bill(file, db=db, created_by="system")
+        result = await save_and_process_mart_bill(
+            file,
+            db=db,
+            created_by="system",
+            warehouse_id=resolved_warehouse_id,
+        )
         results.append(result)
     return results
 
@@ -70,6 +80,7 @@ async def upload_invoices(
     description="Retrieve invoices with optional date, mart, search, and pagination.",
 )
 def read_invoices(
+    warehouse_id: Optional[int] = Query(None),
     invoice_date: Optional[date] = Query(
         None, description="Filter by invoice date (YYYY-MM-DD)"
     ),
@@ -78,6 +89,7 @@ def read_invoices(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Page size"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> JSONResponse:
     """
     List invoices with optional filters and pagination.
@@ -96,18 +108,27 @@ def read_invoices(
     logger.info("Fetching invoices")
     from app.services.mart_bill import get_mart_bills_paginated
 
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
     return get_mart_bills_paginated(
         db=db,
+        warehouse_id=resolved_warehouse_id,
         invoice_date=invoice_date,
         mart_id=mart_id,
         search=search,
-        page=page,
-        page_size=page_size,
+        skip=(page - 1) * page_size,
+        limit=page_size,
     )
 
 
 @router.get("/{invoice_id}", response_model=InvoiceRead, summary="Get invoice by ID")
-def read_invoice(invoice_id: int, db: Session = Depends(get_db)) -> InvoiceRead:
+def read_invoice(
+    invoice_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> InvoiceRead:
     """
     Retrieve a single invoice by ID.
 
@@ -122,7 +143,10 @@ def read_invoice(invoice_id: int, db: Session = Depends(get_db)) -> InvoiceRead:
         AppException: If the invoice is not found (404).
     """
     logger.info(f"Fetching invoice id={invoice_id}")
-    invoice = get_mart_bill_by_id(db, invoice_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    invoice = get_mart_bill_by_id(db, invoice_id, warehouse_id=resolved_warehouse_id)
     if not invoice:
         logger.error(f"Invoice not found: id={invoice_id}")
         raise AppException("Invoice not found", status_code=404)
@@ -133,6 +157,7 @@ def read_invoice(invoice_id: int, db: Session = Depends(get_db)) -> InvoiceRead:
 def update_invoice_route(
     invoice_id: int,
     data: InvoiceUpdate,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> InvoiceRead:
@@ -151,7 +176,10 @@ def update_invoice_route(
         AppException: If the invoice is not found (404).
     """
     logger.info(f"Updating invoice id={invoice_id}")
-    updated = update_mart_bill(db, invoice_id, data)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    updated = update_mart_bill(db, invoice_id, data, warehouse_id=resolved_warehouse_id)
     if not updated:
         logger.error(f"Invoice not found: id={invoice_id}")
         raise AppException("Invoice not found", status_code=404)
@@ -163,6 +191,7 @@ def update_invoice_route(
 )
 def delete_invoice_route(
     invoice_id: int,
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> None:
@@ -177,7 +206,10 @@ def delete_invoice_route(
         AppException: If the invoice is not found (404).
     """
     logger.info(f"Deleting invoice id={invoice_id}")
-    if not delete_mart_bill(db, invoice_id):
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "delete"
+    )
+    if not delete_mart_bill(db, invoice_id, warehouse_id=resolved_warehouse_id):
         logger.error(f"Invoice not found: id={invoice_id}")
         raise AppException("Invoice not found", status_code=404)
     return None
@@ -189,7 +221,10 @@ def delete_invoice_route(
     summary="Download invoice PDF",
 )
 def download_invoice_pdf(
-    invoice_id: int, db: Session = Depends(get_db)
+    invoice_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> FileResponse:
     """
     Download the PDF file for a given invoice.
@@ -205,7 +240,10 @@ def download_invoice_pdf(
         AppException: If invoice or file is not found (404).
     """
     logger.info(f"Downloading invoice PDF id={invoice_id}")
-    invoice = get_mart_bill_by_id(db, invoice_id)
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    invoice = get_mart_bill_by_id(db, invoice_id, warehouse_id=resolved_warehouse_id)
     if not invoice:
         logger.error(f"Invoice not found: id={invoice_id}")
         raise AppException("Invoice not found", status_code=404)

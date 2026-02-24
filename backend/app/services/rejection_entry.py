@@ -25,6 +25,7 @@ def create_rejection_entry(
     entry: RejectionEntryCreate,
     created_by: Optional[str] = None,
     idempotency_key: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
 ) -> RejectionEntry:
     """
     Create a rejection entry and decrement batch quantity.
@@ -59,6 +60,13 @@ def create_rejection_entry(
     if not batch:
         logger.error(f"Batch not found id={entry.batch_id}")
         raise AppException("Batch not found", status_code=404)
+    if warehouse_id is not None and batch.warehouse_id != warehouse_id:
+        raise AppException(
+            "Unauthorized warehouse access",
+            status_code=403,
+            rule_id="AUT-004",
+            metadata={"warehouse_id": warehouse_id},
+        )
 
     # Validation Check (convert if units differ)
     deduct_qty = Decimal(str(entry.quantity))
@@ -86,10 +94,12 @@ def create_rejection_entry(
 
     user_name, user_id = resolve_user_audit(db, created_by)
 
+    rejection_data = entry.dict(exclude={"warehouse_id"})
     rej = RejectionEntry(
-        **entry.dict(),
+        **rejection_data,
         # unit=entry.unit, # entry.dict() includes unit
         item_id=batch.item_id,
+        warehouse_id=batch.warehouse_id,
         created_by=user_name,
         created_by_id=user_id,
         updated_by=user_name,
@@ -154,7 +164,9 @@ def create_rejection_entry(
         raise AppException("Rejection entry creation failed", status_code=500)
 
 
-def reverse_rejection_entry(db: Session, rejection_id: int, user_id: int) -> bool:
+def reverse_rejection_entry(
+    db: Session, rejection_id: int, user_id: int, warehouse_id: Optional[int] = None
+) -> bool:
     """
     Reverse a rejection entry by soft-deleting it and creating a compensating adjustment.
 
@@ -179,6 +191,13 @@ def reverse_rejection_entry(db: Session, rejection_id: int, user_id: int) -> boo
     )
     if not rej:
         raise AppException("Rejection entry not found", status_code=404)
+    if warehouse_id is not None and rej.warehouse_id != warehouse_id:
+        raise AppException(
+            "Unauthorized warehouse access",
+            status_code=403,
+            rule_id="AUT-004",
+            metadata={"warehouse_id": warehouse_id},
+        )
 
     if not rej.is_active:
         raise AppException("Rejection entry is already voided", status_code=400)
@@ -254,7 +273,9 @@ def reverse_rejection_entry(db: Session, rejection_id: int, user_id: int) -> boo
         raise AppException("Rejection reversal failed", status_code=500)
 
 
-def get_all_rejections(db: Session) -> List[RejectionEntry]:
+def get_all_rejections(
+    db: Session, warehouse_id: Optional[int] = None
+) -> List[RejectionEntry]:
     """
     Retrieve all rejection entries ordered by date desc.
 
@@ -265,12 +286,16 @@ def get_all_rejections(db: Session) -> List[RejectionEntry]:
         List[RejectionEntry]: List of rejections.
     """
     logger.debug("Fetching all rejection entries")
-    return db.query(RejectionEntry).order_by(RejectionEntry.rejection_date.desc()).all()
+    q = db.query(RejectionEntry)
+    if warehouse_id is not None:
+        q = q.filter(RejectionEntry.warehouse_id == warehouse_id)
+    return q.order_by(RejectionEntry.rejection_date.desc()).all()
 
 
 def get_rejections_by_date_and_items(
     db: Session,
     rejection_date: date,
+    warehouse_id: Optional[int] = None,
     item_ids: Optional[List[int]] = None,
     skip: int = 0,
     limit: int = 50,
@@ -294,6 +319,8 @@ def get_rejections_by_date_and_items(
         f"Fetching rejections for date={rejection_date}, items={item_ids}, skip={skip}, limit={limit}"
     )
     q = db.query(RejectionEntry).filter(RejectionEntry.rejection_date == rejection_date)
+    if warehouse_id is not None:
+        q = q.filter(RejectionEntry.warehouse_id == warehouse_id)
 
     if item_ids:
         q = q.filter(RejectionEntry.item_id.in_(item_ids))

@@ -8,6 +8,7 @@ from app.db.schemas.base import SchemaModel
 # Base schema for shared fields
 class BatchBase(SchemaModel):
     item_id: int
+    warehouse_id: Optional[int] = None
     quantity: Decimal
     unit: str
     received_at: Optional[date] = None
@@ -38,6 +39,7 @@ class BatchUpdate(SchemaModel):
 # Response schema
 class BatchRead(BatchBase):
     id: int
+    warehouse_id: int
     item_name: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

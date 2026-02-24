@@ -2,6 +2,7 @@ import pytest
 from datetime import datetime, date, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.domain_event import DomainEvent
@@ -9,50 +10,24 @@ from app.db.models.inventory_flow_daily import InventoryFlowDaily
 from app.db.models.inventory_drift_history import InventoryDriftHistory
 from app.db.models.order_fulfillment_metrics import OrderFulfillmentMetrics
 from app.db.models.order import Order
+from app.db.models.warehouse import Warehouse
 from app.services.event_relay import process_pending_events
 
 
 @pytest.fixture(scope="function")
 def db_session():
-    import os
-
-    DATABASE_URL = os.getenv(
-        "DATABASE_URL", "postgresql://user:password@db:5432/supply_chain"
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
-    engine = create_engine(DATABASE_URL)
     Session = sessionmaker(bind=engine)
     session = Session()
 
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
-
-    # Cleanup
-    from sqlalchemy import text
-
-    try:
-        # 1. Projections (Safe to delete)
-        session.query(InventoryFlowDaily).delete()
-        session.query(InventoryDriftHistory).delete()
-        session.query(OrderFulfillmentMetrics).delete()
-
-        # 2. Domain Events
-        session.query(DomainEvent).delete()
-
-        # 3. Dependent Data (Raw SQL for speed/safety)
-        session.execute(text("DELETE FROM inventory_txn"))
-        session.execute(text("DELETE FROM batch WHERE item_id IN (303, 304)"))
-        # Handing Order dependencies if any exist from previous runs
-        session.execute(
-            text("DELETE FROM uom WHERE code IN ('kg', 'kg_test_p8')")
-        )  # Fails if items exist
-        session.execute(text("DELETE FROM item WHERE id IN (303, 304)"))
-        # Order cleanup including dependencies (if cascade not set) -- simplistic approach:
-        session.query(Order).filter(Order.id > 10000).delete()
-        session.execute(text("DELETE FROM mart WHERE id IN (5, 6)"))
-
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        print(f"Cleanup warning: {e}")
+    session.add(Warehouse(name="Main Warehouse", code="MAIN", is_active=True))
+    session.commit()
 
     yield session
     session.close()
@@ -188,6 +163,7 @@ def test_order_metrics_projection(db_session):
         id=order_id,
         item_id=item_id,
         mart_id=mart_id,
+        warehouse_id=1,
         status="Completed",
         order_date=date.today(),
         quantity_ordered=10,
