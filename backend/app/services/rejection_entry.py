@@ -13,6 +13,7 @@ from app.db.models.batch import Batch
 from app.db.models.rejection_entry import RejectionEntry
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.db.schemas.rejection_entry import RejectionEntryCreate
+from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
 from sqlalchemy.orm import Session
@@ -67,6 +68,7 @@ def create_rejection_entry(
             rule_id="AUT-004",
             metadata={"warehouse_id": warehouse_id},
         )
+    enforce_financial_lock(db, batch.warehouse_id, entry.rejection_date)
 
     # Validation Check (convert if units differ)
     deduct_qty = Decimal(str(entry.quantity))
@@ -198,6 +200,7 @@ def reverse_rejection_entry(
             rule_id="AUT-004",
             metadata={"warehouse_id": warehouse_id},
         )
+    enforce_lock_for_entity(db, rej, rej.rejection_date)
 
     if not rej.is_active:
         raise AppException("Rejection entry is already voided", status_code=400)

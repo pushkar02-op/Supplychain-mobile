@@ -13,6 +13,7 @@ from app.db.models.batch import Batch
 from app.db.models.stock_entry import StockEntry
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.db.schemas.stock_entry import StockEntryCreate, StockEntryUpdate
+from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
 from app.services.warehouse_scope import resolve_system_warehouse_id
@@ -63,6 +64,7 @@ def _create_stock_entry_impl(
     resolved_warehouse_id = resolve_system_warehouse_id(
         db, warehouse_id if warehouse_id is not None else entry.warehouse_id
     )
+    enforce_financial_lock(db, resolved_warehouse_id, entry.received_date)
 
     if idempotency_key:
         from app.utils.idempotency import check_idempotency, save_idempotency_record
@@ -340,6 +342,7 @@ def _create_stock_adjustment_impl(
     )
     if not batch:
         raise AppException("Batch not found", status_code=404)
+    enforce_lock_for_entity(db, batch, batch.created_at.date())
 
     item = db.get(Item, batch.item_id)
     if not item or not item.default_uom_code:
@@ -420,6 +423,7 @@ def _delete_stock_entry_impl(
     if not entry:
         logger.error(f"Stock entry not found id={stock_entry_id}")
         return False
+    enforce_financial_lock(db, resolved_warehouse_id, entry.received_date)
     # Lock the batch before deletion to ensure safe quantity restore/check
     batch = (
         db.query(Batch)
