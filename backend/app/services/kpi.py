@@ -14,7 +14,7 @@ from app.db.models.order import Order
 from app.db.models.rejection_entry import RejectionEntry
 from app.db.models.stock_entry import StockEntry
 from app.db.models.transport_cost_daily import TransportCostDaily
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 
@@ -53,13 +53,20 @@ def get_financial_kpi(
             )
         )
         .join(StockEntry, StockEntry.batch_id == InventoryTxn.batch_id)
+        .join(
+            DispatchEntry,
+            and_(
+                InventoryTxn.ref_type == "dispatch_entry",
+                InventoryTxn.ref_id == DispatchEntry.id,
+            ),
+        )
         .filter(
             InventoryTxn.warehouse_id == warehouse_id,
             StockEntry.warehouse_id == warehouse_id,
+            DispatchEntry.warehouse_id == warehouse_id,
             InventoryTxn.ref_type == "dispatch_entry",
             InventoryTxn.txn_type.in_(["OUT", "DISPATCH"]),
-            func.date(InventoryTxn.created_at) >= start_date,
-            func.date(InventoryTxn.created_at) <= end_date,
+            DispatchEntry.dispatch_date.between(start_date, end_date),
         )
         .scalar()
     )
