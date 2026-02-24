@@ -95,6 +95,12 @@ def login_user(db: Session, user: UserLogin) -> Token:
         raise AppException(
             "Invalid credentials", status_code=status.HTTP_401_UNAUTHORIZED
         )
+    if not db_user.is_active:
+        raise AppException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user",
+            rule_id="AUT-005",
+        )
 
     access_token = create_access_token(
         data={
@@ -175,6 +181,12 @@ def refresh_token(db: Session, token_str: str) -> Token:
         db_token.revoked_at = datetime.utcnow()
 
         user = db_token.user
+        if not user.is_active:
+            raise AppException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Inactive user",
+                rule_id="AUT-005",
+            )
         new_access_token = create_access_token(
             data={
                 "sub": user.username,

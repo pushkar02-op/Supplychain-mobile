@@ -10,6 +10,7 @@ from typing import List, Optional
 from app.core.exceptions import AppException
 from app.db.models.batch import Batch
 from app.db.schemas.batch import BatchCreate, BatchUpdate
+from app.services.audit import log_action
 from app.services.warehouse_scope import resolve_system_warehouse_id
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
@@ -214,7 +215,10 @@ def update_batch(
 
 
 def delete_batch(
-    db: Session, batch_id: int, warehouse_id: Optional[int] = None
+    db: Session,
+    batch_id: int,
+    warehouse_id: Optional[int] = None,
+    deleted_by_user_id: Optional[int] = None,
 ) -> None:
     """
     Delete a batch by ID.
@@ -235,6 +239,15 @@ def delete_batch(
     if not batch:
         logger.error(f"Batch not found id={batch_id}")
         raise AppException("Batch not found", status_code=404)
+    if deleted_by_user_id is not None:
+        log_action(
+            db=db,
+            actor_user_id=deleted_by_user_id,
+            action_type="batch_voided",
+            entity_type="batch",
+            entity_id=batch.id,
+            metadata={"warehouse_id": batch.warehouse_id},
+        )
     db.delete(batch)
     db.commit()
     logger.debug(f"Batch id={batch_id} deleted")

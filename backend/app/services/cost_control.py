@@ -6,6 +6,7 @@ from typing import List
 
 from app.db.models.labour_cost_daily import LabourCostDaily
 from app.db.models.transport_cost_daily import TransportCostDaily
+from app.services.audit import log_action
 from sqlalchemy.orm import Session
 
 
@@ -37,6 +38,7 @@ def upsert_labour_cost(
             record.notes = notes
             record.created_by = user_id
             record.updated_at = datetime.utcnow()
+            action_type = "labour_cost_updated"
         else:
             record = LabourCostDaily(
                 warehouse_id=warehouse_id,
@@ -46,7 +48,18 @@ def upsert_labour_cost(
                 created_by=user_id,
             )
             db.add(record)
+            action_type = "labour_cost_created"
 
+        db.flush()
+        if user_id is not None:
+            log_action(
+                db=db,
+                actor_user_id=user_id,
+                action_type=action_type,
+                entity_type="labour_cost_daily",
+                entity_id=record.id,
+                metadata={"warehouse_id": warehouse_id, "date": str(date)},
+            )
         db.commit()
         db.refresh(record)
         return record
@@ -79,6 +92,7 @@ def upsert_transport_cost(
             record.notes = notes
             record.created_by = user_id
             record.updated_at = datetime.utcnow()
+            action_type = "transport_cost_updated"
         else:
             record = TransportCostDaily(
                 warehouse_id=warehouse_id,
@@ -88,7 +102,18 @@ def upsert_transport_cost(
                 created_by=user_id,
             )
             db.add(record)
+            action_type = "transport_cost_created"
 
+        db.flush()
+        if user_id is not None:
+            log_action(
+                db=db,
+                actor_user_id=user_id,
+                action_type=action_type,
+                entity_type="transport_cost_daily",
+                entity_id=record.id,
+                metadata={"warehouse_id": warehouse_id, "date": str(date)},
+            )
         db.commit()
         db.refresh(record)
         return record

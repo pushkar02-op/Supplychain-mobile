@@ -1,3 +1,4 @@
+from app.api.admin_audit import router as admin_audit_router
 from app.api.admin_forecasting import router as admin_forecasting_router
 from app.api.admin_ledger import router as admin_ledger_router
 from app.api.admin_reconciliation import router as admin_recon_router
@@ -52,3 +53,4 @@ router.include_router(admin_recon_router)
 router.include_router(mart_bill_router)
 router.include_router(mart_bill_item_router)
 router.include_router(admin_forecasting_router)
+router.include_router(admin_audit_router)

@@ -190,5 +190,6 @@ def reverse_dispatch(
         id,
         entry,
         created_by=current_user.username,
+        created_by_user_id=current_user.id,
         warehouse_id=resolved_warehouse_id,
     )

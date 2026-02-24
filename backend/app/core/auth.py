@@ -39,6 +39,12 @@ def get_current_user(
 
     if user is None:
         raise credentials_exception
+    if not user.is_active:
+        raise AppException(
+            status_code=403,
+            detail="Inactive user",
+            rule_id="AUT-005",
+        )
     return user
 
 
