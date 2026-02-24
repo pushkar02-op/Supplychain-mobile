@@ -1,6 +1,6 @@
 """
 API endpoints for user management.
-Provides retrieval, update, and deletion of users.
+Provides retrieval, update, role management, and warehouse assignment controls.
 """
 
 import logging
@@ -10,16 +10,27 @@ from app.core.auth import require_role
 from app.core.exceptions import AppException
 from app.db.enums.role import Role
 from app.db.models.user import User
-from app.db.schemas.user import UserRead, UserRoleUpdate, UserUpdate
+from app.db.models.warehouse import Warehouse
+from app.db.schemas.user import (
+    UserCreateGoverned,
+    UserRead,
+    UserRoleUpdate,
+    UserUpdate,
+    UserWarehouseAccessRead,
+)
 from app.db.session import get_db
 from app.services.user import (
+    assign_warehouse_to_user,
+    create_user_governed,
     delete_user,
     get_all_users,
     get_user,
+    list_user_warehouses,
+    remove_warehouse_from_user,
     update_user,
     update_user_role,
 )
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -33,19 +44,18 @@ def read_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[UserRead]:
-    """
-    Retrieve all users with pagination.
-
-    Args:
-        skip (int): Number of records to skip.
-        limit (int): Maximum number of records to return.
-        db (Session): Database session dependency.
-
-    Returns:
-        List[UserRead]: List of users.
-    """
     logger.info(f"Fetching users skip={skip}, limit={limit}")
     return get_all_users(db=db, skip=skip, limit=limit)
+
+
+@router.post("/", response_model=UserRead, summary="Create user")
+def create_user_route(
+    user_create: UserCreateGoverned,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.OWNER, Role.MANAGER)),
+) -> UserRead:
+    logger.info(f"Creating user {user_create.username}")
+    return create_user_governed(db=db, actor_user=current_user, user_create=user_create)
 
 
 @router.get("/{user_id}", response_model=UserRead, summary="Get user by ID")
@@ -54,19 +64,6 @@ def read_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> UserRead:
-    """
-    Retrieve a single user by ID.
-
-    Args:
-        user_id (int): User ID.
-        db (Session): Database session dependency.
-
-    Returns:
-        UserRead: The user.
-
-    Raises:
-        AppException: If user not found (404).
-    """
     logger.info(f"Fetching user id={user_id}")
     user = get_user(db, user_id)
     if not user:
@@ -82,23 +79,12 @@ def update_user_route(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> UserRead:
-    """
-    Update an existing user by ID.
-
-    Args:
-        user_id (int): User ID.
-        user_update (UserUpdate): Update data.
-        db (Session): Database session dependency.
-
-    Returns:
-        UserRead: The updated user.
-
-    Raises:
-        AppException: If user not found (404).
-    """
     logger.info(f"Updating user id={user_id}")
     updated = update_user(
-        db=db, user_id=user_id, user_update=user_update, updated_by="system"
+        db=db,
+        user_id=user_id,
+        user_update=user_update,
+        updated_by=current_user.username,
     )
     if not updated:
         logger.error(f"User not found: id={user_id}")
@@ -127,25 +113,67 @@ def update_user_role_route(
     return updated
 
 
+@router.post(
+    "/{user_id}/assign-warehouse",
+    response_model=UserWarehouseAccessRead,
+    summary="Assign warehouse to user",
+)
+def assign_warehouse_route(
+    user_id: int,
+    warehouse_id: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.OWNER)),
+) -> UserWarehouseAccessRead:
+    logger.info(f"Assigning warehouse {warehouse_id} to user {user_id}")
+    access = assign_warehouse_to_user(db=db, user_id=user_id, warehouse_id=warehouse_id)
+    warehouse = db.get(Warehouse, access.warehouse_id)
+    return UserWarehouseAccessRead(
+        warehouse_id=access.warehouse_id,
+        warehouse_name=warehouse.name if warehouse else "",
+        warehouse_code=warehouse.code if warehouse else "",
+    )
+
+
 @router.delete(
-    "/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete user"
+    "/{user_id}/remove-warehouse",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove warehouse from user",
+)
+def remove_warehouse_route(
+    user_id: int,
+    warehouse_id: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.OWNER)),
+) -> None:
+    logger.info(f"Removing warehouse {warehouse_id} from user {user_id}")
+    remove_warehouse_from_user(db=db, user_id=user_id, warehouse_id=warehouse_id)
+    return None
+
+
+@router.get(
+    "/{user_id}/warehouses",
+    response_model=List[UserWarehouseAccessRead],
+    summary="List warehouses assigned to user",
+)
+def list_user_warehouses_route(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.OWNER)),
+) -> List[UserWarehouseAccessRead]:
+    logger.info(f"Listing warehouses for user {user_id}")
+    rows = list_user_warehouses(db=db, user_id=user_id)
+    return [UserWarehouseAccessRead(**row) for row in rows]
+
+
+@router.delete(
+    "/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Deactivate user"
 )
 def delete_user_route(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> None:
-    """
-    Delete a user by ID.
-
-    Args:
-        user_id (int): User ID.
-        db (Session): Database session dependency.
-
-    Raises:
-        AppException: If user not found (404).
-    """
-    logger.info(f"Deleting user id={user_id}")
+    logger.info(f"Deactivating user id={user_id}")
     success = delete_user(db=db, user_id=user_id, deleted_by_user_id=current_user.id)
     if not success:
         logger.error(f"User not found: id={user_id}")

@@ -136,6 +136,44 @@ def test_owner_can_create_users_and_change_roles(db_session, monkeypatch):
     assert role_payload["role"] == "MANAGER"
 
 
+def test_register_cannot_create_manager_or_owner(db_session, monkeypatch):
+    import app.services.auth as auth_service
+
+    monkeypatch.setattr(
+        auth_service,
+        "create_access_token",
+        lambda data, expires_delta=None: "test-token",
+    )
+
+    app.dependency_overrides[get_db] = _override_db(db_session)
+    app.dependency_overrides[get_current_user] = _override_user(
+        Role.OWNER, user_id=999, username="owner"
+    )
+
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/v1/register",
+                json={
+                    "username": "register_role_attempt",
+                    "full_name": "Register Role Attempt",
+                    "password": "secret",
+                    "role": "MANAGER",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["role"] == "WORKER"
+    created_user = (
+        db_session.query(User).filter(User.username == "register_role_attempt").first()
+    )
+    assert created_user is not None
+    assert created_user.role == Role.WORKER
+
+
 def test_role_escalation_controls(db_session):
     worker = _create_user(db_session, username="worker_escalation", role=Role.WORKER)
 

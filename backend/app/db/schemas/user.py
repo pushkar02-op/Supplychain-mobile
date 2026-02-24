@@ -29,3 +29,16 @@ class UserUpdate(BaseModel):
 
 class UserRoleUpdate(BaseModel):
     role: Role
+
+
+class UserCreateGoverned(BaseModel):
+    username: str
+    full_name: str
+    password: str
+    role: Role
+
+
+class UserWarehouseAccessRead(BaseModel):
+    warehouse_id: int
+    warehouse_name: str
+    warehouse_code: str
