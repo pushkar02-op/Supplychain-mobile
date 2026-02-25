@@ -11,6 +11,7 @@ from app.core.exceptions import AppException
 from app.db.models.mart_bill import MartBill
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.schemas.mart_bill_item import MartBillItemUpdate
+from app.services.audit import log_action
 from app.services.warehouse_scope import resolve_system_warehouse_id
 from sqlalchemy.orm import Session
 
@@ -103,6 +104,22 @@ def update_mart_bill_item(
     db.refresh(item)
     logger.debug(f"Item id={item_id} updated, recalculating invoice total")
     recalculate_mart_bill_total(db, item.invoice_id, warehouse_id=resolved_warehouse_id)
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=None,
+            action_type="mart_bill_item_updated",
+            entity_type="mart_bill_item",
+            entity_id=item.id,
+            metadata={
+                "warehouse_id": resolved_warehouse_id,
+                "invoice_id": item.invoice_id,
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for mart_bill_item_updated", exc_info=True)
+
     db.commit()
     return item
 
@@ -138,6 +155,19 @@ def delete_mart_bill_item(
     db.flush()
     logger.debug(f"Item id={item_id} deleted, recalculating invoice total")
     recalculate_mart_bill_total(db, invoice_id, warehouse_id=resolved_warehouse_id)
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=None,
+            action_type="mart_bill_item_deleted",
+            entity_type="mart_bill_item",
+            entity_id=item_id,
+            metadata={"warehouse_id": resolved_warehouse_id, "invoice_id": invoice_id},
+        )
+    except Exception:
+        logger.warning("Audit log failed for mart_bill_item_deleted", exc_info=True)
+
     db.commit()
     return True
 

@@ -13,6 +13,7 @@ from app.db.models.mart import Mart
 from app.db.models.mart_bill import MartBill
 from app.db.models.order import Order
 from app.db.schemas.order import OrderCreate, OrderUpdate
+from app.services.audit import log_action
 from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.warehouse_scope import resolve_system_warehouse_id
 from sqlalchemy.orm import Session
@@ -120,6 +121,23 @@ def create_order(
         **order_data, created_by=user_name, created_by_id=user_id, updated_by=user_name
     )
     db.add(ord_)
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=user_id,
+            action_type="order_created",
+            entity_type="order",
+            entity_id=ord_.id,
+            metadata={
+                "warehouse_id": resolved_warehouse_id,
+                "order_date": str(entry.order_date),
+                "quantity_ordered": str(entry.quantity_ordered),
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for order_created", exc_info=True)
+
     db.commit()
     db.refresh(ord_)
     logger.debug(f"Created order id={ord_.id}")
@@ -251,6 +269,22 @@ def update_order(
         ord_.status = "Partially Completed"
     ord_.updated_by = updated_by
     ord_.updated_at = datetime.utcnow()
+
+    try:
+        from app.utils.audit import resolve_user_audit
+
+        _, actor_id = resolve_user_audit(db, updated_by)
+        log_action(
+            db=db,
+            actor_user_id=actor_id,
+            action_type="order_updated",
+            entity_type="order",
+            entity_id=ord_.id,
+            metadata={"warehouse_id": ord_.warehouse_id},
+        )
+    except Exception:
+        logger.warning("Audit log failed for order_updated", exc_info=True)
+
     db.commit()
     db.refresh(ord_)
     logger.debug(f"Order id={order_id} updated with status {ord_.status}")
@@ -283,6 +317,21 @@ def delete_order(
             status_code=409,
             extra={"rule_id": "ORD-008"},
         )
+
+    order_wh = ord_.warehouse_id
+    order_pk = ord_.id
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=None,
+            action_type="order_deleted",
+            entity_type="order",
+            entity_id=order_pk,
+            metadata={"warehouse_id": order_wh},
+        )
+    except Exception:
+        logger.warning("Audit log failed for order_deleted", exc_info=True)
 
     db.delete(ord_)
     db.commit()

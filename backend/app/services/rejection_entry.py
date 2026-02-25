@@ -13,6 +13,7 @@ from app.db.models.batch import Batch
 from app.db.models.rejection_entry import RejectionEntry
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.db.schemas.rejection_entry import RejectionEntryCreate
+from app.services.audit import log_action
 from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
@@ -158,6 +159,23 @@ def create_rejection_entry(
                 rej.id,
             )
 
+        try:
+            log_action(
+                db=db,
+                actor_user_id=user_id,
+                action_type="rejection_created",
+                entity_type="rejection_entry",
+                entity_id=rej.id,
+                metadata={
+                    "warehouse_id": batch.warehouse_id,
+                    "batch_id": entry.batch_id,
+                    "rejection_date": str(entry.rejection_date),
+                    "quantity": str(entry.quantity),
+                },
+            )
+        except Exception:
+            logger.warning("Audit log failed for rejection_created", exc_info=True)
+
         db.commit()
         return rej
     except Exception:
@@ -266,6 +284,22 @@ def reverse_rejection_entry(
                 remarks=f"Reversal of Rejection #{rej.id}",
             ),
         )
+
+        try:
+            log_action(
+                db=db,
+                actor_user_id=user_id,
+                action_type="rejection_reversed",
+                entity_type="rejection_entry",
+                entity_id=rej.id,
+                metadata={
+                    "warehouse_id": rej.warehouse_id,
+                    "batch_id": rej.batch_id,
+                    "quantity": str(rej.quantity),
+                },
+            )
+        except Exception:
+            logger.warning("Audit log failed for rejection_reversed", exc_info=True)
 
         db.commit()
         return True
