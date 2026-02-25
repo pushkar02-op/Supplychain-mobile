@@ -18,6 +18,7 @@ from app.api.rejection_entry import router as rejection_router
 from app.api.stock_entry import router as stock_router
 from app.api.stock_history import router as stock_history_router
 from app.api.uom import router as uom_router
+from app.core.config import settings as _settings
 from app.core.correlation import CorrelationIdMiddleware
 from app.core.exceptions import register_exception_handlers
 from app.core.logging_config import setup_logging
@@ -40,9 +41,14 @@ app.add_middleware(CorrelationIdMiddleware)
 register_exception_handlers(app)
 
 # Configure CORS
+_cors_origins = _settings.CORS_ORIGINS.split(",")
+
+if _settings.ENVIRONMENT == "production" and "*" in _cors_origins:
+    raise RuntimeError("Wildcard CORS not allowed in production")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: restrict origins in production
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -18,6 +18,8 @@ class Settings:
     STORAGE_ROOT: str = os.getenv("STORAGE_ROOT", "invoices")
     SEED_INITIAL_DATA: bool = True
     FILE_UPLOAD_MAX_MB: int = int(os.getenv("FILE_UPLOAD_MAX_MB", "10"))
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     DRIFT_CRITICAL_RATIO: str = os.getenv("DRIFT_CRITICAL_RATIO", "0.05")
     FORECAST_CRITICAL_DAYS: int = int(os.getenv("FORECAST_CRITICAL_DAYS", "3"))
     FORECAST_REORDER_SOON_DAYS: int = int(os.getenv("FORECAST_REORDER_SOON_DAYS", "7"))
