@@ -25,6 +25,7 @@ from app.services.warehouse_scope import resolve_system_warehouse_id
 from app.utils.invoice_parser import process_pdf
 from fastapi import UploadFile
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
@@ -80,16 +81,6 @@ async def save_and_process_mart_bill(
     file_bytes = await file.read()
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
-
-    # Intentionally global - duplicate file hashes must be blocked across all warehouses.
-    existing = db.query(MartBill).filter_by(file_hash=file_hash).first()
-    if existing:
-        logger.warning("Duplicate mart bill detected")
-        return {
-            "filename": filename,
-            "success": False,
-            "error": "Duplicate mart bill detected",
-        }
 
     # Construct Key (Legacy behavior: keep using 'invoices/' prefix)
     # We use settings.INVOICE_UPLOAD_DIR to maintain directory structure.
@@ -217,7 +208,14 @@ async def save_and_process_mart_bill(
         except Exception:
             logger.warning("Audit log failed for mart_bill_created", exc_info=True)
 
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise AppException(
+                "Duplicate invoice upload detected.",
+                status_code=409,
+            )
         logger.info(f"Invoice {inv.id} saved. User={created_by}. Items={len(items)}")
         return {
             "filename": filename,
