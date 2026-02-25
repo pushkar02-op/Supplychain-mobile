@@ -26,6 +26,7 @@ from app.services.mart_bill import (
     verify_mart_bill,
 )
 from app.services.warehouse_scope import resolve_warehouse_for_request
+from app.utils.file_validation import validate_upload_size
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -68,6 +69,7 @@ async def upload_mart_bills(
                 {"filename": file.filename, "success": False, "error": "Not a PDF"}
             )
             continue
+        await validate_upload_size(file)
         result = await save_and_process_mart_bill(
             file,
             db=db,
@@ -295,6 +297,8 @@ async def replace_mart_bill_file_endpoint(
             rule_id=None,
             metadata={},
         )
+
+    await validate_upload_size(file)
 
     user_name = getattr(current_user, "full_name", None) or current_user.username
     resolved_warehouse_id = resolve_warehouse_for_request(
