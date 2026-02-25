@@ -8,6 +8,7 @@ from app.db.models.domain_event import DomainEvent
 from app.db.models.inventory_txn import InventoryTxn
 from app.db.schemas.domain_event import InventoryTxnCommitted
 from app.db.schemas.inventory_txn import InventoryTxnCreate
+from app.services.audit import log_action
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,23 @@ def create_inventory_txn(db: Session, data: InventoryTxnCreate) -> InventoryTxn:
     db.add(event)
     # Commit happens at caller level or via FastAPI dependency
     logger.info(f"InventoryTxn created: {txn}")
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=None,
+            action_type="inventory_txn_created",
+            entity_type="inventory_txn",
+            entity_id=txn.id,
+            metadata={
+                "warehouse_id": txn.warehouse_id,
+                "ref_type": txn.ref_type,
+                "ref_id": txn.ref_id,
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for inventory_txn_created", exc_info=True)
+
     return txn
 
 

@@ -285,3 +285,97 @@ def test_mutation_functions_have_financial_lock_enforcement():
     assert not missing, (
         "Mutation functions missing financial lock enforcement:\n" + "\n".join(missing)
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 9 (R1-4B): Audit Coverage AST Guard
+# ---------------------------------------------------------------------------
+
+# Mapping: service file -> list of mutation functions that MUST call log_action().
+AUDIT_ENFORCED_FUNCTIONS: dict[str, list[str]] = {
+    "dispatch_entry.py": [
+        "_create_dispatch_entry_impl",
+        "_create_dispatch_from_order_impl",
+        "create_reversal_entry",
+    ],
+    "stock_entry.py": [
+        "_create_stock_entry_impl",
+        "_create_stock_adjustment_impl",
+        "_delete_stock_entry_impl",
+    ],
+    "rejection_entry.py": [
+        "create_rejection_entry",
+        "reverse_rejection_entry",
+    ],
+    "order.py": [
+        "create_order",
+        "update_order",
+        "delete_order",
+    ],
+    "mart_bill.py": [
+        "save_and_process_mart_bill",
+        "_update_mart_bill_impl",
+        "_verify_mart_bill_impl",
+        "_unverify_mart_bill_impl",
+        "_delete_mart_bill_impl",
+        "_replace_mart_bill_file_impl",
+    ],
+    "mart_bill_item.py": [
+        "update_mart_bill_item",
+        "delete_mart_bill_item",
+    ],
+    "inventory_txn.py": [
+        "create_inventory_txn",
+    ],
+    "cost_control.py": [
+        "upsert_labour_cost",
+        "upsert_transport_cost",
+    ],
+    "reconciliation.py": [
+        "_resolve_drift_impl",
+    ],
+}
+
+AUDIT_CALL_NAME = "log_action"
+
+
+def _function_contains_audit_call(
+    func_node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> bool:
+    """Return True if the function body contains a call to log_action."""
+    for node in ast.walk(func_node):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Name) and node.func.id == AUDIT_CALL_NAME:
+            return True
+        if isinstance(node.func, ast.Attribute) and node.func.attr == AUDIT_CALL_NAME:
+            return True
+    return False
+
+
+def test_all_mutation_functions_have_log_action():
+    """AST guard: every mutation function listed in AUDIT_ENFORCED_FUNCTIONS
+    must contain a call to log_action()."""
+    missing = []
+
+    for file_name, required_functions in AUDIT_ENFORCED_FUNCTIONS.items():
+        path = SERVICES_ROOT / file_name
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        func_map: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                func_map[node.name] = node
+
+        for func_name in required_functions:
+            func_node = func_map.get(func_name)
+            if func_node is None:
+                missing.append(f"{file_name}::{func_name} — function not found")
+                continue
+            if not _function_contains_audit_call(func_node):
+                missing.append(f"{file_name}::{func_name} — missing log_action call")
+
+    assert not missing, (
+        "Mutation functions missing audit coverage (log_action):\n" + "\n".join(missing)
+    )

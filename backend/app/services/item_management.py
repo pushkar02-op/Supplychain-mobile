@@ -15,6 +15,7 @@ from app.db.schemas.item_management import (
     ItemManagementCreateUpdate,
     ItemManagementRead,
 )
+from app.services.audit import log_action
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
 
@@ -207,3 +208,97 @@ def create_or_update_master_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+def map_alias_to_item(db: Session, alias_id: int, item_id: int) -> dict:
+    """Map an existing ItemAlias to a master item."""
+    alias = db.query(ItemAlias).filter(ItemAlias.id == alias_id).first()
+    if not alias:
+        raise AppException(
+            detail="Alias not found", status_code=404, rule_id=None, metadata={}
+        )
+    alias.master_item_id = item_id
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=None,
+            action_type="alias_mapped",
+            entity_type="item_alias",
+            entity_id=alias.id,
+            metadata={"item_id": item_id},
+        )
+    except Exception:
+        logger.warning("Audit log failed for alias_mapped", exc_info=True)
+
+    db.commit()
+    return {"message": "Alias mapped successfully"}
+
+
+def map_invoice_item(
+    db: Session,
+    invoice_item_id: int,
+    master_item_id: int,
+    username: str,
+) -> dict:
+    """Map an unmapped invoice item to a master item and create an alias for future auto-mapping."""
+    invoice_item = db.get(MartBillItem, invoice_item_id)
+    if not invoice_item:
+        raise AppException(
+            detail="Invoice item not found",
+            status_code=404,
+            rule_id=None,
+            metadata={},
+        )
+    if invoice_item.item_id:
+        raise AppException(
+            detail="This invoice item is already mapped.",
+            status_code=400,
+            rule_id=None,
+            metadata={},
+        )
+
+    master_item = db.get(Item, master_item_id)
+    if not master_item:
+        raise AppException(
+            detail="Master item not found",
+            status_code=404,
+            rule_id=None,
+            metadata={},
+        )
+
+    # 1. Map the invoice item
+    invoice_item.item_id = master_item_id
+
+    # 2. Create an alias for future auto-mapping
+    existing_alias = (
+        db.query(ItemAlias)
+        .filter_by(alias_code=invoice_item.item_code, alias_name=invoice_item.item_name)
+        .first()
+    )
+    if not existing_alias:
+        new_alias = ItemAlias(
+            master_item_id=master_item_id,
+            alias_code=invoice_item.item_code,
+            alias_name=invoice_item.item_name,
+            created_by=username,
+        )
+        db.add(new_alias)
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=None,
+            action_type="invoice_item_mapped",
+            entity_type="mart_bill_item",
+            entity_id=invoice_item.id,
+            metadata={
+                "master_item_id": master_item_id,
+                "item_code": invoice_item.item_code,
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for invoice_item_mapped", exc_info=True)
+
+    db.commit()
+    return {"message": "Invoice item mapped and alias created successfully"}

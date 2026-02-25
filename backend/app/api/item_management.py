@@ -3,10 +3,8 @@
 from typing import List
 
 from app.core.auth import get_current_user, require_role
-from app.core.exceptions import AppException
 from app.db.enums.role import Role
-from app.db.models import UOM, Item, ItemAlias, User
-from app.db.models.mart_bill_item import MartBillItem as InvoiceItem
+from app.db.models import UOM, User
 from app.db.schemas.item_management import (
     AliasMapInput,
     ItemManagementCreateUpdate,
@@ -73,14 +71,11 @@ def map_alias_to_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
-    alias = db.query(ItemAlias).filter(ItemAlias.id == payload.alias_id).first()
-    if not alias:
-        raise AppException(
-            detail="Alias not found", status_code=404, rule_id=None, metadata={}
-        )
-    alias.master_item_id = payload.item_id
-    db.commit()
-    return {"message": "Alias mapped successfully"}
+    return svc.map_alias_to_item(
+        db=db,
+        alias_id=payload.alias_id,
+        item_id=payload.item_id,
+    )
 
 
 @router.post(
@@ -91,42 +86,9 @@ def map_invoice_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
-    invoice_item = db.get(InvoiceItem, payload.invoice_item_id)
-    if not invoice_item:
-        raise AppException(
-            detail="Invoice item not found", status_code=404, rule_id=None, metadata={}
-        )
-    if invoice_item.item_id:
-        raise AppException(
-            detail="This invoice item is already mapped.",
-            status_code=400,
-            rule_id=None,
-            metadata={},
-        )
-
-    master_item = db.get(Item, payload.master_item_id)
-    if not master_item:
-        raise AppException(
-            detail="Master item not found", status_code=404, rule_id=None, metadata={}
-        )
-
-    # 1. Map the invoice item
-    invoice_item.item_id = payload.master_item_id
-
-    # 2. Create an alias for future auto-mapping
-    existing_alias = (
-        db.query(ItemAlias)
-        .filter_by(alias_code=invoice_item.item_code, alias_name=invoice_item.item_name)
-        .first()
+    return svc.map_invoice_item(
+        db=db,
+        invoice_item_id=payload.invoice_item_id,
+        master_item_id=payload.master_item_id,
+        username=current_user.username,
     )
-    if not existing_alias:
-        new_alias = ItemAlias(
-            master_item_id=payload.master_item_id,
-            alias_code=invoice_item.item_code,
-            alias_name=invoice_item.item_name,
-            created_by=current_user.username,
-        )
-        db.add(new_alias)
-
-    db.commit()
-    return {"message": "Invoice item mapped and alias created successfully"}

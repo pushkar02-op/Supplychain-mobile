@@ -13,6 +13,7 @@ from app.db.models.batch import Batch
 from app.db.models.stock_entry import StockEntry
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.db.schemas.stock_entry import StockEntryCreate, StockEntryUpdate
+from app.services.audit import log_action
 from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
@@ -220,6 +221,23 @@ def _create_stock_entry_impl(
             stock_entry.id,
         )
 
+    try:
+        log_action(
+            db=db,
+            actor_user_id=user_id,
+            action_type="stock_entry_created",
+            entity_type="stock_entry",
+            entity_id=stock_entry.id,
+            metadata={
+                "warehouse_id": resolved_warehouse_id,
+                "batch_id": batch.id,
+                "received_date": str(entry.received_date),
+                "quantity": str(entry.quantity),
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for stock_entry_created", exc_info=True)
+
     db.commit()
     return stock_entry
 
@@ -390,6 +408,24 @@ def _create_stock_adjustment_impl(
     )
 
     db.flush()
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=user_id,
+            action_type="stock_adjustment_created",
+            entity_type="inventory_txn",
+            entity_id=txn.id,
+            metadata={
+                "warehouse_id": resolved_warehouse_id,
+                "batch_id": batch_id,
+                "quantity_delta": str(quantity_delta),
+                "reason": reason,
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for stock_adjustment_created", exc_info=True)
+
     db.commit()  # Commit immediately as this is an atomic action
     return txn
 
@@ -510,5 +546,22 @@ def _delete_stock_entry_impl(
             remarks="Stock removed via delete",
         ),
     )
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=entry.created_by_id,
+            action_type="stock_entry_voided",
+            entity_type="stock_entry",
+            entity_id=entry.id,
+            metadata={
+                "warehouse_id": resolved_warehouse_id,
+                "batch_id": entry.batch_id,
+                "quantity": str(entry.quantity),
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for stock_entry_voided", exc_info=True)
+
     db.commit()
     return True

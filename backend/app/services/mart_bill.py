@@ -18,12 +18,14 @@ from app.db.models.mart_bill import MartBill
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.uom import UOM
 from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
+from app.services.audit import log_action
 from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.item_alias import get_alias_by_code_or_name
 from app.services.warehouse_scope import resolve_system_warehouse_id
 from app.utils.invoice_parser import process_pdf
 from fastapi import UploadFile
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
@@ -79,16 +81,6 @@ async def save_and_process_mart_bill(
     file_bytes = await file.read()
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
-
-    # Intentionally global - duplicate file hashes must be blocked across all warehouses.
-    existing = db.query(MartBill).filter_by(file_hash=file_hash).first()
-    if existing:
-        logger.warning("Duplicate mart bill detected")
-        return {
-            "filename": filename,
-            "success": False,
-            "error": "Duplicate mart bill detected",
-        }
 
     # Construct Key (Legacy behavior: keep using 'invoices/' prefix)
     # We use settings.INVOICE_UPLOAD_DIR to maintain directory structure.
@@ -199,7 +191,31 @@ async def save_and_process_mart_bill(
                 )
             )
         db.bulk_save_objects(items)
-        db.commit()
+
+        try:
+            log_action(
+                db=db,
+                actor_user_id=user_id,
+                action_type="mart_bill_created",
+                entity_type="mart_bill",
+                entity_id=inv.id,
+                metadata={
+                    "warehouse_id": resolved_warehouse_id,
+                    "invoice_date": str(invoice_date),
+                    "total_amount": str(total_amount),
+                },
+            )
+        except Exception:
+            logger.warning("Audit log failed for mart_bill_created", exc_info=True)
+
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise AppException(
+                "Duplicate invoice upload detected.",
+                status_code=409,
+            )
         logger.info(f"Invoice {inv.id} saved. User={created_by}. Items={len(items)}")
         return {
             "filename": filename,
@@ -384,6 +400,19 @@ def _update_mart_bill_impl(
 
     for field, val in data.dict(exclude_unset=True).items():
         setattr(inv, field, val)
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=inv.created_by_id,
+            action_type="mart_bill_updated",
+            entity_type="mart_bill",
+            entity_id=inv.id,
+            metadata={"warehouse_id": inv.warehouse_id},
+        )
+    except Exception:
+        logger.warning("Audit log failed for mart_bill_updated", exc_info=True)
+
     db.commit()
     db.refresh(inv)
     logger.debug(f"Invoice id={invoice_id} updated")
@@ -422,6 +451,19 @@ def _verify_mart_bill_impl(
     inv.status = "VERIFIED"
     inv.locked_at = datetime.utcnow()
     inv.locked_by = user_name
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=inv.created_by_id,
+            action_type="mart_bill_verified",
+            entity_type="mart_bill",
+            entity_id=inv.id,
+            metadata={"warehouse_id": inv.warehouse_id, "verified_by": user_name},
+        )
+    except Exception:
+        logger.warning("Audit log failed for mart_bill_verified", exc_info=True)
+
     db.commit()
     db.refresh(inv)
     logger.info(f"MartBill {invoice_id} verified by {user_name}")
@@ -452,6 +494,19 @@ def _unverify_mart_bill_impl(
     inv.status = "NEEDS_REVIEW"
     inv.locked_at = None
     inv.locked_by = None
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=inv.created_by_id,
+            action_type="mart_bill_unverified",
+            entity_type="mart_bill",
+            entity_id=inv.id,
+            metadata={"warehouse_id": inv.warehouse_id},
+        )
+    except Exception:
+        logger.warning("Audit log failed for mart_bill_unverified", exc_info=True)
+
     db.commit()
     db.refresh(inv)
     return inv
@@ -497,6 +552,22 @@ def _delete_mart_bill_impl(
     # Delete physical file using storage service
     if inv.file_path:
         storage.delete(inv.file_path)
+
+    inv_wh = inv.warehouse_id
+    inv_pk = inv.id
+    inv_actor = inv.created_by_id
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=inv_actor,
+            action_type="mart_bill_deleted",
+            entity_type="mart_bill",
+            entity_id=inv_pk,
+            metadata={"warehouse_id": inv_wh},
+        )
+    except Exception:
+        logger.warning("Audit log failed for mart_bill_deleted", exc_info=True)
 
     db.delete(inv)
     db.commit()
@@ -564,6 +635,18 @@ async def _replace_mart_bill_file_impl(
     inv.status = "NEEDS_REVIEW"
     inv.locked_at = None
     inv.locked_by = None
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=inv.created_by_id,
+            action_type="mart_bill_file_replaced",
+            entity_type="mart_bill",
+            entity_id=inv.id,
+            metadata={"warehouse_id": inv.warehouse_id, "replaced_by": user_name},
+        )
+    except Exception:
+        logger.warning("Audit log failed for mart_bill_file_replaced", exc_info=True)
 
     db.commit()
     db.refresh(inv)

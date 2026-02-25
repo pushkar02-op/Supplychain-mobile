@@ -467,6 +467,23 @@ def _create_dispatch_entry_impl(
     )
     db.add(event)
 
+    try:
+        log_action(
+            db=db,
+            actor_user_id=user_id,
+            action_type="dispatch_created",
+            entity_type="dispatch_entry",
+            entity_id=dispatch.id,
+            metadata={
+                "warehouse_id": batch.warehouse_id,
+                "batch_id": entry.batch_id,
+                "dispatch_date": str(entry.dispatch_date),
+                "quantity": str(entry.quantity),
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for dispatch_created", exc_info=True)
+
     db.commit()
     log_event(
         level="INFO",
@@ -693,9 +710,31 @@ def _create_dispatch_from_order_impl(
         )
         db.add(event)
 
+    try:
+        from app.utils.audit import resolve_user_audit
+
+        _, actor_id = resolve_user_audit(db, created_by)
+        for d in results:
+            log_action(
+                db=db,
+                actor_user_id=actor_id,
+                action_type="dispatch_created_from_order",
+                entity_type="dispatch_entry",
+                entity_id=d.id,
+                metadata={
+                    "warehouse_id": d.warehouse_id,
+                    "order_id": order.id,
+                    "dispatch_date": str(entry.dispatch_date),
+                    "quantity": str(d.quantity),
+                },
+            )
+    except Exception:
+        logger.warning(
+            "Audit log failed for dispatch_created_from_order", exc_info=True
+        )
+
     db.commit()
     logger.debug(f"Created/updated {len(results)} dispatch entries")
-
     return results
 
 
