@@ -7,6 +7,7 @@ from app.api.auth import router as auth_router
 from app.api.batch import router as batch_router
 from app.api.cost_control import router as cost_control_router
 from app.api.dispatch_entry import router as dispatch_router
+from app.api.health import router as health_router
 from app.api.inventory_txn import router as inventory_txn_router
 from app.api.invoice import router as invoice_router
 from app.api.invoice_item import router as invoice_item_router
@@ -56,3 +57,4 @@ router.include_router(mart_bill_router)
 router.include_router(mart_bill_item_router)
 router.include_router(admin_forecasting_router)
 router.include_router(admin_audit_router)
+router.include_router(health_router)

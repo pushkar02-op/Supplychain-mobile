@@ -10,7 +10,7 @@ from app.db.models.item import Item
 from app.db.models.item_conversion_map import ItemConversionMap
 from app.db.models.uom import UOM
 from app.db.schemas.stock_entry import StockEntryCreate, StockEntryUpdate
-from app.services.stock_entry import delete_stock_entry
+from app.services.stock_entry import create_stock_entry, update_stock_entry
 from app.core.exceptions import AppException
 from app.services.inventory_truth import calculate_ledger_balance
 
