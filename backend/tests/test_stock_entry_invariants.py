@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.db.base import Base
 from app.db.models.batch import Batch
 from app.db.models.item import Item
 from app.db.models.item_conversion_map import ItemConversionMap
