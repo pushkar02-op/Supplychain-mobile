@@ -1,7 +1,7 @@
 import os
 import tempfile
 import pytest
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
@@ -13,18 +13,12 @@ from app.db.session import get_db
 from app.core.auth import get_current_user
 from app.db.enums.role import Role
 from app.db.models import (
-    User,
     Item,
     Batch,
-    StockEntry,
-    RejectionEntry,
-    DispatchEntry,
     InventoryTxn,
     UOM,
-    Mart,
 )
 from app.db.models.reconciliation_record import ReconciliationRecord, DriftStatus
-from app.db.models.mart_item_alias import MartItemAlias
 from app.domain.drift_policy import classify_drift_ratio
 
 from app.services.reconciliation import (

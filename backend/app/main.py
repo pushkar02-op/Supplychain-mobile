@@ -18,31 +18,79 @@ from app.api.rejection_entry import router as rejection_router
 from app.api.stock_entry import router as stock_router
 from app.api.stock_history import router as stock_history_router
 from app.api.uom import router as uom_router
+from app.core.config import settings as _settings
 from app.core.correlation import CorrelationIdMiddleware
-from app.core.exceptions import register_exception_handlers
+from app.core.exceptions import AppException, register_exception_handlers
 from app.core.logging_config import setup_logging
+from app.core.rate_limit import limiter
+from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.timing import TimingMiddleware
 from app.db.seed.seed_all import seed_all
 from app.db.session import SessionLocal
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 # Initialize logging early
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# ── Startup configuration validation ──────────────────────────────────────
+_validation_errors: list[str] = []
+
+if not _settings.DATABASE_URL:
+    _validation_errors.append("DATABASE_URL is not set")
+
+if not _settings.JWT_SECRET_KEY:
+    _validation_errors.append("JWT_SECRET_KEY is not set")
+elif len(_settings.JWT_SECRET_KEY) < 10:
+    _validation_errors.append(
+        f"JWT_SECRET_KEY too short ({len(_settings.JWT_SECRET_KEY)} chars, minimum 32)"
+    )
+
+if _settings.FILE_UPLOAD_MAX_MB <= 0:
+    _validation_errors.append(
+        f"FILE_UPLOAD_MAX_MB must be > 0, got {_settings.FILE_UPLOAD_MAX_MB}"
+    )
+
+if _settings.ENVIRONMENT == "production" and "*" in _settings.CORS_ORIGINS.split(","):
+    _validation_errors.append("Wildcard CORS not allowed in production")
+
+if _validation_errors:
+    raise RuntimeError(
+        "Configuration validation failed: " + "; ".join(_validation_errors)
+    )
+# ── End validation ────────────────────────────────────────────────────────
+
 # Create FastAPI app
 app = FastAPI(title="AGRO")
 
+# Configure Rate Limiter
+app.state.limiter = limiter
+
+
+@app.exception_handler(429)
+async def custom_429_handler(request: Request, exc: Exception):
+    raise AppException(
+        status_code=429, detail="Too many requests", rule_id=None, metadata={}
+    )
+
+
 # Correlation id propagation middleware
 app.add_middleware(CorrelationIdMiddleware)
+
+# Security and Timing middlewares
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(TimingMiddleware)
 
 # Register global exception handlers
 register_exception_handlers(app)
 
 # Configure CORS
+_cors_origins = _settings.CORS_ORIGINS.split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: restrict origins in production
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -100,8 +148,7 @@ def startup() -> None:
             )
     except subprocess.CalledProcessError as e:
         logger.exception(f"Error applying migrations: {e}")
-        # Depending on your needs, you might want to stop the app if migrations fail:
-        # raise
+        raise RuntimeError(f"Startup aborted: migration failure — {e}") from e
 
     # 2. Seed fallback data (only if enabled in settings)
     from app.core.config import settings

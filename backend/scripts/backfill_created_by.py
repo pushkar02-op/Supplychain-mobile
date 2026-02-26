@@ -19,21 +19,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Dynamic path setup: Try to import 'app'. If fail, add parent/backend to path.
-try:
-    import app.db.session
-except ImportError:
-    # Assuming script is in scripts/ and backend is in backend/ relative to project root
-    # OR script is in backend/scripts/ and app is in backend/app
-    # We want to add the folder containing 'app' package to sys.path
-    # On Host: scripts/ is sibling to backend/. backend/ contains app/.
-    # So we need to add 'backend' folder to path.
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    backend_path = os.path.join(project_root, "backend")
-    if os.path.exists(backend_path):
-        sys.path.append(backend_path)
-    else:
-        # Maybe we are in backend root?
-        sys.path.append(project_root)
+# Assuming script is in scripts/ and backend is in backend/ relative to project root
+# OR script is in backend/scripts/ and app is in backend/app
+# We want to add the folder containing 'app' package to sys.path
+# On Host: scripts/ is sibling to backend/. backend/ contains app/.
+# So we need to add 'backend' folder to path.
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+backend_path = os.path.join(project_root, "backend")
+if os.path.exists(backend_path):
+    sys.path.append(backend_path)
+else:
+    # Maybe we are in backend root?
+    sys.path.append(project_root)
 
 try:
     from app.db.models.batch import Batch

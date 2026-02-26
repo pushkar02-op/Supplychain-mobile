@@ -6,7 +6,7 @@ Contract:
 3. Legacy behavior (no order_id) MUST fallback to heuristic.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest

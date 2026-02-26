@@ -1,8 +1,6 @@
 import pytest
 from decimal import Decimal
 from app.core.exceptions import AppException
-from app.db.models.stock_entry import StockEntry
-from app.db.models.rejection_entry import RejectionEntry
 from datetime import date
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -10,14 +8,11 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.db.models.item import Item
 from app.db.models.batch import Batch
-from app.db.models.rejection_entry import RejectionEntry
 from app.db.models.uom import UOM
-from app.db.models.item_conversion_map import ItemConversionMap
 from app.services.stock_entry import create_stock_entry, delete_stock_entry
 from app.services.rejection_entry import create_rejection_entry, reverse_rejection_entry
 from app.db.schemas.stock_entry import StockEntryCreate
 from app.db.schemas.rejection_entry import RejectionEntryCreate
-from app.core.exceptions import AppException
 
 
 # Setup In-Memory DB

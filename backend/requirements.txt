@@ -72,3 +72,4 @@ virtualenv==20.34.0
 watchfiles==1.0.5
 websockets==15.0.1
 win32_setctime==1.2.0
+slowapi==0.1.9

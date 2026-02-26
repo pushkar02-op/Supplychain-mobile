@@ -1,9 +1,4 @@
-import pytest
 from app.db.models.order import Order
-from app.db.models.mart import Mart
-from app.db.models.item import Item
-from starlette.testclient import TestClient
-from app.main import app
 
 
 def test_ord_009_zero_quantity_order_error_contract(
@@ -64,7 +59,6 @@ def test_ord_007_over_dispatch_error_contract(
     # We need to create an order first. The service create_order handles this.
     # But for simplicity in this test, we might need an order fixture or create via API.
     # Let's create via DB model directly to avoid circular dependency or service overhead.
-    from app.db.models.order import Order
     from datetime import date
 
     order = Order(

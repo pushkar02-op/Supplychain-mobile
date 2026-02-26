@@ -131,7 +131,7 @@ def test_stock_adjustment_creates_txn_and_updates_batch(db_session):
 
     # 2. Adjust: Add 5kg correction
     # Implies we found 5kg more
-    new_balance = create_stock_adjustment(
+    create_stock_adjustment(
         db_session,
         batch_id=batch_id,
         quantity_delta=Decimal("5.0"),
