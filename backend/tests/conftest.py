@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 os.environ["RUN_MIGRATIONS_ON_STARTUP"] = "false"
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["SEED_INITIAL_DATA"] = "false"
+os.environ["JWT_SECRET_KEY"] = "test-secret-key-that-is-at-least-32-chars-long"
 
 from app.main import app
 from app.db.enums.role import Role

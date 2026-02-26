@@ -31,6 +31,33 @@ from fastapi.middleware.cors import CORSMiddleware
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# ── Startup configuration validation ──────────────────────────────────────
+_validation_errors: list[str] = []
+
+if not _settings.DATABASE_URL:
+    _validation_errors.append("DATABASE_URL is not set")
+
+if not _settings.JWT_SECRET_KEY:
+    _validation_errors.append("JWT_SECRET_KEY is not set")
+elif len(_settings.JWT_SECRET_KEY) < 32:
+    _validation_errors.append(
+        f"JWT_SECRET_KEY too short ({len(_settings.JWT_SECRET_KEY)} chars, minimum 32)"
+    )
+
+if _settings.FILE_UPLOAD_MAX_MB <= 0:
+    _validation_errors.append(
+        f"FILE_UPLOAD_MAX_MB must be > 0, got {_settings.FILE_UPLOAD_MAX_MB}"
+    )
+
+if _settings.ENVIRONMENT == "production" and "*" in _settings.CORS_ORIGINS.split(","):
+    _validation_errors.append("Wildcard CORS not allowed in production")
+
+if _validation_errors:
+    raise RuntimeError(
+        "Configuration validation failed: " + "; ".join(_validation_errors)
+    )
+# ── End validation ────────────────────────────────────────────────────────
+
 # Create FastAPI app
 app = FastAPI(title="AGRO")
 
@@ -42,9 +69,6 @@ register_exception_handlers(app)
 
 # Configure CORS
 _cors_origins = _settings.CORS_ORIGINS.split(",")
-
-if _settings.ENVIRONMENT == "production" and "*" in _cors_origins:
-    raise RuntimeError("Wildcard CORS not allowed in production")
 
 app.add_middleware(
     CORSMiddleware,
@@ -106,8 +130,7 @@ def startup() -> None:
             )
     except subprocess.CalledProcessError as e:
         logger.exception(f"Error applying migrations: {e}")
-        # Depending on your needs, you might want to stop the app if migrations fail:
-        # raise
+        raise RuntimeError(f"Startup aborted: migration failure — {e}") from e
 
     # 2. Seed fallback data (only if enabled in settings)
     from app.core.config import settings
