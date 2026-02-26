@@ -11,7 +11,6 @@ from sqlalchemy.orm import sessionmaker
 from app.core.exceptions import AppException
 from app.db.base import Base
 from app.db.models.batch import Batch
-from app.db.models.dispatch_entry import DispatchEntry
 from app.db.models.item import Item
 from app.db.models.mart import Mart
 from app.db.models.order import Order

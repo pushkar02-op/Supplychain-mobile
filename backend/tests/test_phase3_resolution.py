@@ -3,7 +3,7 @@ Phase 3: Reconciliation & Resolution Tests.
 Strictly enforce invariant: No resolution without record. No implicit mutation.
 """
 
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -14,8 +14,7 @@ from app.db.base import Base
 from app.db.models.batch import Batch
 from app.db.models.inventory_txn import InventoryTxn
 from app.db.models.item import Item
-from app.db.models.mart import Mart
-from app.db.models.reconciliation_record import DriftStatus, ReconciliationRecord
+from app.db.models.reconciliation_record import DriftStatus
 from app.db.models.uom import UOM
 from app.services.inventory_truth import calculate_ledger_balance
 from app.services.reconciliation import (

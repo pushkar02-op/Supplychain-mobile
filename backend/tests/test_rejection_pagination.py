@@ -6,8 +6,6 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
 from app.db.models.item import Item
-from app.db.models.batch import Batch
-from app.db.models.rejection_entry import RejectionEntry
 from app.db.models.uom import UOM
 from app.services.stock_entry import create_stock_entry
 from app.services.rejection_entry import (

@@ -11,7 +11,6 @@ Verifies:
 
 import pytest
 from datetime import date, datetime, timedelta
-from decimal import Decimal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -29,10 +28,6 @@ from app.services.forecasting import (
     compute_burn_rate,
     compute_depletion_forecast,
     refresh_forecast_for_item,
-    get_forecast_summary,
-    SIGNAL_CRITICAL,
-    SIGNAL_REORDER_SOON,
-    SIGNAL_WATCH,
 )
 
 

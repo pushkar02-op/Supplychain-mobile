@@ -1,10 +1,11 @@
-import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
+from app.db.base import Base
 from app.db.models.item import Item
 from app.db.models.mart import Mart
 from app.db.models.mart_item_alias import MartItemAlias
 from app.db.models.uom import UOM
-
 # from app.services.item_alias import resolve_item_for_mart
 
 
@@ -38,12 +39,6 @@ def resolve_item_for_mart(db, mart_id, code=None, name=None):
             return db.get(Item, alias.item_id)
 
     return None
-
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.db.base import Base
 
 
 def get_session():

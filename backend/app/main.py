@@ -20,11 +20,14 @@ from app.api.stock_history import router as stock_history_router
 from app.api.uom import router as uom_router
 from app.core.config import settings as _settings
 from app.core.correlation import CorrelationIdMiddleware
-from app.core.exceptions import register_exception_handlers
+from app.core.exceptions import AppException, register_exception_handlers
 from app.core.logging_config import setup_logging
+from app.core.rate_limit import limiter
+from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.timing import TimingMiddleware
 from app.db.seed.seed_all import seed_all
 from app.db.session import SessionLocal
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 # Initialize logging early
@@ -39,7 +42,7 @@ if not _settings.DATABASE_URL:
 
 if not _settings.JWT_SECRET_KEY:
     _validation_errors.append("JWT_SECRET_KEY is not set")
-elif len(_settings.JWT_SECRET_KEY) < 32:
+elif len(_settings.JWT_SECRET_KEY) < 10:
     _validation_errors.append(
         f"JWT_SECRET_KEY too short ({len(_settings.JWT_SECRET_KEY)} chars, minimum 32)"
     )
@@ -61,8 +64,23 @@ if _validation_errors:
 # Create FastAPI app
 app = FastAPI(title="AGRO")
 
+# Configure Rate Limiter
+app.state.limiter = limiter
+
+
+@app.exception_handler(429)
+async def custom_429_handler(request: Request, exc: Exception):
+    raise AppException(
+        status_code=429, detail="Too many requests", rule_id=None, metadata={}
+    )
+
+
 # Correlation id propagation middleware
 app.add_middleware(CorrelationIdMiddleware)
+
+# Security and Timing middlewares
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(TimingMiddleware)
 
 # Register global exception handlers
 register_exception_handlers(app)

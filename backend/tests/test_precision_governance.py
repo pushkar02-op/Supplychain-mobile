@@ -2,7 +2,6 @@ from decimal import Decimal
 import pytest
 from app.db.schemas.inventory_txn import InventoryTxnCreate
 from app.services.inventory_txn import create_inventory_txn
-from app.db.models.inventory_txn import InventoryTxn
 from app.db.models.batch import Batch
 from app.db.models.item import Item
 from app.db.models.uom import UOM

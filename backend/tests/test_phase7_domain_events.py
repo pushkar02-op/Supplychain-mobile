@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
@@ -43,7 +43,6 @@ def db_session():
     from app.db.models.dispatch_reversal import DispatchReversal
     from app.db.models.dispatch_entry import DispatchEntry
     from app.db.models.order import Order
-    from app.db.models.inventory_txn import InventoryTxn
     from app.db.models.batch import Batch
 
     target_mart_ids = session.query(Mart.id).filter(Mart.name == "Event Test Mart")

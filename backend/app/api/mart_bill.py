@@ -11,6 +11,7 @@ from typing import List, Optional
 
 from app.core.auth import require_role
 from app.core.exceptions import AppException
+from app.core.rate_limit import limiter
 from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
@@ -27,7 +28,7 @@ from app.services.mart_bill import (
 )
 from app.services.warehouse_scope import resolve_warehouse_for_request
 from app.utils.file_validation import validate_upload_size
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
@@ -41,7 +42,9 @@ router = APIRouter(prefix="/mart-bills", tags=["Mart Bills"])
     summary="Upload Mart Bill PDFs",
     description="Uploads one or more mart bill PDF files and processes them.",
 )
+@limiter.limit("10/minute")
 async def upload_mart_bills(
+    request: Request,
     files: List[UploadFile] = File(..., description="One or more PDF files"),
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
@@ -278,7 +281,9 @@ def unverify_mart_bill_endpoint(
 
 
 @router.post("/{bill_id}/replace-file", response_model=MartBillRead)
+@limiter.limit("10/minute")
 async def replace_mart_bill_file_endpoint(
+    request: Request,
     bill_id: int,
     file: UploadFile = File(...),
     warehouse_id: Optional[int] = Query(None),

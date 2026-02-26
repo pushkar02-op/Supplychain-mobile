@@ -1,5 +1,4 @@
 from decimal import Decimal
-from datetime import date
 
 import pytest
 from sqlalchemy import create_engine
@@ -8,7 +7,6 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.db.models.item import Item
 from app.db.models.uom import UOM
-from app.db.models.item_conversion_map import ItemConversionMap
 from app.core.exceptions import AppException
 from app.services.stock_entry import create_stock_adjustment, create_stock_entry
 from app.services.stock_history import get_stock_history
@@ -125,7 +123,7 @@ def test_get_stock_history_not_found(db_session):
 
 def test_soft_delete_and_void_history(db_session):
     from app.services.stock_entry import delete_stock_entry
-    
+
     # 1. Create Stock Entry
     entry = create_stock_entry(
         db_session,
@@ -139,17 +137,17 @@ def test_soft_delete_and_void_history(db_session):
         ),
         created_by=1,
     )
-    
+
     # 2. Soft Delete (Void)
     success = delete_stock_entry(db_session, entry.id)
     assert success is True
-    
+
     # 3. Verify entry still exists but is inactive
     assert entry.is_active is False
-    
+
     # 4. Get History
     history = get_stock_history(db_session, entry.id)
-    
+
     # 5. Assert Void Status
     assert history.is_voided is True
     assert history.voided_at is not None

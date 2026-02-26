@@ -6,12 +6,13 @@ Handles user registration and login.
 import logging
 
 from app.core.auth import require_role
+from app.core.rate_limit import limiter
 from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.schemas.auth import Token, TokenRefresh, UserCreate, UserLogin
 from app.db.session import get_db
 from app.services.auth import login_user, refresh_token, register_user
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,8 @@ def register(
 
 
 @router.post("/login", response_model=Token)
-def login(user: UserLogin, db: Session = Depends(get_db)) -> Token:
+@limiter.limit("5/minute")
+def login(request: Request, user: UserLogin, db: Session = Depends(get_db)) -> Token:
     """
     Authenticate an existing user.
 
@@ -55,7 +57,10 @@ def login(user: UserLogin, db: Session = Depends(get_db)) -> Token:
 
 
 @router.post("/refresh", response_model=Token)
-def refresh(token_data: TokenRefresh, db: Session = Depends(get_db)) -> Token:
+@limiter.limit("10/minute")
+def refresh(
+    request: Request, token_data: TokenRefresh, db: Session = Depends(get_db)
+) -> Token:
     """
     Refresh access token using a refresh token.
     Revokes the old refresh token and issues a new pair.
