@@ -1,10 +1,11 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/mockito.dart';
-import 'package:mockito/annotations.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/dio_client.dart';
+import 'package:mobile/core/errors/app_error.dart';
+import 'package:mobile/core/errors/error_mapper.dart';
 import 'package:mobile/repositories/admin_ledger_repository.dart';
-import 'package:mobile/core/app_exceptions.dart';
+import 'package:mockito/annotations.dart';
+import 'package:mockito/mockito.dart';
 
 @GenerateNiceMocks([MockSpec<Dio>()])
 import 'admin_ledger_repository_test.mocks.dart';
@@ -58,7 +59,7 @@ void main() {
           ),
           statusCode: 200,
           data: [
-            {'batch_id': 1, 'drift': 0.5}
+            {'batch_id': 1, 'drift': 0.5},
           ],
         ),
       );
@@ -69,23 +70,22 @@ void main() {
       expect(result[0]['batch_id'], 1);
     });
 
-    test('throws UnauthorizedException on 403', () async {
+    test('throws AppError on 403', () async {
       when(mockDio.get(any)).thenThrow(
-        DioException(
-          requestOptions: RequestOptions(path: '/any'),
-          response: Response(
+        ErrorMapper.map(
+          DioException(
             requestOptions: RequestOptions(path: '/any'),
-            statusCode: 403,
-            data: {'detail': 'Forbidden'},
+            response: Response(
+              requestOptions: RequestOptions(path: '/any'),
+              statusCode: 403,
+              data: {'detail': 'Forbidden'},
+            ),
+            type: DioExceptionType.badResponse,
           ),
-          type: DioExceptionType.badResponse,
         ),
       );
 
-      expect(
-        () => repository.fetchLedgerHealth(),
-        throwsA(isA<UnauthorizedException>()),
-      );
+      expect(() => repository.fetchLedgerHealth(), throwsA(isA<AppError>()));
     });
   });
 }
