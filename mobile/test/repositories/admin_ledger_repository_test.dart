@@ -1,8 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/dio_client.dart';
-import 'package:mobile/core/errors/app_error.dart';
-import 'package:mobile/core/errors/error_mapper.dart';
+import 'package:mobile/core/errors/domain_errors.dart';
 import 'package:mobile/repositories/admin_ledger_repository.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
@@ -70,22 +69,19 @@ void main() {
       expect(result[0]['batch_id'], 1);
     });
 
-    test('throws AppError on 403', () async {
+    test('throws UnauthorizedGovernanceError on 403', () async {
       when(mockDio.get(any)).thenThrow(
-        ErrorMapper.map(
-          DioException(
-            requestOptions: RequestOptions(path: '/any'),
-            response: Response(
-              requestOptions: RequestOptions(path: '/any'),
-              statusCode: 403,
-              data: {'detail': 'Forbidden'},
-            ),
-            type: DioExceptionType.badResponse,
-          ),
+        UnauthorizedGovernanceError(
+          detail: 'Forbidden',
+          ruleId: 'AUT-001',
+          statusCode: 403,
         ),
       );
 
-      expect(() => repository.fetchLedgerHealth(), throwsA(isA<AppError>()));
+      expect(
+        () => repository.fetchLedgerHealth(),
+        throwsA(isA<UnauthorizedGovernanceError>()),
+      );
     });
   });
 }
