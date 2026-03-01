@@ -3,8 +3,9 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../core/app_exceptions.dart';
 import '../core/dio_client.dart';
+import '../core/errors/app_error.dart';
+import '../core/errors/error_mapper.dart';
 import '../models/mart_bill.dart';
 import '../services/auth_service.dart';
 
@@ -43,9 +44,9 @@ class MartBillRepository {
           ),
         };
       }
-      throw const ServerException('Failed to load mart bills');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load mart bills');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -70,11 +71,12 @@ class MartBillRepository {
       if (resp.statusCode == 201 || resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw ServerException(
-        'Upload failed: ${resp.data['detail'] ?? resp.statusMessage}',
+      throw AppError(
+        detail:
+            'Upload failed: ${resp.data is Map ? resp.data['detail'] : resp.statusMessage}',
       );
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -102,8 +104,9 @@ class MartBillRepository {
       );
 
       if (resp.statusCode != 200) {
-        throw ServerException(
-          'Replacement failed: ${resp.data['detail'] ?? resp.statusMessage}',
+        throw AppError(
+          detail:
+              'Replacement failed: ${resp.data['detail'] ?? resp.statusMessage}',
         );
       }
     } on DioException catch (e) {
@@ -121,14 +124,15 @@ class MartBillRepository {
             ),
           );
           if (resp.statusCode != 200) {
-            throw ServerException(
-              'Replacement failed: ${resp.data['detail'] ?? resp.statusMessage}',
+            throw AppError(
+              detail:
+                  'Replacement failed: ${resp.data is Map ? resp.data['detail'] : resp.statusMessage}',
             );
           }
           return;
         }
       }
-      throw _handleError(e);
+      throw ErrorMapper.map(e);
     }
   }
 
@@ -139,9 +143,9 @@ class MartBillRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw const ServerException('Failed to load items');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load items');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -153,12 +157,12 @@ class MartBillRepository {
         data: {'remarks': remarks},
       );
       if (resp.statusCode != 200) {
-        throw ServerException(
-          'Update failed: ${resp.data['detail'] ?? resp.statusMessage}',
+        throw AppError(
+          detail: 'Update failed: ${resp.data['detail'] ?? resp.statusMessage}',
         );
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -167,12 +171,13 @@ class MartBillRepository {
     try {
       final resp = await DioClient.instance.post('/mart-bills/$billId/verify');
       if (resp.statusCode != 200) {
-        throw ServerException(
-          'Verification failed: ${resp.data['detail'] ?? resp.statusMessage}',
+        throw AppError(
+          detail:
+              'Verification failed: ${resp.data['detail'] ?? resp.statusMessage}',
         );
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -183,12 +188,13 @@ class MartBillRepository {
         '/mart-bills/$billId/unverify',
       );
       if (resp.statusCode != 200) {
-        throw ServerException(
-          'Unverification failed: ${resp.data['detail'] ?? resp.statusMessage}',
+        throw AppError(
+          detail:
+              'Unverification failed: ${resp.data['detail'] ?? resp.statusMessage}',
         );
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -200,12 +206,13 @@ class MartBillRepository {
         data: data,
       );
       if (resp.statusCode != 200) {
-        throw ServerException(
-          'Item update failed: ${resp.data['detail'] ?? resp.statusMessage}',
+        throw AppError(
+          detail:
+              'Item update failed: ${resp.data['detail'] ?? resp.statusMessage}',
         );
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -214,10 +221,10 @@ class MartBillRepository {
     try {
       final resp = await DioClient.instance.delete('/mart-bills/$billId');
       if (resp.statusCode != 204) {
-        throw const ServerException('Delete failed');
+        throw AppError(detail: 'Delete failed');
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -226,10 +233,10 @@ class MartBillRepository {
     try {
       final resp = await DioClient.instance.delete('/mart-bill-items/$itemId');
       if (resp.statusCode != 204) {
-        throw const ServerException('Delete item failed');
+        throw AppError(detail: 'Delete item failed');
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -238,12 +245,13 @@ class MartBillRepository {
     try {
       final resp = await DioClient.instance.post('/mart-bills/$billId/process');
       if (resp.statusCode != 200) {
-        throw ServerException(
-          'Process failed: ${resp.data['detail'] ?? resp.statusMessage}',
+        throw AppError(
+          detail:
+              'Process failed: ${resp.data['detail'] ?? resp.statusMessage}',
         );
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -258,9 +266,9 @@ class MartBillRepository {
       if (data is List) {
         return List<String>.from(data);
       }
-      throw const ServerException('Unexpected mart-names format');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Unexpected mart-names format');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -281,12 +289,13 @@ class MartBillRepository {
       if (response.statusCode == 200) {
         return filePath;
       } else {
-        throw ServerException(
-          'Failed to download mart bill: ${response.statusCode} ${response.statusMessage}',
+        throw AppError(
+          detail:
+              'Failed to download mart bill: ${response.statusCode} ${response.statusMessage}',
         );
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -297,46 +306,9 @@ class MartBillRepository {
       if (resp.statusCode == 200) {
         return MartBill.fromJson(resp.data);
       }
-      throw const ServerException('Failed to load mart bill');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load mart bill');
+    } catch (e) {
+      rethrow;
     }
-  }
-
-  AppException _handleError(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.receiveTimeout) {
-      return const NetworkException('Connection timed out');
-    }
-
-    if (error.response != null) {
-      final statusCode = error.response!.statusCode;
-      final data = error.response!.data;
-      final message =
-          (data is Map && data['detail'] != null)
-              ? data['detail'].toString()
-              : error.message ?? 'Unknown Error';
-
-      if (statusCode == 401) return UnauthorizedException(message);
-      if (statusCode == 400 || statusCode == 422) {
-        final detail =
-            (data is Map && data['detail'] != null)
-                ? data['detail']
-                : data.toString();
-        return ValidationException(
-          detail.toString(),
-          errors: (data is Map) ? Map<String, dynamic>.from(data) : null,
-        );
-      }
-      if (statusCode == 409) {
-        return const ConfigurationException(
-          'This item is not fully configured. Please contact an admin to set its default unit of measure.',
-        );
-      }
-      if (statusCode! >= 500) return ServerException('Server Error: $message');
-      return UnknownException('Error $statusCode: $message');
-    }
-
-    return NetworkException('Network Error: ${error.message}');
   }
 }

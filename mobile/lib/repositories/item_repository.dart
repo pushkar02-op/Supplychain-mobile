@@ -1,7 +1,6 @@
-import 'package:dio/dio.dart';
 
-import '../core/app_exceptions.dart';
 import '../core/dio_client.dart';
+import '../core/errors/app_error.dart';
 import '../services/forecasting_service.dart';
 
 class ItemRepository {
@@ -11,10 +10,8 @@ class ItemRepository {
     try {
       final resp = await DioClient.instance.post('/item-alias/', data: body);
       return resp.data;
-    } on DioException catch (e) {
-      throw _handleError(e);
     } catch (e) {
-      return null;
+      rethrow;
     }
   }
 
@@ -22,18 +19,16 @@ class ItemRepository {
     try {
       final resp = await DioClient.instance.post('/item/', data: body);
       return resp.data;
-    } on DioException catch (e) {
-      throw _handleError(e);
     } catch (e) {
-      return null;
+      rethrow;
     }
   }
 
   Future<void> reprocessStock(int billId) async {
     try {
       await DioClient.instance.post('/mart-bills/$billId/process-stock');
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -44,8 +39,8 @@ class ItemRepository {
       final queryParams = includeInactive ? '?include_inactive=true' : '';
       final res = await DioClient.instance.get('/item-management/$queryParams');
       return List<Map<String, dynamic>>.from(res.data);
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -53,7 +48,7 @@ class ItemRepository {
     final items = await fetchItems(includeInactive: true);
     return items.firstWhere(
       (item) => item['id'] == itemId,
-      orElse: () => throw const ServerException('Item not found'),
+      orElse: () => throw AppError(detail: 'Item not found'),
     );
   }
 
@@ -63,10 +58,8 @@ class ItemRepository {
     try {
       final res = await DioClient.instance.post('/item/$id/deactivate');
       return res.data;
-    } on DioException catch (e) {
-      throw _handleError(e);
     } catch (e) {
-      return null;
+      rethrow;
     }
   }
 
@@ -75,10 +68,8 @@ class ItemRepository {
     try {
       final res = await DioClient.instance.post('/item/$id/reactivate');
       return res.data;
-    } on DioException catch (e) {
-      throw _handleError(e);
     } catch (e) {
-      return null;
+      rethrow;
     }
   }
 
@@ -86,8 +77,8 @@ class ItemRepository {
     try {
       final res = await DioClient.instance.get('/item-management/uoms');
       return List<Map<String, dynamic>>.from(res.data);
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -100,8 +91,8 @@ class ItemRepository {
         data: payload,
       );
       return res.data;
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -111,8 +102,8 @@ class ItemRepository {
         '/item-management/unmapped-invoice-items',
       );
       return List<Map<String, dynamic>>.from(res.data);
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -122,8 +113,8 @@ class ItemRepository {
         '/item-management/map-invoice-item',
         data: {'invoice_item_id': billItemId, 'master_item_id': masterItemId},
       );
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -174,8 +165,8 @@ class ItemRepository {
       final resp = await DioClient.instance.get('/admin/forecasting/summary');
       final items = resp.data['items'] as List<dynamic>? ?? [];
       return items.map((e) => ItemForecast.fromJson(e)).toList();
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -185,42 +176,5 @@ class ItemRepository {
     } catch (_) {
       return null;
     }
-  }
-
-  AppException _handleError(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.receiveTimeout) {
-      return const NetworkException('Connection timed out');
-    }
-
-    if (error.response != null) {
-      final statusCode = error.response!.statusCode;
-      final data = error.response!.data;
-      final message =
-          (data is Map && data['detail'] != null)
-              ? data['detail'].toString()
-              : error.message ?? 'Unknown Error';
-
-      if (statusCode == 401) return UnauthorizedException(message);
-      if (statusCode == 400 || statusCode == 422) {
-        final detail =
-            (data is Map && data['detail'] != null)
-                ? data['detail']
-                : data.toString();
-        return ValidationException(
-          detail.toString(),
-          errors: (data is Map) ? Map<String, dynamic>.from(data) : null,
-        );
-      }
-      if (statusCode == 409) {
-        return const ConfigurationException(
-          'This item is not fully configured. Please contact an admin to set its default unit of measure.',
-        );
-      }
-      if (statusCode! >= 500) return ServerException('Server Error: $message');
-      return UnknownException('Error $statusCode: $message');
-    }
-
-    return NetworkException('Network Error: ${error.message}');
   }
 }

@@ -1,16 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
 
-import '../core/app_exceptions.dart';
 import '../core/dio_client.dart';
+import '../core/errors/app_error.dart';
 
 class RejectionRepository {
   Future<List<Map<String, dynamic>>> fetchItemsWithBatches() async {
     try {
       final resp = await DioClient.instance.get('/item/with-available-batches');
       return List<Map<String, dynamic>>.from(resp.data);
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -21,9 +21,9 @@ class RejectionRepository {
       if (resp.statusCode == 200) {
         return resp.data as List<dynamic>;
       }
-      throw const ServerException('Failed to load batches');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load batches');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -53,17 +53,18 @@ class RejectionRepository {
         options: Options(headers: {'Idempotency-Key': const Uuid().v4()}),
       );
       if (resp.statusCode != 200 && resp.statusCode != 201) {
-        throw ServerException(
-          resp.data['detail'] ?? 'Failed to create rejection entry',
+        throw AppError(
+          detail: resp.data['detail'] ?? 'Failed to create rejection entry',
         );
       }
     } on DioException catch (e) {
       if (e.response?.statusCode == 409) {
-        throw const ConfigurationException(
-          'This item is not fully configured. Please contact an admin to set its default unit of measure.',
+        throw AppError(
+          detail:
+              'This item is not fully configured. Please contact an admin to set its default unit of measure.',
         );
       }
-      throw _handleError(e);
+      rethrow;
     }
   }
 
@@ -89,8 +90,8 @@ class RejectionRepository {
       );
 
       return resp.data as Map<String, dynamic>;
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -99,49 +100,12 @@ class RejectionRepository {
     try {
       final resp = await DioClient.instance.delete('/rejection-entries/$id');
       if (resp.statusCode != 200 && resp.statusCode != 204) {
-        throw ServerException(
-          resp.data['detail'] ?? 'Failed to reverse rejection',
+        throw AppError(
+          detail: resp.data['detail'] ?? 'Failed to reverse rejection',
         );
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
-  }
-
-  AppException _handleError(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.receiveTimeout) {
-      return const NetworkException('Connection timed out');
-    }
-
-    if (error.response != null) {
-      final statusCode = error.response!.statusCode;
-      final data = error.response!.data;
-      final message =
-          (data is Map && data['detail'] != null)
-              ? data['detail'].toString()
-              : error.message ?? 'Unknown Error';
-
-      if (statusCode == 401) return UnauthorizedException(message);
-      if (statusCode == 400 || statusCode == 422) {
-        final detail =
-            (data is Map && data['detail'] != null)
-                ? data['detail']
-                : data.toString();
-        return ValidationException(
-          detail.toString(),
-          errors: (data is Map) ? Map<String, dynamic>.from(data) : null,
-        );
-      }
-      if (statusCode == 409) {
-        return const ConfigurationException(
-          'This item is not fully configured. Please contact an admin to set its default unit of measure.',
-        );
-      }
-      if (statusCode! >= 500) return ServerException('Server Error: $message');
-      return UnknownException('Error $statusCode: $message');
-    }
-
-    return NetworkException('Network Error: ${error.message}');
   }
 }
