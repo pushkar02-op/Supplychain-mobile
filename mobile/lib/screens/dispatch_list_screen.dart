@@ -83,8 +83,10 @@ class DispatchListScreen extends ConsumerWidget {
         (async) => async.valueOrNull ?? const <String>[],
       ),
     );
-    final isAdmin = ref.watch(
-      authProvider.select((async) => async.valueOrNull?.isAdmin ?? false),
+    final canManageUsers = ref.watch(
+      authProvider.select(
+        (async) => async.valueOrNull?.canManageUsers ?? false,
+      ),
     );
 
     return Scaffold(
@@ -415,7 +417,7 @@ class DispatchListScreen extends ConsumerWidget {
                                           ],
                                         ),
                                       ),
-                                      if (isAdmin && !isReversed)
+                                      if (canManageUsers && !isReversed)
                                         PopupMenuButton<String>(
                                           icon: Icon(
                                             Icons.more_vert,
@@ -446,13 +448,19 @@ class DispatchListScreen extends ConsumerWidget {
                                                       Icon(
                                                         Icons.history,
                                                         size: 18,
-                                                        color: AgroColors.critical.text,
+                                                        color:
+                                                            AgroColors
+                                                                .critical
+                                                                .text,
                                                       ),
                                                       const SizedBox(width: 8),
                                                       Text(
                                                         'Reverse Dispatch',
                                                         style: TextStyle(
-                                                          color: AgroColors.critical.text,
+                                                          color:
+                                                              AgroColors
+                                                                  .critical
+                                                                  .text,
                                                         ),
                                                       ),
                                                     ],

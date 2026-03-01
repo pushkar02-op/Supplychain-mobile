@@ -40,8 +40,10 @@ class OverviewScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isAdmin = ref.watch(
-      authProvider.select((async) => async.valueOrNull?.isAdmin ?? false),
+    final canManageUsers = ref.watch(
+      authProvider.select(
+        (async) => async.valueOrNull?.canManageUsers ?? false,
+      ),
     );
     final todayFormatted = DateFormat('EEEE, MMMM d').format(DateTime.now());
 
@@ -51,7 +53,8 @@ class OverviewScreen extends ConsumerWidget {
     final orders = _deriveOrdersActivity(
       ref.watch(
         orderListProvider.select(
-          (async) => async.valueOrNull?.orders ?? const <Map<String, dynamic>>[],
+          (async) =>
+              async.valueOrNull?.orders ?? const <Map<String, dynamic>>[],
         ),
       ),
     );
@@ -63,7 +66,11 @@ class OverviewScreen extends ConsumerWidget {
       ),
     );
     final receipts = _deriveReceiptsActivity(
-      ref.watch(stockListProvider.select((async) => async.valueOrNull ?? const <dynamic>[])),
+      ref.watch(
+        stockListProvider.select(
+          (async) => async.valueOrNull ?? const <dynamic>[],
+        ),
+      ),
     );
     final rejections = _deriveRejectionsActivity(
       ref.watch(
@@ -74,7 +81,7 @@ class OverviewScreen extends ConsumerWidget {
     );
 
     final alerts = _deriveAlerts(
-      isAdmin: isAdmin,
+      canManageUsers: canManageUsers,
       inventoryItems: ref.watch(
         inventoryListProvider.select(
           (async) => async.valueOrNull?.items ?? const <Map<String, dynamic>>[],
@@ -138,7 +145,11 @@ class OverviewScreen extends ConsumerWidget {
 
             const Text('Alerts & Health', style: AgroTypography.sectionTitle),
             const SizedBox(height: AgroSpacing.sm),
-            _buildAlertsAndHealth(context, alerts, isAdmin: isAdmin),
+            _buildAlertsAndHealth(
+              context,
+              alerts,
+              canManageUsers: canManageUsers,
+            ),
 
             const SizedBox(height: AgroSpacing.xl),
 
@@ -237,7 +248,7 @@ class OverviewScreen extends ConsumerWidget {
   Widget _buildAlertsAndHealth(
     BuildContext context,
     List<_AlertRowData> alerts, {
-    required bool isAdmin,
+    required bool canManageUsers,
   }) {
     if (alerts.isEmpty) {
       return AgroCard.outlined(
@@ -249,7 +260,9 @@ class OverviewScreen extends ConsumerWidget {
             label: 'System Healthy',
           ),
           title: Text(
-            isAdmin ? 'No governance alerts' : 'No active operator alerts',
+            canManageUsers
+                ? 'No governance alerts'
+                : 'No active operator alerts',
             style: AgroTypography.caption,
           ),
         ),
@@ -441,7 +454,7 @@ class OverviewScreen extends ConsumerWidget {
   }
 
   List<_AlertRowData> _deriveAlerts({
-    required bool isAdmin,
+    required bool canManageUsers,
     required List<Map<String, dynamic>> inventoryItems,
     required List<Map<String, dynamic>> martBills,
     required List<ItemForecast> forecasts,
@@ -488,7 +501,7 @@ class OverviewScreen extends ConsumerWidget {
 
     final alerts = <_AlertRowData>[];
 
-    if (isAdmin) {
+    if (canManageUsers) {
       if (driftedBatches > 0) {
         alerts.add(
           _AlertRowData(

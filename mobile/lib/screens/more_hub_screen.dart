@@ -17,7 +17,7 @@ class MoreHubScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
-    final isAdmin = authState.value?.isAdmin ?? false;
+    final canManageUsers = authState.value?.canManageUsers ?? false;
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -73,7 +73,7 @@ class MoreHubScreen extends ConsumerWidget {
           const SizedBox(height: AgroSpacing.xl),
 
           // Admin Section (only visible to admins)
-          if (isAdmin) ...[
+          if (canManageUsers) ...[
             const Padding(
               padding: EdgeInsets.only(
                 bottom: AgroSpacing.sm,
@@ -86,21 +86,21 @@ class MoreHubScreen extends ConsumerWidget {
               title: 'Inventory Health',
               subtitle: 'Ledger health and drift detection',
               route: '/admin/ledger/health',
-              isAdmin: true,
+              canManageUsers: true,
             ),
             const _NavTile(
               icon: Icons.compare_arrows_outlined,
               title: 'Drift Report',
               subtitle: 'View detailed reconciliation',
               route: '/admin/ledger/drift',
-              isAdmin: true,
+              canManageUsers: true,
             ),
             const _NavTile(
               icon: Icons.build_outlined,
               title: 'UOM Diagnostics',
               subtitle: 'Items with missing configurations',
               route: '/admin/uom-diagnostics',
-              isAdmin: true,
+              canManageUsers: true,
             ),
           ],
 
@@ -120,21 +120,22 @@ class _NavTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final String route;
-  final bool isAdmin;
+  final bool canManageUsers;
 
   const _NavTile({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.route,
-    this.isAdmin = false,
+    this.canManageUsers = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = isAdmin ? AgroColors.adminAccent : AgroColors.primary;
+    final iconColor =
+        canManageUsers ? AgroColors.adminAccent : AgroColors.primary;
     final borderColor =
-        isAdmin
+        canManageUsers
             ? const Color(0xFFFFCC80) // orange.shade200
             : AgroColors.dividerLight;
 
@@ -149,7 +150,10 @@ class _NavTile extends StatelessWidget {
         leading: Icon(icon, color: iconColor),
         title: Text(title, style: AgroTypography.cardTitle),
         subtitle: Text(subtitle, style: AgroTypography.cardSubtitle),
-        trailing: const Icon(Icons.chevron_right, color: AgroColors.textDisabled),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: AgroColors.textDisabled,
+        ),
         onTap: () => context.push(route),
       ),
     );

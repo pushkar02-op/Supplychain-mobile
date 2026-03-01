@@ -46,7 +46,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       final isLoggedIn = authState.value?.isLoggedIn ?? false;
-      final isAdmin = authState.value?.isAdmin ?? false;
+      final canManageUsers = authState.value?.canManageUsers ?? false;
       final isLoggingIn = state.uri.path == '/login';
       final isRestricted = state.uri.path.startsWith('/admin');
 
@@ -65,7 +65,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Admin Guard
-      if (isRestricted && !isAdmin) {
+      if (isRestricted && !canManageUsers) {
         return '/main';
       }
 
