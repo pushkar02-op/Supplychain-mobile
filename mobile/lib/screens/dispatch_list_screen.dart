@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../providers/active_mart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/dispatch_provider.dart';
 import '../ui/semantics/agro_status.dart';
@@ -79,10 +80,13 @@ class DispatchListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(dispatchListProvider);
     final marts = ref.watch(
-      dispatchMartListProvider.select(
-        (async) => async.valueOrNull ?? const <String>[],
+      martListProvider.select(
+        (async) =>
+            async.valueOrNull?.map((m) => m['name'] as String).toList() ??
+            const <String>[],
       ),
     );
+    final selectedMart = ref.watch(activeMartProvider);
     final canManageUsers = ref.watch(
       authProvider.select(
         (async) => async.valueOrNull?.canManageUsers ?? false,
@@ -190,7 +194,7 @@ class DispatchListScreen extends ConsumerWidget {
                           width: 140,
                           child: DropdownButtonFormField2<String>(
                             isExpanded: true,
-                            value: state.selectedMart,
+                            value: selectedMart,
                             decoration: InputDecoration(
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
@@ -231,9 +235,10 @@ class DispatchListScreen extends ConsumerWidget {
                               ),
                             ],
                             onChanged:
-                                (v) => ref
-                                    .read(dispatchListProvider.notifier)
-                                    .setMart(v),
+                                (v) =>
+                                    ref
+                                        .read(activeMartProvider.notifier)
+                                        .state = v,
                           ),
                         ),
                       ],

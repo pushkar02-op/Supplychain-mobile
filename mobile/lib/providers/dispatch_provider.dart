@@ -2,13 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../repositories/dispatch_repository.dart';
+import 'active_mart_provider.dart';
 
 final dispatchRepositoryProvider = Provider<DispatchRepository>(
   (ref) => DispatchRepository(),
-);
-
-final dispatchMartListProvider = FutureProvider<List<String>>(
-  (ref) => ref.read(dispatchRepositoryProvider).fetchMartNames(),
 );
 
 final dispatchListProvider =
@@ -19,7 +16,6 @@ final dispatchListProvider =
 class DispatchListState {
   final List<dynamic> dispatches;
   final DateTime selectedDate;
-  final String? selectedMart;
   final bool showHidden;
   final int skip;
   final int limit;
@@ -29,7 +25,6 @@ class DispatchListState {
   const DispatchListState({
     required this.dispatches,
     required this.selectedDate,
-    required this.selectedMart,
     required this.showHidden,
     required this.skip,
     required this.limit,
@@ -40,8 +35,6 @@ class DispatchListState {
   DispatchListState copyWith({
     List<dynamic>? dispatches,
     DateTime? selectedDate,
-    String? selectedMart,
-    bool clearSelectedMart = false,
     bool? showHidden,
     int? skip,
     int? limit,
@@ -51,8 +44,6 @@ class DispatchListState {
     return DispatchListState(
       dispatches: dispatches ?? this.dispatches,
       selectedDate: selectedDate ?? this.selectedDate,
-      selectedMart:
-          clearSelectedMart ? null : (selectedMart ?? this.selectedMart),
       showHidden: showHidden ?? this.showHidden,
       skip: skip ?? this.skip,
       limit: limit ?? this.limit,
@@ -68,9 +59,12 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
   @override
   Future<DispatchListState> build() async {
     _repo = ref.read(dispatchRepositoryProvider);
+    // When active mart changes, refresh data automatically
+    ref.listen<String?>(activeMartProvider, (_, __) => refresh());
     final today = DateTime.now();
     final items = await _repo.fetchDispatches(
       dispatchDate: _formatDate(today),
+      martName: ref.read(activeMartProvider),
       hideFullyReversed: true,
       skip: 0,
       limit: 100,
@@ -78,7 +72,6 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     return DispatchListState(
       dispatches: items,
       selectedDate: today,
-      selectedMart: null,
       showHidden: false,
       skip: 0,
       limit: 100,
@@ -95,37 +88,13 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     state = await AsyncValue.guard(() async {
       final items = await _repo.fetchDispatches(
         dispatchDate: _formatDate(date),
-        martName: current.selectedMart,
+        martName: ref.read(activeMartProvider),
         hideFullyReversed: !current.showHidden,
         skip: 0,
         limit: current.limit,
       );
       return current.copyWith(
         selectedDate: date,
-        dispatches: items,
-        skip: 0,
-        hasMore: false,
-        isLoadingMore: false,
-      );
-    });
-  }
-
-  Future<void> setMart(String? mart) async {
-    final current = state.valueOrNull;
-    if (current == null) return;
-
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final items = await _repo.fetchDispatches(
-        dispatchDate: _formatDate(current.selectedDate),
-        martName: mart,
-        hideFullyReversed: !current.showHidden,
-        skip: 0,
-        limit: current.limit,
-      );
-      return current.copyWith(
-        selectedMart: mart,
-        clearSelectedMart: mart == null,
         dispatches: items,
         skip: 0,
         hasMore: false,
@@ -142,7 +111,7 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     state = await AsyncValue.guard(() async {
       final items = await _repo.fetchDispatches(
         dispatchDate: _formatDate(current.selectedDate),
-        martName: current.selectedMart,
+        martName: ref.read(activeMartProvider),
         hideFullyReversed: !value,
         skip: 0,
         limit: current.limit,
@@ -169,7 +138,7 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     state = await AsyncValue.guard(() async {
       final items = await _repo.fetchDispatches(
         dispatchDate: _formatDate(current.selectedDate),
-        martName: current.selectedMart,
+        martName: ref.read(activeMartProvider),
         hideFullyReversed: !current.showHidden,
         skip: 0,
         limit: current.limit,

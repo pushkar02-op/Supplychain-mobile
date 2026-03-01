@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../providers/active_mart_provider.dart';
 import '../providers/mart_bill_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_shapes.dart';
@@ -172,10 +173,13 @@ class MartBillListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncState = ref.watch(martBillProvider);
     final marts = ref.watch(
-      martBillMartListProvider.select(
-        (async) => async.valueOrNull ?? const <String>[],
+      martListProvider.select(
+        (async) =>
+            async.valueOrNull?.map((m) => m['name'] as String).toList() ??
+            const <String>[],
       ),
     );
+    final selectedMart = ref.watch(activeMartProvider);
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -238,7 +242,7 @@ class MartBillListScreen extends ConsumerWidget {
                     Expanded(
                       child: DropdownButtonFormField2<String>(
                         isExpanded: true,
-                        value: state.selectedMart,
+                        value: selectedMart,
                         decoration: const InputDecoration(
                           isDense: true,
                           contentPadding: EdgeInsets.symmetric(
@@ -263,7 +267,7 @@ class MartBillListScreen extends ConsumerWidget {
                         ],
                         onChanged:
                             (v) =>
-                                ref.read(martBillProvider.notifier).setMart(v),
+                                ref.read(activeMartProvider.notifier).state = v,
                       ),
                     ),
                     const SizedBox(width: AgroSpacing.md),
