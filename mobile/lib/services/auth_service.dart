@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import '../core/dio_client.dart';
 
 class AuthService {
@@ -22,6 +23,10 @@ class AuthService {
       // Store new role for UI logic
       if (data.containsKey('role') && data['role'] != null) {
         await storage.write(key: 'user_role', value: data['role'].toString());
+      }
+      // Store user ID for self-deactivation guard
+      if (data.containsKey('user_id') && data['user_id'] != null) {
+        await storage.write(key: 'user_id', value: data['user_id'].toString());
       }
       return true;
     } on DioException catch (e) {

@@ -102,6 +102,20 @@ class MoreHubScreen extends ConsumerWidget {
               route: '/admin/uom-diagnostics',
               canManageUsers: true,
             ),
+            const _NavTile(
+              icon: Icons.people_outlined,
+              title: 'Users',
+              subtitle: 'Manage users and roles',
+              route: '/admin/users',
+              canManageUsers: true,
+            ),
+            const _NavTile(
+              icon: Icons.history_outlined,
+              title: 'Audit Logs',
+              subtitle: 'View system activity history',
+              route: '/admin/audit-logs',
+              canManageUsers: true,
+            ),
           ],
 
           const SizedBox(height: AgroSpacing.xl),

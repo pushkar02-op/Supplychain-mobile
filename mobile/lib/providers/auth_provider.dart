@@ -1,9 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'auth_state.dart';
+
 import '../core/models/user_role.dart';
+import 'auth_state.dart';
 
 final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(() {
   return AuthNotifier();
@@ -13,6 +15,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   static const _storage = FlutterSecureStorage();
   static const _tokenKey = 'access_token';
   static const _roleKey = 'user_role';
+  static const _userIdKey = 'user_id';
 
   @override
   Future<AuthState> build() async {
@@ -27,7 +30,14 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       } catch (_) {}
     }
 
-    final state = AuthState(isLoggedIn: token != null, role: role);
+    final userIdStr = await _storage.read(key: _userIdKey);
+    final userId = userIdStr != null ? int.tryParse(userIdStr) : null;
+
+    final state = AuthState(
+      isLoggedIn: token != null,
+      role: role,
+      userId: userId,
+    );
     debugPrint('[AUTH] Emitting state: $state');
     return state;
   }
