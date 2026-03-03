@@ -1,8 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import '../core/dio_client.dart';
-import '../core/app_exceptions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
+
+import '../core/dio_client.dart';
+import '../core/errors/app_error.dart';
 
 class StockRepository {
   /// Fetch all items for the dropdown
@@ -10,8 +11,8 @@ class StockRepository {
     try {
       final resp = await DioClient.instance.get('/item/');
       return resp.data as List<dynamic>;
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -37,19 +38,17 @@ class StockRepository {
           'total_cost': totalCost,
           'source': source,
         },
-        options: Options(
-          headers: {'Idempotency-Key': const Uuid().v4()},
-        ),
+        options: Options(headers: {'Idempotency-Key': const Uuid().v4()}),
       );
       if (resp.statusCode != 201) {
-        throw ServerException('Failed to create stock entry: ${resp.statusMessage}');
+        throw AppError(
+          detail: 'Failed to create stock entry: ${resp.statusMessage}',
+        );
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
-
-
 
   /// Fetch stock entries by date
   Future<List<dynamic>> fetchStockEntries({required String date}) async {
@@ -59,15 +58,15 @@ class StockRepository {
         queryParameters: {'date': date, 'skip': 0, 'limit': 100},
       );
       if (resp.data is List) {
-         return List<dynamic>.from(resp.data);
+        return List<dynamic>.from(resp.data);
       }
       throw const FormatException('Expected a list of stock entries');
     } on DioException catch (e) {
       debugPrint('DioError in fetchStockEntries: $e');
-      throw _handleError(e);
+      rethrow;
     } catch (e, stack) {
       debugPrint('Error in fetchStockEntries: $e\n$stack');
-      throw UnknownException('Unexpected error: $e', originalError: e);
+      throw AppError(detail: 'Unexpected error: $e');
     }
   }
 
@@ -75,8 +74,8 @@ class StockRepository {
   Future<void> deleteStockEntry(int stockEntryId) async {
     try {
       await DioClient.instance.delete('/stock-entry/$stockEntryId');
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -90,51 +89,12 @@ class StockRepository {
         data: data,
       );
       if (resp.statusCode != 200) {
-         throw ServerException('Failed to update stock entry: ${resp.statusMessage}');
-      }
-    } on DioException catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  AppException _handleError(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.receiveTimeout) {
-      return const NetworkException('Connection timed out');
-    }
-    
-    if (error.response != null) {
-      final statusCode = error.response!.statusCode;
-      final data = error.response!.data; // dynamic
-      final message = (data is Map && data['detail'] != null) 
-          ? data['detail'].toString() 
-          : error.message ?? 'Unknown Error';
-
-      if (statusCode == 401) {
-        return UnauthorizedException(message);
-      }
-      if (statusCode == 400 || statusCode == 422) {
-         final detail = (data is Map && data['detail'] != null) 
-              ? data['detail'] 
-              : data.toString();
-         
-         return ValidationException(
-           detail.toString(), 
-           errors: (data is Map) ? Map<String, dynamic>.from(data) : null,
-         );
-      }
-      if (statusCode == 409) {
-        return const ConfigurationException(
-          'This item is not fully configured. Please contact an admin to set its default unit of measure.'
+        throw AppError(
+          detail: 'Failed to update stock entry: ${resp.statusMessage}',
         );
       }
-      if (statusCode! >= 500) {
-        return ServerException('Server Error: $message');
-      }
-      return UnknownException('Error $statusCode: $message');
+    } catch (e) {
+      rethrow;
     }
-
-    return NetworkException('Network Error: ${error.message}');
   }
 }
-

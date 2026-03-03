@@ -106,9 +106,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Consumer(
               builder: (context, ref, child) {
                 final authState = ref.watch(authProvider);
-                final isAdmin = authState.value?.isAdmin ?? false;
+                final canManageUsers = authState.value?.canManageUsers ?? false;
 
-                if (!isAdmin) return const SizedBox.shrink();
+                if (!canManageUsers) return const SizedBox.shrink();
 
                 return const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

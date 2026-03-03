@@ -15,19 +15,19 @@ import '../ui/widgets/agro_status_badge.dart';
 /// Includes system health, current balance, batch breakdown, and recent transactions.
 class InventoryDetailSheet extends ConsumerWidget {
   final Map<String, dynamic> item;
-  final bool isAdmin;
+  final bool canManageUsers;
 
   const InventoryDetailSheet({
     super.key,
     required this.item,
-    required this.isAdmin,
+    required this.canManageUsers,
   });
 
   /// Convenience method to show this sheet as a modal bottom sheet.
   static void show(
     BuildContext context,
     Map<String, dynamic> item, {
-    required bool isAdmin,
+    required bool canManageUsers,
   }) {
     showModalBottomSheet(
       context: context,
@@ -35,7 +35,9 @@ class InventoryDetailSheet extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => InventoryDetailSheet(item: item, isAdmin: isAdmin),
+      builder:
+          (_) =>
+              InventoryDetailSheet(item: item, canManageUsers: canManageUsers),
     );
   }
 
@@ -88,10 +90,14 @@ class InventoryDetailSheet extends ConsumerWidget {
                     label:
                         severity == 'NONE'
                             ? 'OK'
-                            : severity.toLowerCase().split('_').map((part) {
-                              if (part.isEmpty) return part;
-                              return '${part[0].toUpperCase()}${part.substring(1)}';
-                            }).join(' '),
+                            : severity
+                                .toLowerCase()
+                                .split('_')
+                                .map((part) {
+                                  if (part.isEmpty) return part;
+                                  return '${part[0].toUpperCase()}${part.substring(1)}';
+                                })
+                                .join(' '),
                   ),
                 ],
               ),
@@ -116,12 +122,12 @@ class InventoryDetailSheet extends ConsumerWidget {
                         severity: severity,
                         drift: drift,
                         unit: unit,
-                        isAdmin: isAdmin,
+                        canManageUsers: canManageUsers,
                         signalData: signalData,
                       );
                     },
                   ),
-                  if (status != 'HEALTHY' && isAdmin) ...[
+                  if (status != 'HEALTHY' && canManageUsers) ...[
                     const SizedBox(height: AgroSpacing.sm),
                     SizedBox(
                       width: double.infinity,
@@ -486,7 +492,7 @@ class _InventoryHealthSection extends StatelessWidget {
   final String severity;
   final double drift;
   final String unit;
-  final bool isAdmin;
+  final bool canManageUsers;
   final Map<String, dynamic>? signalData;
 
   const _InventoryHealthSection({
@@ -494,7 +500,7 @@ class _InventoryHealthSection extends StatelessWidget {
     required this.severity,
     required this.drift,
     required this.unit,
-    required this.isAdmin,
+    required this.canManageUsers,
     required this.signalData,
   });
 
@@ -522,12 +528,12 @@ class _InventoryHealthSection extends StatelessWidget {
                     : 'Inventory discrepancy detected',
           ),
           const SizedBox(height: AgroSpacing.sm),
-          if (!isAdmin)
+          if (!canManageUsers)
             Text(
               isNormal ? 'Inventory Healthy' : 'Inventory discrepancy detected',
               style: AgroTypography.captionEmphasis,
             ),
-          if (isAdmin) ...[
+          if (canManageUsers) ...[
             if (!isNormal) ...[
               Text(
                 'Drift: ${drift >= 0 ? '+' : ''}$drift $unit',

@@ -39,10 +39,12 @@ class InventoryScreen extends ConsumerWidget {
         actions: [
           Consumer(
             builder: (context, ref, _) {
-              final isAdmin = ref.watch(
-                authProvider.select((async) => async.valueOrNull?.isAdmin ?? false),
+              final canManageUsers = ref.watch(
+                authProvider.select(
+                  (async) => async.valueOrNull?.canManageUsers ?? false,
+                ),
               );
-              if (!isAdmin) return const SizedBox.shrink();
+              if (!canManageUsers) return const SizedBox.shrink();
               return IconButton(
                 icon: const Icon(
                   Icons.admin_panel_settings_outlined,
@@ -130,11 +132,11 @@ class InventoryScreen extends ConsumerWidget {
                                     () => InventoryDetailSheet.show(
                                       context,
                                       inv,
-                                      isAdmin:
+                                      canManageUsers:
                                           ref
                                               .read(authProvider)
-                                              .value
-                                              ?.isAdmin ??
+                                              .valueOrNull
+                                              ?.canManageUsers ??
                                           false,
                                     ),
                                 child: Padding(

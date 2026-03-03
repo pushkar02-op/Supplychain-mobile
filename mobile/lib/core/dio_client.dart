@@ -3,8 +3,9 @@ import 'package:flutter/foundation.dart'; // For debugPrint
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
-import 'api_config.dart';
 import '../services/auth_service.dart';
+import 'api_config.dart';
+import 'errors/error_mapper.dart';
 
 class DioClient {
   static const _storage = FlutterSecureStorage();
@@ -58,7 +59,7 @@ class DioClient {
               // Don't retry login or refresh endpoints to avoid infinite loops
               if (path.contains('/login') || path.contains('/refresh')) {
                 _handleUnauthorizedError();
-                return handler.next(error);
+                throw ErrorMapper.map(error);
               }
 
               // Check if we have a refresh token
@@ -66,7 +67,7 @@ class DioClient {
                   await _storage.read(key: 'refresh_token') != null;
               if (!hasRefresh) {
                 _handleUnauthorizedError();
-                return handler.next(error);
+                throw ErrorMapper.map(error);
               }
 
               // SAFETY GUARD: Skip interceptor retry for Multipart uploads
@@ -92,19 +93,19 @@ class DioClient {
                     return handler.resolve(cloneReq);
                   } catch (e) {
                     // If retry fails, pass the original error
-                    return handler.next(error);
+                    rethrow;
                   }
                 } else {
                   _handleUnauthorizedError();
-                  return handler.next(error);
+                  throw ErrorMapper.map(error);
                 }
               } else {
                 // Another request is refreshing, wait a bit and retry (simple approach)
                 // Ideally we queue, but for now we just fail to keep it simple or wait
-                return handler.next(error);
+                throw ErrorMapper.map(error);
               }
             }
-            return handler.next(error);
+            throw ErrorMapper.map(error);
           },
         ),
       );

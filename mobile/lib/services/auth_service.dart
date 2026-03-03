@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import '../core/dio_client.dart';
 
 class AuthService {
@@ -16,9 +17,17 @@ class AuthService {
       final data = response.data;
       await storage.write(key: 'access_token', value: data['access_token']);
       await storage.write(key: 'refresh_token', value: data['refresh_token']);
-      // Store admin flag for UI logic
-      final isAdmin = data['is_admin'] == true;
-      await storage.write(key: 'is_admin', value: isAdmin.toString());
+      // Delete legacy key if it exists
+      await storage.delete(key: 'is_admin');
+
+      // Store new role for UI logic
+      if (data.containsKey('role') && data['role'] != null) {
+        await storage.write(key: 'user_role', value: data['role'].toString());
+      }
+      // Store user ID for self-deactivation guard
+      if (data.containsKey('user_id') && data['user_id'] != null) {
+        await storage.write(key: 'user_id', value: data['user_id'].toString());
+      }
       return true;
     } on DioException catch (e) {
       if (e.response != null) {

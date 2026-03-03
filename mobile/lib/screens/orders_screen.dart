@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../providers/active_mart_provider.dart';
 import '../providers/order_provider.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
@@ -68,12 +69,13 @@ class OrdersScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(orderListProvider);
     final martNames = ref.watch(
-      orderMartListProvider.select(
+      martListProvider.select(
         (async) =>
             async.valueOrNull?.map((mart) => mart['name'] as String).toList() ??
             const <String>[],
       ),
     );
+    final selectedMart = ref.watch(activeMartProvider);
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -152,7 +154,7 @@ class OrdersScreen extends ConsumerWidget {
                     Expanded(
                       child: DropdownButtonFormField2<String>(
                         isExpanded: true,
-                        value: state.selectedMart,
+                        value: selectedMart,
                         decoration: InputDecoration(
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
@@ -161,11 +163,15 @@ class OrdersScreen extends ConsumerWidget {
                           ),
                           border: OutlineInputBorder(
                             borderRadius: AgroShapes.pillRadius,
-                            borderSide: const BorderSide(color: AgroColors.divider),
+                            borderSide: const BorderSide(
+                              color: AgroColors.divider,
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: AgroShapes.pillRadius,
-                            borderSide: const BorderSide(color: AgroColors.divider),
+                            borderSide: const BorderSide(
+                              color: AgroColors.divider,
+                            ),
                           ),
                           filled: true,
                           fillColor: AgroColors.surfaceVariant,
@@ -173,7 +179,10 @@ class OrdersScreen extends ConsumerWidget {
                         dropdownStyleData: const DropdownStyleData(
                           maxHeight: 200,
                         ),
-                        hint: const Text('All Marts', style: AgroTypography.body),
+                        hint: const Text(
+                          'All Marts',
+                          style: AgroTypography.body,
+                        ),
                         items: [
                           const DropdownMenuItem<String>(
                             value: null,
@@ -185,7 +194,7 @@ class OrdersScreen extends ConsumerWidget {
                         ],
                         onChanged:
                             (v) =>
-                                ref.read(orderListProvider.notifier).setMart(v),
+                                ref.read(activeMartProvider.notifier).state = v,
                       ),
                     ),
                   ],

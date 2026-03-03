@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile/screens/admin_diagnostics_screen.dart';
 import 'package:mobile/screens/admin_inventory_drift_screen.dart';
 import 'package:mobile/screens/admin_inventory_health_screen.dart';
+import 'package:mobile/screens/audit_log_screen.dart';
 import 'package:mobile/screens/dispatch_entry_screen.dart';
 import 'package:mobile/screens/dispatch_list_screen.dart';
 import 'package:mobile/screens/pdf_view_screen.dart';
@@ -23,6 +24,7 @@ import '../screens/order_entry_screen.dart';
 import '../screens/orders_screen.dart';
 import '../screens/stock_entry_screen.dart';
 import '../screens/stock_list_screen.dart';
+import '../screens/user_list_screen.dart';
 import '../widgets/app_scaffold.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -46,7 +48,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       final isLoggedIn = authState.value?.isLoggedIn ?? false;
-      final isAdmin = authState.value?.isAdmin ?? false;
+      final canManageUsers = authState.value?.canManageUsers ?? false;
       final isLoggingIn = state.uri.path == '/login';
       final isRestricted = state.uri.path.startsWith('/admin');
 
@@ -65,7 +67,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Admin Guard
-      if (isRestricted && !isAdmin) {
+      if (isRestricted && !canManageUsers) {
         return '/main';
       }
 
@@ -163,6 +165,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin/uom-diagnostics',
         builder: (context, state) => const AdminDiagnosticsScreen(),
+      ),
+      GoRoute(
+        path: '/admin/users',
+        builder: (context, state) => const UserListScreen(),
+      ),
+      GoRoute(
+        path: '/admin/audit-logs',
+        builder: (context, state) => const AuditLogScreen(),
       ),
     ],
   );

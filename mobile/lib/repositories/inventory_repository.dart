@@ -1,7 +1,5 @@
-import 'package:dio/dio.dart';
-
-import '../core/app_exceptions.dart';
 import '../core/dio_client.dart';
+import '../core/errors/app_error.dart';
 
 class InventoryRepository {
   Future<List<Map<String, dynamic>>> fetchInventory({
@@ -19,9 +17,9 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw const ServerException('Failed to load inventory');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load inventory');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -40,9 +38,9 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw const ServerException('Failed to load transactions');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load transactions');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -52,9 +50,9 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw const ServerException('Failed to load batches');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load batches');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -66,9 +64,9 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return Map<String, dynamic>.from(resp.data);
       }
-      throw const ServerException('Failed to load item signals');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load item signals');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -78,9 +76,9 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
-      throw const ServerException('Failed to load items');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load items');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -90,46 +88,9 @@ class InventoryRepository {
       if (resp.statusCode == 200) {
         return List<String>.from(resp.data.map((u) => u['code']));
       }
-      throw const ServerException('Failed to load units');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Failed to load units');
+    } catch (e) {
+      rethrow;
     }
-  }
-
-  AppException _handleError(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.receiveTimeout) {
-      return const NetworkException('Connection timed out');
-    }
-
-    if (error.response != null) {
-      final statusCode = error.response!.statusCode;
-      final data = error.response!.data;
-      final message =
-          (data is Map && data['detail'] != null)
-              ? data['detail'].toString()
-              : error.message ?? 'Unknown Error';
-
-      if (statusCode == 401) return UnauthorizedException(message);
-      if (statusCode == 400 || statusCode == 422) {
-        final detail =
-            (data is Map && data['detail'] != null)
-                ? data['detail']
-                : data.toString();
-        return ValidationException(
-          detail.toString(),
-          errors: (data is Map) ? Map<String, dynamic>.from(data) : null,
-        );
-      }
-      if (statusCode == 409) {
-        return const ConfigurationException(
-          'This item is not fully configured. Please contact an admin to set its default unit of measure.',
-        );
-      }
-      if (statusCode! >= 500) return ServerException('Server Error: $message');
-      return UnknownException('Error $statusCode: $message');
-    }
-
-    return NetworkException('Network Error: ${error.message}');
   }
 }

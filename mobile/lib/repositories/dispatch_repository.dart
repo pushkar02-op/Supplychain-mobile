@@ -1,7 +1,5 @@
-import 'package:dio/dio.dart';
-
-import '../core/app_exceptions.dart';
 import '../core/dio_client.dart';
+import '../core/errors/app_error.dart';
 
 class DispatchRepository {
   /// Fetch dispatch entries, filterable by date and mart
@@ -25,8 +23,8 @@ class DispatchRepository {
         queryParameters: params,
       );
       return resp.data as List<dynamic>;
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -39,9 +37,9 @@ class DispatchRepository {
       );
       if (resp.statusCode == 200 || resp.statusCode == 201) return resp.data;
       final detail = resp.data['detail'] ?? 'Unknown error';
-      throw ServerException('Create failed: $detail');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Create failed: $detail');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -54,9 +52,9 @@ class DispatchRepository {
       if (data is Map && data['mart_names'] is List) {
         return List<String>.from(data['mart_names']);
       }
-      throw const ServerException('Unexpected mart-names format');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: 'Unexpected mart-names format');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -77,9 +75,9 @@ class DispatchRepository {
       );
       if (resp.statusCode == 200 || resp.statusCode == 201) return resp.data;
       final detail = resp.data['detail'] ?? 'Reversal failed';
-      throw ServerException(detail);
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: detail);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -88,45 +86,8 @@ class DispatchRepository {
     try {
       final resp = await DioClient.instance.get('/batch/by-item/$itemId');
       return resp.data as List<dynamic>;
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
-  }
-
-  AppException _handleError(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.receiveTimeout) {
-      return const NetworkException('Connection timed out');
-    }
-
-    if (error.response != null) {
-      final statusCode = error.response!.statusCode;
-      final data = error.response!.data;
-      final message =
-          (data is Map && data['detail'] != null)
-              ? data['detail'].toString()
-              : error.message ?? 'Unknown Error';
-
-      if (statusCode == 401) return UnauthorizedException(message);
-      if (statusCode == 400 || statusCode == 422) {
-        final detail =
-            (data is Map && data['detail'] != null)
-                ? data['detail']
-                : data.toString();
-        return ValidationException(
-          detail.toString(),
-          errors: (data is Map) ? Map<String, dynamic>.from(data) : null,
-        );
-      }
-      if (statusCode == 409) {
-        return const ConfigurationException(
-          'This item is not fully configured. Please contact an admin to set its default unit of measure.',
-        );
-      }
-      if (statusCode! >= 500) return ServerException('Server Error: $message');
-      return UnknownException('Error $statusCode: $message');
-    }
-
-    return NetworkException('Network Error: ${error.message}');
   }
 }

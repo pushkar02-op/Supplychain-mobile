@@ -2,22 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/mart_bill.dart';
 import '../repositories/mart_bill_repository.dart';
+import 'active_mart_provider.dart';
 
 final martBillRepositoryProvider = Provider((ref) => MartBillRepository());
 
-final martBillMartListProvider = FutureProvider<List<String>>(
-  (ref) => ref.read(martBillRepositoryProvider).fetchMartNames(),
+final martBillProvider = AsyncNotifierProvider<MartBillNotifier, MartBillState>(
+  MartBillNotifier.new,
 );
-
-final martBillProvider =
-    AsyncNotifierProvider<MartBillNotifier, MartBillState>(
-      MartBillNotifier.new,
-    );
 
 class MartBillState {
   final List<Map<String, dynamic>> bills;
   final DateTime? selectedDate;
-  final String? selectedMart;
   final String search;
   final int skip;
   final int limit;
@@ -30,7 +25,6 @@ class MartBillState {
   const MartBillState({
     required this.bills,
     required this.selectedDate,
-    required this.selectedMart,
     required this.search,
     required this.skip,
     required this.limit,
@@ -45,8 +39,6 @@ class MartBillState {
     List<Map<String, dynamic>>? bills,
     DateTime? selectedDate,
     bool clearSelectedDate = false,
-    String? selectedMart,
-    bool clearSelectedMart = false,
     String? search,
     int? skip,
     int? limit,
@@ -60,8 +52,6 @@ class MartBillState {
       bills: bills ?? this.bills,
       selectedDate:
           clearSelectedDate ? null : (selectedDate ?? this.selectedDate),
-      selectedMart:
-          clearSelectedMart ? null : (selectedMart ?? this.selectedMart),
       search: search ?? this.search,
       skip: skip ?? this.skip,
       limit: limit ?? this.limit,
@@ -80,11 +70,16 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
   @override
   Future<MartBillState> build() async {
     _repo = ref.read(martBillRepositoryProvider);
-    final initial = await _repo.fetchMartBills(skip: 0, limit: 20);
+    // When active mart changes, refresh data automatically
+    ref.listen<String?>(activeMartProvider, (_, __) => refresh());
+    final initial = await _repo.fetchMartBills(
+      martName: ref.read(activeMartProvider),
+      skip: 0,
+      limit: 20,
+    );
     return MartBillState(
       bills: List<Map<String, dynamic>>.from(initial['items'] ?? const []),
       selectedDate: null,
-      selectedMart: null,
       search: '',
       skip: initial['skip'] as int? ?? 0,
       limit: initial['limit'] as int? ?? 20,
@@ -104,7 +99,7 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     state = await AsyncValue.guard(() async {
       final result = await _repo.fetchMartBills(
         date: date,
-        martName: current.selectedMart,
+        martName: ref.read(activeMartProvider),
         search: current.search.isEmpty ? null : current.search,
         skip: 0,
         limit: current.limit,
@@ -112,30 +107,6 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
       return current.copyWith(
         selectedDate: date,
         clearSelectedDate: date == null,
-        bills: List<Map<String, dynamic>>.from(result['items'] ?? const []),
-        skip: result['skip'] as int? ?? 0,
-        hasMore: result['has_more'] as bool? ?? false,
-        isLoadingMore: false,
-      );
-    });
-  }
-
-  Future<void> setMart(String? mart) async {
-    final current = state.valueOrNull;
-    if (current == null) return;
-
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final result = await _repo.fetchMartBills(
-        date: current.selectedDate,
-        martName: mart,
-        search: current.search.isEmpty ? null : current.search,
-        skip: 0,
-        limit: current.limit,
-      );
-      return current.copyWith(
-        selectedMart: mart,
-        clearSelectedMart: mart == null,
         bills: List<Map<String, dynamic>>.from(result['items'] ?? const []),
         skip: result['skip'] as int? ?? 0,
         hasMore: result['has_more'] as bool? ?? false,
@@ -153,7 +124,7 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     state = await AsyncValue.guard(() async {
       final result = await _repo.fetchMartBills(
         date: current.selectedDate,
-        martName: current.selectedMart,
+        martName: ref.read(activeMartProvider),
         search: trimmed.isEmpty ? null : trimmed,
         skip: 0,
         limit: current.limit,
@@ -180,7 +151,7 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     state = await AsyncValue.guard(() async {
       final result = await _repo.fetchMartBills(
         date: current.selectedDate,
-        martName: current.selectedMart,
+        martName: ref.read(activeMartProvider),
         search: current.search.isEmpty ? null : current.search,
         skip: 0,
         limit: current.limit,
@@ -203,7 +174,7 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     final result = await AsyncValue.guard(() async {
       final response = await _repo.fetchMartBills(
         date: current.selectedDate,
-        martName: current.selectedMart,
+        martName: ref.read(activeMartProvider),
         search: current.search.isEmpty ? null : current.search,
         skip: nextSkip,
         limit: current.limit,

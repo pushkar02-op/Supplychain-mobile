@@ -1,7 +1,5 @@
-import 'package:dio/dio.dart';
-
-import '../core/app_exceptions.dart';
 import '../core/dio_client.dart';
+import '../core/errors/app_error.dart';
 
 class OrderRepository {
   /// Fetch all orders for a specific date, optionally filtered by mart.
@@ -19,11 +17,11 @@ class OrderRepository {
         queryParameters: params,
       );
       if (resp.statusCode != 200) {
-        throw const ServerException('Failed to fetch orders');
+        throw AppError(detail: 'Failed to fetch orders');
       }
       return List<Map<String, dynamic>>.from(resp.data);
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -32,15 +30,15 @@ class OrderRepository {
     try {
       final resp = await DioClient.instance.get('/orders/mart-names');
       if (resp.statusCode != 200) {
-        throw const ServerException('Failed to fetch mart list');
+        throw AppError(detail: 'Failed to fetch mart list');
       }
       if (resp.data is List) {
         return List<Map<String, dynamic>>.from(resp.data);
       } else {
-        throw const ServerException('Unexpected mart list response format');
+        throw AppError(detail: 'Unexpected mart list response format');
       }
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -64,9 +62,9 @@ class OrderRepository {
         },
       );
       if (resp.statusCode == 201) return resp.data;
-      throw ServerException(resp.data['detail'] ?? 'Unknown error');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: resp.data['detail'] ?? 'Unknown error');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -75,9 +73,9 @@ class OrderRepository {
     try {
       final resp = await DioClient.instance.put('/orders/$orderId', data: data);
       if (resp.statusCode == 200) return resp.data;
-      throw ServerException(resp.data['detail'] ?? 'Unknown error');
-    } on DioException catch (e) {
-      throw _handleError(e);
+      throw AppError(detail: resp.data['detail'] ?? 'Unknown error');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -85,8 +83,8 @@ class OrderRepository {
   Future<void> deleteOrder(int orderId) async {
     try {
       await DioClient.instance.delete('/orders/$orderId');
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -95,11 +93,11 @@ class OrderRepository {
     try {
       final resp = await DioClient.instance.get('/item-alias/distinct');
       if (resp.statusCode != 200) {
-        throw const ServerException('Failed to fetch item aliases');
+        throw AppError(detail: 'Failed to fetch item aliases');
       }
       return List<Map<String, dynamic>>.from(resp.data);
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -113,48 +111,11 @@ class OrderRepository {
         queryParameters: {'mart_name': martName},
       );
       if (resp.statusCode != 200) {
-        throw const ServerException('Failed to fetch items for mart');
+        throw AppError(detail: 'Failed to fetch items for mart');
       }
       return List<Map<String, dynamic>>.from(resp.data);
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      rethrow;
     }
-  }
-
-  AppException _handleError(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.receiveTimeout) {
-      return const NetworkException('Connection timed out');
-    }
-
-    if (error.response != null) {
-      final statusCode = error.response!.statusCode;
-      final data = error.response!.data;
-      final message =
-          (data is Map && data['detail'] != null)
-              ? data['detail'].toString()
-              : error.message ?? 'Unknown Error';
-
-      if (statusCode == 401) return UnauthorizedException(message);
-      if (statusCode == 400 || statusCode == 422) {
-        final detail =
-            (data is Map && data['detail'] != null)
-                ? data['detail']
-                : data.toString();
-        return ValidationException(
-          detail.toString(),
-          errors: (data is Map) ? Map<String, dynamic>.from(data) : null,
-        );
-      }
-      if (statusCode == 409) {
-        return const ConfigurationException(
-          'This item is not fully configured. Please contact an admin to set its default unit of measure.',
-        );
-      }
-      if (statusCode! >= 500) return ServerException('Server Error: $message');
-      return UnknownException('Error $statusCode: $message');
-    }
-
-    return NetworkException('Network Error: ${error.message}');
   }
 }

@@ -1,13 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/order_repository.dart';
+import 'active_mart_provider.dart';
 
 final orderRepositoryProvider = Provider<OrderRepository>(
   (ref) => OrderRepository(),
-);
-
-final orderMartListProvider = FutureProvider<List<Map<String, dynamic>>>(
-  (ref) => ref.read(orderRepositoryProvider).fetchMartList(),
 );
 
 final orderListProvider =
@@ -18,7 +15,6 @@ final orderListProvider =
 class OrderListState {
   final List<Map<String, dynamic>> orders;
   final DateTime selectedDate;
-  final String? selectedMart;
   final int skip;
   final int limit;
   final bool hasMore;
@@ -27,7 +23,6 @@ class OrderListState {
   const OrderListState({
     required this.orders,
     required this.selectedDate,
-    required this.selectedMart,
     required this.skip,
     required this.limit,
     required this.hasMore,
@@ -37,8 +32,6 @@ class OrderListState {
   OrderListState copyWith({
     List<Map<String, dynamic>>? orders,
     DateTime? selectedDate,
-    String? selectedMart,
-    bool clearSelectedMart = false,
     int? skip,
     int? limit,
     bool? hasMore,
@@ -47,8 +40,6 @@ class OrderListState {
     return OrderListState(
       orders: orders ?? this.orders,
       selectedDate: selectedDate ?? this.selectedDate,
-      selectedMart:
-          clearSelectedMart ? null : (selectedMart ?? this.selectedMart),
       skip: skip ?? this.skip,
       limit: limit ?? this.limit,
       hasMore: hasMore ?? this.hasMore,
@@ -63,12 +54,16 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
   @override
   Future<OrderListState> build() async {
     _repo = ref.read(orderRepositoryProvider);
+    // When active mart changes, refresh data automatically
+    ref.listen<String?>(activeMartProvider, (_, __) => refresh());
     final today = DateTime.now();
-    final orders = await _repo.fetchOrders(today);
+    final orders = await _repo.fetchOrders(
+      today,
+      martName: ref.read(activeMartProvider),
+    );
     return OrderListState(
       orders: orders,
       selectedDate: today,
-      selectedMart: null,
       skip: 0,
       limit: 50,
       hasMore: false,
@@ -84,31 +79,10 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
     state = await AsyncValue.guard(() async {
       final orders = await _repo.fetchOrders(
         date,
-        martName: current.selectedMart,
+        martName: ref.read(activeMartProvider),
       );
       return current.copyWith(
         selectedDate: date,
-        orders: orders,
-        skip: 0,
-        hasMore: false,
-        isLoadingMore: false,
-      );
-    });
-  }
-
-  Future<void> setMart(String? mart) async {
-    final current = state.valueOrNull;
-    if (current == null) return;
-
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final orders = await _repo.fetchOrders(
-        current.selectedDate,
-        martName: mart,
-      );
-      return current.copyWith(
-        selectedMart: mart,
-        clearSelectedMart: mart == null,
         orders: orders,
         skip: 0,
         hasMore: false,
@@ -129,7 +103,7 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
     state = await AsyncValue.guard(() async {
       final orders = await _repo.fetchOrders(
         current.selectedDate,
-        martName: current.selectedMart,
+        martName: ref.read(activeMartProvider),
       );
       return current.copyWith(
         orders: orders,
