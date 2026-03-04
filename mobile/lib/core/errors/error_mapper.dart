@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import 'app_error.dart';
 import 'domain_errors.dart';
 
@@ -77,6 +78,13 @@ class ErrorMapper {
           );
         case 'AUT-006':
           return DriftLockError(
+            detail: detail,
+            ruleId: ruleId,
+            metadata: metadata,
+            statusCode: statusCode,
+          );
+        case 'AUT-005':
+          return InactiveUserError(
             detail: detail,
             ruleId: ruleId,
             metadata: metadata,

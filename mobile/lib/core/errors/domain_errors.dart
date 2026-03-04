@@ -36,6 +36,15 @@ class UnauthorizedGovernanceError extends AppError {
   });
 }
 
+class InactiveUserError extends AppError {
+  InactiveUserError({
+    required super.detail,
+    super.ruleId,
+    super.metadata,
+    super.statusCode,
+  });
+}
+
 class RateLimitError extends AppError {
   RateLimitError({
     required super.detail,
