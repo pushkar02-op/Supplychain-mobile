@@ -1,5 +1,5 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/warehouse_access.dart';
 import '../repositories/warehouse_repository.dart';
@@ -105,7 +105,14 @@ final canSwitchWarehouseProvider = Provider<bool>((ref) {
 });
 
 Future<void> selectActiveWarehouse(WidgetRef ref, int warehouseId) async {
+  // All synchronous ref operations FIRST (before any await).
+  // bootstrap invalidation triggers router navigation which disposes WidgetRef,
+  // so it must be last among ref calls.
   ref.read(activeWarehouseProvider.notifier).state = warehouseId;
+  invalidateWarehouseScopedProviders(ref);
+  ref.invalidate(warehouseBootstrapProvider);
+
+  // Async storage persistence — no ref usage after this point.
   final userId = await _storage.read(key: _userIdKey);
   if (userId != null && userId.isNotEmpty) {
     await _storage.write(
@@ -113,7 +120,6 @@ Future<void> selectActiveWarehouse(WidgetRef ref, int warehouseId) async {
       value: warehouseId.toString(),
     );
   }
-  invalidateWarehouseScopedProviders(ref);
 }
 
 Future<void> clearWarehouseSelection(Ref ref) async {
