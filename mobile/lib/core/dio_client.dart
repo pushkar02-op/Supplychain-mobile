@@ -167,8 +167,20 @@ class DioClient {
                     final cloneReq = await instance.fetch(opts);
                     return handler.resolve(cloneReq);
                   } catch (e) {
-                    // If retry fails, pass the original error
-                    rethrow;
+                    // If retry fails, propagate via handler.reject
+                    if (e is DioException) {
+                      handler.reject(
+                        DioException(
+                          requestOptions: e.requestOptions,
+                          response: e.response,
+                          error: ErrorMapper.map(e),
+                          type: e.type,
+                        ),
+                      );
+                    } else {
+                      handler.reject(error);
+                    }
+                    return;
                   }
                 } else {
                   _handleUnauthorizedError();
