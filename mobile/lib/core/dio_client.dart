@@ -169,7 +169,7 @@ class DioClient {
                   } catch (e) {
                     // If retry fails, propagate via handler.reject
                     if (e is DioException) {
-                      handler.reject(
+                      return handler.reject(
                         DioException(
                           requestOptions: e.requestOptions,
                           response: e.response,
@@ -177,10 +177,15 @@ class DioClient {
                           type: e.type,
                         ),
                       );
-                    } else {
-                      handler.reject(error);
                     }
-                    return;
+
+                    return handler.reject(
+                      DioException(
+                        requestOptions: error.requestOptions,
+                        error: e,
+                        type: DioExceptionType.unknown,
+                      ),
+                    );
                   }
                 } else {
                   _handleUnauthorizedError();
