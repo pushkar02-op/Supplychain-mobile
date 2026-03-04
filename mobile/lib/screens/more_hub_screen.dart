@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/warehouse_provider.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
@@ -31,6 +32,16 @@ class MoreHubScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(AgroSpacing.screenPadding),
         children: [
+          const Padding(
+            padding: EdgeInsets.only(
+              bottom: AgroSpacing.sm,
+              top: AgroSpacing.sm,
+            ),
+            child: Text('Workspace', style: AgroTypography.sectionTitle),
+          ),
+          const _WarehouseTile(),
+          const SizedBox(height: AgroSpacing.xl),
+
           // Reference Section
           const Padding(
             padding: EdgeInsets.only(
@@ -123,6 +134,42 @@ class MoreHubScreen extends ConsumerWidget {
           // Logout
           _LogoutTile(ref: ref),
         ],
+      ),
+    );
+  }
+}
+
+class _WarehouseTile extends ConsumerWidget {
+  const _WarehouseTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeWarehouse = ref.watch(activeWarehouseAccessProvider);
+    final canSwitch = ref.watch(canSwitchWarehouseProvider);
+
+    final subtitle =
+        activeWarehouse?.name ??
+        (canSwitch ? 'Select active warehouse' : 'Warehouse is auto-selected');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: AgroSpacing.sm),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: AgroShapes.cardRadius,
+        side: const BorderSide(color: AgroColors.dividerLight),
+      ),
+      child: ListTile(
+        leading: const Icon(
+          Icons.warehouse_outlined,
+          color: AgroColors.primary,
+        ),
+        title: const Text('Warehouse', style: AgroTypography.cardTitle),
+        subtitle: Text(subtitle, style: AgroTypography.cardSubtitle),
+        trailing: Icon(
+          canSwitch ? Icons.chevron_right : Icons.lock_outline,
+          color: AgroColors.textDisabled,
+        ),
+        onTap: canSwitch ? () => context.push('/warehouse/select') : null,
       ),
     );
   }

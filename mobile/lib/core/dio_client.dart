@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../services/auth_service.dart';
 import 'api_config.dart';
+import 'errors/app_error.dart';
 import 'errors/error_mapper.dart';
 
 class DioClient {
@@ -13,9 +14,36 @@ class DioClient {
 
   /// Callback for when a 401 occurs.
   static VoidCallback? onUnauthorized;
+  static int? Function()? activeWarehouseResolver;
 
   // Mutex-like flag to prevent concurrent refreshes
   static bool _isRefreshing = false;
+
+  static const List<String> _warehouseScopedPrefixes = [
+    '/orders',
+    '/dispatch-entries',
+    '/stock-entry',
+    '/rejection-entries',
+    '/mart-bills',
+    '/mart-bill-items',
+    '/reports/inventory',
+    '/inventory-txn',
+    '/batch',
+    '/item',
+    '/items',
+    '/uom',
+    '/item-management',
+    '/item-alias',
+    '/invoice-items',
+  ];
+
+  static const List<String> _warehouseExclusionPrefixes = [
+    '/login',
+    '/refresh',
+    '/warehouses/my-access',
+    '/admin',
+    '/audit-logs',
+  ];
 
   // Setup Dio client with JWT interceptor
   static void setup() {
@@ -30,14 +58,36 @@ class DioClient {
         InterceptorsWrapper(
           // This is called on each request to add the token
           onRequest: (options, handler) async {
+            final normalizedPath = _normalizePath(options.path);
+
             final token = await _storage.read(key: 'access_token');
             if (token != null) {
               options.headers['Authorization'] = 'Bearer $token';
             }
 
+            if (_requiresWarehouse(normalizedPath)) {
+              final activeWarehouseId = activeWarehouseResolver?.call();
+              if (activeWarehouseId == null) {
+                return handler.reject(
+                  DioException(
+                    requestOptions: options,
+                    error: AppError(
+                      detail: 'Please select a warehouse before continuing.',
+                      metadata: {'path': normalizedPath},
+                    ),
+                    type: DioExceptionType.cancel,
+                  ),
+                );
+              }
+
+              final params = Map<String, dynamic>.from(options.queryParameters);
+              params.putIfAbsent('warehouse_id', () => activeWarehouseId);
+              options.queryParameters = params;
+            }
+
             // Centralized Idempotency-Key Injection for Ledger Mutations
             if (options.method == 'POST') {
-              final path = options.path;
+              final path = normalizedPath;
               // Target endpoints: stock-entry, dispatch-entries, rejection-entries
               if (path.contains('/stock-entry') ||
                   path.contains('/dispatch-entries') ||
@@ -54,8 +104,12 @@ class DioClient {
           },
           // This is called on error (e.g., 401 Unauthorized)
           onError: (error, handler) async {
+            if (error.error is AppError) {
+              throw error.error as AppError;
+            }
+
             if (error.response?.statusCode == 401) {
-              final path = error.requestOptions.path;
+              final path = _normalizePath(error.requestOptions.path);
               // Don't retry login or refresh endpoints to avoid infinite loops
               if (path.contains('/login') || path.contains('/refresh')) {
                 _handleUnauthorizedError();
@@ -135,5 +189,56 @@ class DioClient {
   static Future<void> logout() async {
     await _logout();
     // You can also navigate to the login page here
+  }
+
+  static String _normalizePath(String path) {
+    final withoutQuery = path.split('?').first.trim();
+    final parsed = Uri.tryParse(withoutQuery);
+
+    String normalized;
+    if (parsed != null && parsed.hasScheme) {
+      normalized = parsed.path;
+    } else {
+      normalized = withoutQuery;
+    }
+
+    if (!normalized.startsWith('/')) {
+      normalized = '/$normalized';
+    }
+
+    normalized = normalized.replaceAll(RegExp(r'/+'), '/');
+
+    if (normalized.length > 1 && normalized.endsWith('/')) {
+      normalized = normalized.substring(0, normalized.length - 1);
+    }
+
+    if (normalized == '/v1') {
+      return '/';
+    }
+    if (normalized.startsWith('/v1/')) {
+      normalized = normalized.substring(3);
+    }
+
+    return normalized.isEmpty ? '/' : normalized;
+  }
+
+  static bool _matchesPrefix(String path, String prefix) {
+    return path == prefix || path.startsWith('$prefix/');
+  }
+
+  static bool _requiresWarehouse(String normalizedPath) {
+    for (final prefix in _warehouseExclusionPrefixes) {
+      if (_matchesPrefix(normalizedPath, prefix)) {
+        return false;
+      }
+    }
+
+    for (final prefix in _warehouseScopedPrefixes) {
+      if (_matchesPrefix(normalizedPath, prefix)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }

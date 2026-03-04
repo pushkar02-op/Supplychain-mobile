@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/dio_client.dart';
 import 'routes/app_router.dart';
 import 'package:mobile/providers/auth_provider.dart';
+import 'package:mobile/providers/warehouse_provider.dart';
 
 void main() {
   debugPrint('[BOOT] main() started');
@@ -35,6 +36,7 @@ class MyApp extends ConsumerWidget {
     DioClient.onUnauthorized = () {
       ref.read(authProvider.notifier).logout();
     };
+    DioClient.activeWarehouseResolver = () => ref.read(activeWarehouseProvider);
 
     final router = ref.watch(appRouterProvider);
 
