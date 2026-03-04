@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../core/models/user_role.dart';
 import 'auth_state.dart';
+import 'warehouse_provider.dart';
 
 final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(() {
   return AuthNotifier();
@@ -53,6 +54,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   /// Call this to log out
   Future<void> logout() async {
+    await clearWarehouseSelection(ref);
     await _storage.deleteAll();
     state = const AsyncValue.data(AuthState(isLoggedIn: false, role: null));
   }

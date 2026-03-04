@@ -73,6 +73,18 @@ def get_authorized_warehouse_ids(current_user: User, db: Session) -> list[int]:
     return [row.warehouse_id for row in rows]
 
 
+def list_accessible_warehouses(current_user: User, db: Session) -> list[Warehouse]:
+    ids = get_authorized_warehouse_ids(current_user, db)
+    if not ids:
+        return []
+    return (
+        db.query(Warehouse)
+        .filter(Warehouse.id.in_(ids), Warehouse.is_active.is_(True))
+        .order_by(Warehouse.name.asc())
+        .all()
+    )
+
+
 def validate_warehouse_access(
     current_user: User, warehouse_id: int, db: Session
 ) -> int:

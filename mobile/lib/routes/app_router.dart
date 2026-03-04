@@ -13,6 +13,7 @@ import 'package:mobile/screens/rejection_list_screen.dart';
 
 import '../auth/login_screen.dart';
 import '../providers/auth_provider.dart';
+import '../providers/warehouse_provider.dart';
 import '../screens/alias_mapping_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/inventory_screen.dart';
@@ -25,10 +26,19 @@ import '../screens/orders_screen.dart';
 import '../screens/stock_entry_screen.dart';
 import '../screens/stock_list_screen.dart';
 import '../screens/user_list_screen.dart';
+import '../screens/warehouse_selection_screen.dart';
 import '../widgets/app_scaffold.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
+  final isLoggedIn = authState.value?.isLoggedIn ?? false;
+  final warehouseBootstrap =
+      isLoggedIn
+          ? ref.watch(warehouseBootstrapProvider)
+          : const AsyncValue.data(
+            WarehouseBootstrapResult(WarehouseBootstrapState.ready),
+          );
+
   debugPrint(
     '[ROUTER_PROVIDER] Rebuilding GoRouter. AuthState: ${authState.value}',
   );
@@ -50,15 +60,34 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authState.value?.isLoggedIn ?? false;
       final canManageUsers = authState.value?.canManageUsers ?? false;
       final isLoggingIn = state.uri.path == '/login';
+      final isSelectingWarehouse = state.uri.path == '/warehouse/select';
       final isRestricted = state.uri.path.startsWith('/admin');
 
       if (!isLoggedIn && !isLoggingIn) {
         debugPrint('[ROUTER] Not logged in, redirecting to /login');
         return '/login';
       }
-      if (isLoggedIn && isLoggingIn) {
-        debugPrint('[ROUTER] Logged in, redirecting to /main');
-        return '/main';
+
+      if (isLoggedIn) {
+        if (warehouseBootstrap.isLoading) {
+          return null;
+        }
+
+        final bootstrapState =
+            warehouseBootstrap.value?.state ??
+            WarehouseBootstrapState.selectionRequired;
+        if (bootstrapState == WarehouseBootstrapState.selectionRequired &&
+            !isSelectingWarehouse) {
+          return '/warehouse/select';
+        }
+
+        if (bootstrapState == WarehouseBootstrapState.ready &&
+            (isLoggingIn || isSelectingWarehouse)) {
+          debugPrint(
+            '[ROUTER] Logged in, warehouse resolved, redirecting to /main',
+          );
+          return '/main';
+        }
       }
       // Legacy dashboard route redirects to main
       if (isLoggedIn && state.uri.path == '/dashboard') {
@@ -76,6 +105,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/warehouse/select',
+        builder: (context, state) => const WarehouseSelectionScreen(),
+      ),
       GoRoute(path: '/main', builder: (context, state) => const AppScaffold()),
       GoRoute(
         path: '/dashboard',
