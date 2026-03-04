@@ -105,7 +105,14 @@ class DioClient {
           // This is called on error (e.g., 401 Unauthorized)
           onError: (error, handler) async {
             if (error.error is AppError) {
-              throw error.error as AppError;
+              return handler.reject(
+                DioException(
+                  requestOptions: error.requestOptions,
+                  response: error.response,
+                  error: error.error,
+                  type: error.type,
+                ),
+              );
             }
 
             if (error.response?.statusCode == 401) {
@@ -113,7 +120,14 @@ class DioClient {
               // Don't retry login or refresh endpoints to avoid infinite loops
               if (path.contains('/login') || path.contains('/refresh')) {
                 _handleUnauthorizedError();
-                throw ErrorMapper.map(error);
+                return handler.reject(
+                  DioException(
+                    requestOptions: error.requestOptions,
+                    response: error.response,
+                    error: ErrorMapper.map(error),
+                    type: error.type,
+                  ),
+                );
               }
 
               // Check if we have a refresh token
@@ -121,7 +135,14 @@ class DioClient {
                   await _storage.read(key: 'refresh_token') != null;
               if (!hasRefresh) {
                 _handleUnauthorizedError();
-                throw ErrorMapper.map(error);
+                return handler.reject(
+                  DioException(
+                    requestOptions: error.requestOptions,
+                    response: error.response,
+                    error: ErrorMapper.map(error),
+                    type: error.type,
+                  ),
+                );
               }
 
               // SAFETY GUARD: Skip interceptor retry for Multipart uploads
@@ -151,15 +172,36 @@ class DioClient {
                   }
                 } else {
                   _handleUnauthorizedError();
-                  throw ErrorMapper.map(error);
+                  return handler.reject(
+                    DioException(
+                      requestOptions: error.requestOptions,
+                      response: error.response,
+                      error: ErrorMapper.map(error),
+                      type: error.type,
+                    ),
+                  );
                 }
               } else {
                 // Another request is refreshing, wait a bit and retry (simple approach)
                 // Ideally we queue, but for now we just fail to keep it simple or wait
-                throw ErrorMapper.map(error);
+                return handler.reject(
+                  DioException(
+                    requestOptions: error.requestOptions,
+                    response: error.response,
+                    error: ErrorMapper.map(error),
+                    type: error.type,
+                  ),
+                );
               }
             }
-            throw ErrorMapper.map(error);
+            return handler.reject(
+              DioException(
+                requestOptions: error.requestOptions,
+                response: error.response,
+                error: ErrorMapper.map(error),
+                type: error.type,
+              ),
+            );
           },
         ),
       );
