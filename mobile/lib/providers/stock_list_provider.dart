@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/warehouse_context.dart';
 import '../repositories/stock_repository.dart';
 
 final stockRepositoryProvider = Provider((ref) => StockRepository());
@@ -13,13 +15,15 @@ final stockRepositoryProvider = Provider((ref) => StockRepository());
 
 final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
 
-final stockListProvider = AsyncNotifierProvider<StockListController, List<dynamic>>(() {
-  return StockListController();
-});
+final stockListProvider =
+    AsyncNotifierProvider<StockListController, List<dynamic>>(() {
+      return StockListController();
+    });
 
 class StockListController extends AsyncNotifier<List<dynamic>> {
   @override
   Future<List<dynamic>> build() async {
+    requireWarehouse(ref);
     final date = ref.watch(selectedDateProvider);
     final dateString = date.toIso8601String().split('T')[0];
     return _fetch(dateString);
@@ -45,6 +49,6 @@ class StockListController extends AsyncNotifier<List<dynamic>> {
     final repo = ref.read(stockRepositoryProvider);
     await repo.deleteStockEntry(id);
     // Refresh the list
-    ref.invalidateSelf(); 
+    ref.invalidateSelf();
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../core/warehouse_context.dart';
 import '../repositories/rejection_repository.dart';
 
 final rejectionRepositoryProvider = Provider<RejectionRepository>(
@@ -63,6 +64,7 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
 
   @override
   Future<RejectionListState> build() async {
+    requireWarehouse(ref);
     _repo = ref.read(rejectionRepositoryProvider);
     final today = DateTime.now();
     final filterItems = await _repo.fetchItemsWithBatches();

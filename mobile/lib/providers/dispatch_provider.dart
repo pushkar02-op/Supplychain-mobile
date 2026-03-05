@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../core/warehouse_context.dart';
 import '../repositories/dispatch_repository.dart';
 import 'active_mart_provider.dart';
 
@@ -58,6 +59,7 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
 
   @override
   Future<DispatchListState> build() async {
+    requireWarehouse(ref);
     _repo = ref.read(dispatchRepositoryProvider);
     // When active mart changes, refresh data automatically
     ref.listen<String?>(activeMartProvider, (_, __) => refresh());

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/warehouse_context.dart';
 import '../repositories/order_repository.dart';
 import 'active_mart_provider.dart';
 
@@ -53,6 +54,7 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
 
   @override
   Future<OrderListState> build() async {
+    requireWarehouse(ref);
     _repo = ref.read(orderRepositoryProvider);
     // When active mart changes, refresh data automatically
     ref.listen<String?>(activeMartProvider, (_, __) => refresh());

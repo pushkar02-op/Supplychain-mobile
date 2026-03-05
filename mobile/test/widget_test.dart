@@ -7,14 +7,15 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:mobile/main.dart';
+import 'package:mobile/providers/warehouse_provider.dart';
 
 void main() {
   testWidgets('App boots', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MyApp(),
+      ProviderScope(
+        overrides: [activeWarehouseProvider.overrideWith((ref) => 1)],
+        child: const MyApp(),
       ),
     );
 
