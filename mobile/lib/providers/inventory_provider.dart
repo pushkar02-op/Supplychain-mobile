@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/warehouse_context.dart';
 import '../repositories/inventory_repository.dart';
 
 final inventoryRepositoryProvider = Provider((ref) => InventoryRepository());
@@ -50,9 +51,7 @@ class InventoryState {
     return InventoryState(
       items: items ?? this.items,
       selectedItemId:
-          clearSelectedItemId
-              ? null
-              : (selectedItemId ?? this.selectedItemId),
+          clearSelectedItemId ? null : (selectedItemId ?? this.selectedItemId),
       selectedUnit:
           clearSelectedUnit ? null : (selectedUnit ?? this.selectedUnit),
       skip: skip ?? this.skip,
@@ -68,6 +67,7 @@ class InventoryNotifier extends AsyncNotifier<InventoryState> {
 
   @override
   Future<InventoryState> build() async {
+    requireWarehouse(ref);
     _repo = ref.read(inventoryRepositoryProvider);
     final items = await _repo.fetchInventory();
     return InventoryState(
@@ -152,10 +152,7 @@ class InventoryNotifier extends AsyncNotifier<InventoryState> {
 
     state = AsyncValue.data(current.copyWith(isLoadingMore: true));
     state = AsyncValue.data(
-      current.copyWith(
-        items: [...current.items],
-        isLoadingMore: false,
-      ),
+      current.copyWith(items: [...current.items], isLoadingMore: false),
     );
   }
 

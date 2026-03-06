@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/warehouse_context.dart';
 import '../models/mart_bill.dart';
 import '../repositories/mart_bill_repository.dart';
 import 'active_mart_provider.dart';
@@ -69,6 +70,7 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
 
   @override
   Future<MartBillState> build() async {
+    requireWarehouse(ref);
     _repo = ref.read(martBillRepositoryProvider);
     // When active mart changes, refresh data automatically
     ref.listen<String?>(activeMartProvider, (_, __) => refresh());

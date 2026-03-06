@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/warehouse_context.dart';
 import '../repositories/item_repository.dart';
 import '../services/forecasting_service.dart';
 
@@ -55,6 +56,7 @@ class ItemListNotifier extends AsyncNotifier<ItemListState> {
 
   @override
   Future<ItemListState> build() async {
+    requireWarehouse(ref);
     _repo = ref.read(itemRepositoryProvider);
     const defaultState = ItemListState(
       items: [],
@@ -191,11 +193,10 @@ class ItemDetailState {
   });
 }
 
-final itemDetailProvider = AsyncNotifierProvider.family<
-  ItemDetailNotifier,
-  ItemDetailState,
-  int
->(ItemDetailNotifier.new);
+final itemDetailProvider =
+    AsyncNotifierProvider.family<ItemDetailNotifier, ItemDetailState, int>(
+      ItemDetailNotifier.new,
+    );
 
 class ItemDetailNotifier extends FamilyAsyncNotifier<ItemDetailState, int> {
   late final ItemRepository _repo;
@@ -230,7 +231,9 @@ class ItemDetailNotifier extends FamilyAsyncNotifier<ItemDetailState, int> {
 }
 
 final itemLifecycleProvider =
-    AsyncNotifierProvider<ItemLifecycleNotifier, void>(ItemLifecycleNotifier.new);
+    AsyncNotifierProvider<ItemLifecycleNotifier, void>(
+      ItemLifecycleNotifier.new,
+    );
 
 class ItemLifecycleNotifier extends AsyncNotifier<void> {
   late final ItemRepository _repo;
@@ -255,8 +258,9 @@ class ItemLifecycleNotifier extends AsyncNotifier<void> {
   }
 }
 
-final itemAliasProvider =
-    AsyncNotifierProvider<ItemAliasNotifier, void>(ItemAliasNotifier.new);
+final itemAliasProvider = AsyncNotifierProvider<ItemAliasNotifier, void>(
+  ItemAliasNotifier.new,
+);
 
 class ItemAliasNotifier extends AsyncNotifier<void> {
   late final ItemRepository _repo;
