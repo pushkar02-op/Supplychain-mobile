@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
 import '../repositories/rejection_repository.dart';
 
@@ -64,6 +65,20 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
 
   @override
   Future<RejectionListState> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.isReady) {
+      return RejectionListState(
+        items: const [],
+        selectedDate: DateTime.now(),
+        selectedItemId: null,
+        skip: 0,
+        limit: 50,
+        hasMore: false,
+        isLoadingMore: false,
+        filterItems: const [],
+      );
+    }
+
     requireWarehouse(ref);
     _repo = ref.read(rejectionRepositoryProvider);
     final today = DateTime.now();

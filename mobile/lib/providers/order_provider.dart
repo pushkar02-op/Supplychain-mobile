@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
 import '../repositories/order_repository.dart';
 import 'active_mart_provider.dart';
@@ -54,6 +55,18 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
 
   @override
   Future<OrderListState> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.isReady) {
+      return OrderListState(
+        orders: const [],
+        selectedDate: DateTime.now(),
+        skip: 0,
+        limit: 50,
+        hasMore: false,
+        isLoadingMore: false,
+      );
+    }
+
     requireWarehouse(ref);
     _repo = ref.read(orderRepositoryProvider);
     // When active mart changes, refresh data automatically

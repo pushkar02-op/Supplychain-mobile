@@ -21,6 +21,7 @@ typedef LogoutHandler = Future<void> Function();
 
 class DioClient {
   static late Dio instance;
+  static String? _accessToken;
 
   static SessionSnapshotResolver? _sessionResolver;
   static RefreshHandler? _refreshHandler;
@@ -66,27 +67,25 @@ class DioClient {
     _refreshHandler = refreshHandler;
     _logoutHandler = logoutHandler;
 
-    if (_initialized) {
-      return;
+    if (!_initialized) {
+      if (ApiConfig.baseUrl.isEmpty) {
+        throw Exception(
+          'CRITICAL: API_BASE_URL is not set. Run with --dart-define=API_BASE_URL=...',
+        );
+      }
+      debugPrint('Setting up DioClient...');
+      instance = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl));
+      _initialized = true;
     }
 
-    if (ApiConfig.baseUrl.isEmpty) {
-      throw Exception(
-        'CRITICAL: API_BASE_URL is not set. Run with --dart-define=API_BASE_URL=...',
-      );
-    }
-
-    debugPrint('Setting up DioClient...');
-    instance = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl))
-      ..interceptors.add(
+    instance.interceptors.clear();
+    instance.interceptors.add(
         InterceptorsWrapper(
           onRequest: (options, handler) async {
             final normalizedPath = _normalizePath(options.path);
             final snapshot = _sessionResolver?.call();
-            final token = snapshot?.token;
-
-            if (token != null && token.isNotEmpty) {
-              options.headers['Authorization'] = 'Bearer $token';
+            if (_accessToken != null && _accessToken!.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $_accessToken';
             }
 
             if (_requiresWarehouse(normalizedPath)) {
@@ -199,9 +198,12 @@ class DioClient {
         ),
       );
 
-    _initialized = true;
     debugPrint('Dio baseUrl: ${ApiConfig.baseUrl}');
     debugPrint('Dio instance baseUrl: ${instance.options.baseUrl}');
+  }
+
+  static void setAccessToken(String? token) {
+    _accessToken = token;
   }
 
   static Future<void> _handleUnauthorizedError() async {
@@ -219,9 +221,8 @@ class DioClient {
     ErrorInterceptorHandler handler,
   ) async {
     final opts = error.requestOptions;
-    final newToken = _sessionResolver?.call().token;
-    if (newToken != null && newToken.isNotEmpty) {
-      opts.headers['Authorization'] = 'Bearer $newToken';
+    if (_accessToken != null && _accessToken!.isNotEmpty) {
+      opts.headers['Authorization'] = 'Bearer $_accessToken';
     }
 
     try {

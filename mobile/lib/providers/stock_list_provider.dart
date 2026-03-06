@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
 import '../repositories/stock_repository.dart';
 
@@ -23,6 +24,11 @@ final stockListProvider =
 class StockListController extends AsyncNotifier<List<dynamic>> {
   @override
   Future<List<dynamic>> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.isReady) {
+      return const [];
+    }
+
     requireWarehouse(ref);
     final date = ref.watch(selectedDateProvider);
     final dateString = date.toIso8601String().split('T')[0];

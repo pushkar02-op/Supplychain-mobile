@@ -12,6 +12,7 @@ import '../../providers/rejection_provider.dart';
 import '../../providers/stock_list_provider.dart';
 import '../../repositories/warehouse_repository.dart';
 import '../../services/auth_service.dart';
+import '../dio_client.dart';
 import 'session.dart';
 import 'session_state.dart';
 
@@ -44,6 +45,7 @@ class SessionController extends Notifier<Session> {
   Future<String?> login(String email, String password) async {
     try {
       final result = await AuthService.login(email, password);
+      DioClient.setAccessToken(result.accessToken);
       await _persistAuth(
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -77,6 +79,7 @@ class SessionController extends Notifier<Session> {
       }
 
       final response = await AuthService.refreshToken(refreshToken);
+      DioClient.setAccessToken(response.accessToken);
       await _storage.write(key: _accessTokenKey, value: response.accessToken);
       await _storage.write(key: _refreshTokenKey, value: response.refreshToken);
 
@@ -109,6 +112,7 @@ class SessionController extends Notifier<Session> {
 
   Future<void> logout() async {
     await _storage.deleteAll();
+    DioClient.setAccessToken(null);
     state = const Session(state: SessionState.unauthenticated);
     _invalidateWarehouseScopedProviders(ref);
   }
@@ -116,9 +120,11 @@ class SessionController extends Notifier<Session> {
   Future<void> _hydrateSessionFromStorage() async {
     final token = await _storage.read(key: _accessTokenKey);
     if (token == null) {
+      DioClient.setAccessToken(null);
       state = const Session(state: SessionState.unauthenticated);
       return;
     }
+    DioClient.setAccessToken(token);
 
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     final roleStr = await _storage.read(key: _roleKey);

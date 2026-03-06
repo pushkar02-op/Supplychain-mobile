@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
 import '../repositories/item_repository.dart';
 import '../services/forecasting_service.dart';
@@ -56,6 +57,19 @@ class ItemListNotifier extends AsyncNotifier<ItemListState> {
 
   @override
   Future<ItemListState> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.isReady) {
+      return const ItemListState(
+        items: [],
+        search: '',
+        statusFilter: 'active',
+        skip: 0,
+        limit: 5000,
+        hasMore: false,
+        isLoadingMore: false,
+      );
+    }
+
     requireWarehouse(ref);
     _repo = ref.read(itemRepositoryProvider);
     const defaultState = ItemListState(

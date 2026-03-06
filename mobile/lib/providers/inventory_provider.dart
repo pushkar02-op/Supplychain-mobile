@@ -1,16 +1,29 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
 import '../repositories/inventory_repository.dart';
 
 final inventoryRepositoryProvider = Provider((ref) => InventoryRepository());
 
 final inventoryItemOptionsProvider = FutureProvider<List<Map<String, dynamic>>>(
-  (ref) => ref.read(inventoryRepositoryProvider).fetchItemOptions(),
+  (ref) async {
+    final session = ref.watch(sessionProvider);
+    if (!session.isReady) {
+      return const [];
+    }
+    return ref.read(inventoryRepositoryProvider).fetchItemOptions();
+  },
 );
 
 final inventoryUnitOptionsProvider = FutureProvider<List<String>>(
-  (ref) => ref.read(inventoryRepositoryProvider).fetchUnitOptions(),
+  (ref) async {
+    final session = ref.watch(sessionProvider);
+    if (!session.isReady) {
+      return const [];
+    }
+    return ref.read(inventoryRepositoryProvider).fetchUnitOptions();
+  },
 );
 
 final inventoryListProvider =
@@ -67,6 +80,19 @@ class InventoryNotifier extends AsyncNotifier<InventoryState> {
 
   @override
   Future<InventoryState> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.isReady) {
+      return const InventoryState(
+        items: [],
+        selectedItemId: null,
+        selectedUnit: null,
+        skip: 0,
+        limit: 100,
+        hasMore: false,
+        isLoadingMore: false,
+      );
+    }
+
     requireWarehouse(ref);
     _repo = ref.read(inventoryRepositoryProvider);
     final items = await _repo.fetchInventory();

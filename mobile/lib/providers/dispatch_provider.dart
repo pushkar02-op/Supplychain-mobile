@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
 import '../repositories/dispatch_repository.dart';
 import 'active_mart_provider.dart';
@@ -59,6 +60,19 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
 
   @override
   Future<DispatchListState> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.isReady) {
+      return DispatchListState(
+        dispatches: const [],
+        selectedDate: DateTime.now(),
+        showHidden: false,
+        skip: 0,
+        limit: 100,
+        hasMore: false,
+        isLoadingMore: false,
+      );
+    }
+
     requireWarehouse(ref);
     _repo = ref.read(dispatchRepositoryProvider);
     // When active mart changes, refresh data automatically

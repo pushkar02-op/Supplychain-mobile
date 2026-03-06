@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
 import '../models/mart_bill.dart';
 import '../repositories/mart_bill_repository.dart';
@@ -70,6 +71,22 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
 
   @override
   Future<MartBillState> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.isReady) {
+      return const MartBillState(
+        bills: [],
+        selectedDate: null,
+        search: '',
+        skip: 0,
+        limit: 20,
+        hasMore: false,
+        isLoadingMore: false,
+        isUploading: false,
+        pickedPaths: [],
+        uploadResults: [],
+      );
+    }
+
     requireWarehouse(ref);
     _repo = ref.read(martBillRepositoryProvider);
     // When active mart changes, refresh data automatically
