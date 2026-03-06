@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/screens/admin_diagnostics_screen.dart';
@@ -10,10 +9,11 @@ import 'package:mobile/screens/dispatch_list_screen.dart';
 import 'package:mobile/screens/pdf_view_screen.dart';
 import 'package:mobile/screens/rejection_entry_screen.dart';
 import 'package:mobile/screens/rejection_list_screen.dart';
+import 'package:mobile/screens/splash_screen.dart';
 
 import '../auth/login_screen.dart';
-import '../providers/auth_provider.dart';
-import '../providers/warehouse_provider.dart';
+import '../core/session/session_controller.dart';
+import '../core/session/session_state.dart';
 import '../screens/alias_mapping_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/inventory_screen.dart';
@@ -30,80 +30,43 @@ import '../screens/warehouse_selection_screen.dart';
 import '../widgets/app_scaffold.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
-  final isLoggedIn = authState.value?.isLoggedIn ?? false;
-  final warehouseBootstrap =
-      isLoggedIn
-          ? ref.watch(warehouseBootstrapProvider)
-          : const AsyncValue.data(
-            WarehouseBootstrapResult(WarehouseBootstrapState.ready),
-          );
-
-  debugPrint(
-    '[ROUTER_PROVIDER] Rebuilding GoRouter. AuthState: ${authState.value}',
-  );
+  final session = ref.watch(sessionProvider);
 
   return GoRouter(
-    initialLocation: '/login',
-    refreshListenable: _AuthStateListenable(authState),
+    initialLocation: '/splash',
     redirect: (context, state) {
-      debugPrint(
-        '[ROUTER] redirect check. Path: ${state.uri.path}, AuthState: ${authState.value}',
-      );
-      // If auth state is loading, maybe show a splash?
-      // For now, if loading, we wait.
-      if (authState.isLoading || authState.hasError) {
-        debugPrint('[ROUTER] Auth loading or error. Staying put.');
+      if (state.uri.path == '/splash' && session.state == SessionState.loading) {
         return null;
       }
 
-      final isLoggedIn = authState.value?.isLoggedIn ?? false;
-      final canManageUsers = authState.value?.canManageUsers ?? false;
-      final isLoggingIn = state.uri.path == '/login';
-      final isSelectingWarehouse = state.uri.path == '/warehouse/select';
-      final isRestricted = state.uri.path.startsWith('/admin');
+      final path = state.uri.path;
+      final isSplash = path == '/splash';
+      final isLogin = path == '/login';
+      final isWarehouseSelect = path == '/warehouse/select';
+      final isRestricted = path.startsWith('/admin');
 
-      if (!isLoggedIn && !isLoggingIn) {
-        debugPrint('[ROUTER] Not logged in, redirecting to /login');
-        return '/login';
-      }
-
-      if (isLoggedIn) {
-        if (warehouseBootstrap.isLoading) {
+      switch (session.state) {
+        case SessionState.loading:
+          return '/splash';
+        case SessionState.unauthenticated:
+          return isLogin ? null : '/login';
+        case SessionState.authenticatedNoWarehouse:
+          return isWarehouseSelect ? null : '/warehouse/select';
+        case SessionState.ready:
+          if (isLogin || isWarehouseSelect || isSplash) {
+            return '/main';
+          }
+          if (isRestricted && !session.canManageUsers) {
+            return '/main';
+          }
+          if (path == '/dashboard') {
+            return '/main';
+          }
           return null;
-        }
-
-        final bootstrapState =
-            warehouseBootstrap.value?.state ??
-            WarehouseBootstrapState.selectionRequired;
-        if (bootstrapState == WarehouseBootstrapState.selectionRequired &&
-            !isSelectingWarehouse) {
-          return '/warehouse/select';
-        }
-
-        if (bootstrapState == WarehouseBootstrapState.ready &&
-            (isLoggingIn || isSelectingWarehouse)) {
-          debugPrint(
-            '[ROUTER] Logged in, warehouse resolved, redirecting to /main',
-          );
-          return '/main';
-        }
       }
-      // Legacy dashboard route redirects to main
-      if (isLoggedIn && state.uri.path == '/dashboard') {
-        debugPrint('[ROUTER] Redirecting /dashboard to /main');
-        return '/main';
-      }
-
-      // Admin Guard
-      if (isRestricted && !canManageUsers) {
-        return '/main';
-      }
-
-      debugPrint('[ROUTER] No redirect needed.');
-      return null;
     },
     routes: [
+      GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/warehouse/select',
@@ -118,10 +81,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/stock-list',
         builder: (context, state) => const StockListScreen(),
       ),
-      GoRoute(
-        path: '/orders',
-        builder: (context, state) => const OrdersScreen(),
-      ),
+      GoRoute(path: '/orders', builder: (context, state) => const OrdersScreen()),
       GoRoute(
         path: '/order-entry',
         builder: (context, state) => const OrderEntryScreen(),
@@ -165,10 +125,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/inventory',
         builder: (context, state) => const InventoryScreen(),
       ),
-      GoRoute(
-        path: '/items',
-        builder: (context, state) => const ItemListScreen(),
-      ),
+      GoRoute(path: '/items', builder: (context, state) => const ItemListScreen()),
       GoRoute(
         path: '/item-detail',
         builder: (context, state) {
@@ -178,10 +135,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/item-edit',
-        builder:
-            (context, state) => ItemManagementScreen(
-              data: state.extra as Map<String, dynamic>?,
-            ),
+        builder: (context, state) => ItemManagementScreen(
+          data: state.extra as Map<String, dynamic>?,
+        ),
       ),
       GoRoute(
         path: '/alias-mapping',
@@ -210,10 +166,3 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-
-// Helper to convert AsyncValue to Listenable for GoRouter
-class _AuthStateListenable extends ChangeNotifier {
-  _AuthStateListenable(this._state);
-  // ignore: unused_field
-  final Object? _state;
-}

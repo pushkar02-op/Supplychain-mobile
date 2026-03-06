@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/auth_provider.dart';
+import '../core/session/session_controller.dart';
 import '../providers/inventory_provider.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
@@ -40,9 +40,7 @@ class InventoryScreen extends ConsumerWidget {
           Consumer(
             builder: (context, ref, _) {
               final canManageUsers = ref.watch(
-                authProvider.select(
-                  (async) => async.valueOrNull?.canManageUsers ?? false,
-                ),
+                sessionProvider.select((session) => session.canManageUsers),
               );
               if (!canManageUsers) return const SizedBox.shrink();
               return IconButton(
@@ -134,10 +132,8 @@ class InventoryScreen extends ConsumerWidget {
                                       inv,
                                       canManageUsers:
                                           ref
-                                              .read(authProvider)
-                                              .valueOrNull
-                                              ?.canManageUsers ??
-                                          false,
+                                              .read(sessionProvider)
+                                              .canManageUsers,
                                     ),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(

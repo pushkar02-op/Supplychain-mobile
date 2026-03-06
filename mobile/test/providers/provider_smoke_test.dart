@@ -1,12 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/core/session/session.dart';
+import 'package:mobile/core/session/session_controller.dart';
+import 'package:mobile/core/session/session_state.dart';
 import 'package:mobile/providers/dispatch_provider.dart';
 import 'package:mobile/providers/item_provider.dart';
 import 'package:mobile/providers/order_provider.dart';
-import 'package:mobile/providers/warehouse_provider.dart';
 import 'package:mobile/repositories/dispatch_repository.dart';
 import 'package:mobile/repositories/item_repository.dart';
 import 'package:mobile/repositories/order_repository.dart';
+
+class _FakeSessionController extends SessionController {
+  _FakeSessionController(this._session);
+
+  final Session _session;
+
+  @override
+  Session build() => _session;
+}
 
 class _FakeOrderRepository extends OrderRepository {
   @override
@@ -44,7 +55,14 @@ void main() {
   test('orderListProvider builds', () async {
     final container = ProviderContainer(
       overrides: [
-        activeWarehouseProvider.overrideWith((ref) => 1),
+        sessionProvider.overrideWith(
+          () => _FakeSessionController(
+            const Session(
+              state: SessionState.ready,
+              warehouseId: 1,
+            ),
+          ),
+        ),
         orderRepositoryProvider.overrideWithValue(_FakeOrderRepository()),
       ],
     );
@@ -57,7 +75,14 @@ void main() {
   test('dispatchListProvider builds', () async {
     final container = ProviderContainer(
       overrides: [
-        activeWarehouseProvider.overrideWith((ref) => 1),
+        sessionProvider.overrideWith(
+          () => _FakeSessionController(
+            const Session(
+              state: SessionState.ready,
+              warehouseId: 1,
+            ),
+          ),
+        ),
         dispatchRepositoryProvider.overrideWithValue(_FakeDispatchRepository()),
       ],
     );
@@ -70,7 +95,14 @@ void main() {
   test('itemListProvider builds', () async {
     final container = ProviderContainer(
       overrides: [
-        activeWarehouseProvider.overrideWith((ref) => 1),
+        sessionProvider.overrideWith(
+          () => _FakeSessionController(
+            const Session(
+              state: SessionState.ready,
+              warehouseId: 1,
+            ),
+          ),
+        ),
         itemRepositoryProvider.overrideWithValue(_FakeItemRepository()),
       ],
     );

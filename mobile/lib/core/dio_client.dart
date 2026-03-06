@@ -1,35 +1,45 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart'; // For debugPrint
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
-import '../services/auth_service.dart';
 import 'api_config.dart';
 import 'errors/app_error.dart';
 import 'errors/error_mapper.dart';
 
+class SessionSnapshot {
+  final String? token;
+  final int? warehouseId;
+
+  const SessionSnapshot({this.token, this.warehouseId});
+}
+
+typedef SessionSnapshotResolver = SessionSnapshot Function();
+typedef RefreshHandler = Future<bool> Function();
+typedef LogoutHandler = Future<void> Function();
+
 class DioClient {
-  static const _storage = FlutterSecureStorage();
   static late Dio instance;
 
-  /// Callback for when a 401 occurs.
-  static VoidCallback? onUnauthorized;
-  static int? Function()? activeWarehouseResolver;
+  static SessionSnapshotResolver? _sessionResolver;
+  static RefreshHandler? _refreshHandler;
+  static LogoutHandler? _logoutHandler;
+  static bool _initialized = false;
 
-  // Completer used to queue concurrent 401 refreshes.
   static Completer<void>? _refreshCompleter;
 
   static const List<String> _warehouseScopedPrefixes = [
     '/orders',
     '/dispatch-entries',
     '/stock-entry',
+    '/stock-adjustment',
     '/rejection-entries',
     '/mart-bills',
     '/mart-bill-items',
     '/reports/inventory',
     '/inventory-txn',
+    '/admin/ledger',
     '/batch',
     '/item',
     '/items',
@@ -47,29 +57,41 @@ class DioClient {
     '/audit-logs',
   ];
 
-  // Setup Dio client with JWT interceptor
-  static void setup() {
+  static void setup({
+    required SessionSnapshotResolver sessionResolver,
+    required RefreshHandler refreshHandler,
+    required LogoutHandler logoutHandler,
+  }) {
+    _sessionResolver = sessionResolver;
+    _refreshHandler = refreshHandler;
+    _logoutHandler = logoutHandler;
+
+    if (_initialized) {
+      return;
+    }
+
     if (ApiConfig.baseUrl.isEmpty) {
       throw Exception(
         'CRITICAL: API_BASE_URL is not set. Run with --dart-define=API_BASE_URL=...',
       );
     }
+
     debugPrint('Setting up DioClient...');
     instance = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl))
       ..interceptors.add(
         InterceptorsWrapper(
-          // This is called on each request to add the token
           onRequest: (options, handler) async {
             final normalizedPath = _normalizePath(options.path);
+            final snapshot = _sessionResolver?.call();
+            final token = snapshot?.token;
 
-            final token = await _storage.read(key: 'access_token');
-            if (token != null) {
+            if (token != null && token.isNotEmpty) {
               options.headers['Authorization'] = 'Bearer $token';
             }
 
             if (_requiresWarehouse(normalizedPath)) {
-              final activeWarehouseId = activeWarehouseResolver?.call();
-              if (activeWarehouseId == null) {
+              final warehouseId = snapshot?.warehouseId;
+              if (warehouseId == null) {
                 return handler.reject(
                   DioException(
                     requestOptions: options,
@@ -83,18 +105,15 @@ class DioClient {
               }
 
               final params = Map<String, dynamic>.from(options.queryParameters);
-              params.putIfAbsent('warehouse_id', () => activeWarehouseId);
+              params.putIfAbsent('warehouse_id', () => warehouseId);
               options.queryParameters = params;
             }
 
-            // Centralized Idempotency-Key Injection for Ledger Mutations
             if (options.method == 'POST') {
               final path = normalizedPath;
-              // Target endpoints: stock-entry, dispatch-entries, rejection-entries
               if (path.contains('/stock-entry') ||
                   path.contains('/dispatch-entries') ||
                   path.contains('/rejection-entries')) {
-                // Only inject if not already present (respects existing keys)
                 if (!options.headers.containsKey('Idempotency-Key')) {
                   options.headers['Idempotency-Key'] = const Uuid().v4();
                   debugPrint('Injected Idempotency-Key for $path');
@@ -104,7 +123,6 @@ class DioClient {
 
             return handler.next(options);
           },
-          // This is called on error (e.g., 401 Unauthorized)
           onError: (error, handler) async {
             if (error.error is AppError) {
               return handler.reject(
@@ -117,151 +135,112 @@ class DioClient {
               );
             }
 
-            if (error.response?.statusCode == 401) {
-              final path = _normalizePath(error.requestOptions.path);
-              // Don't retry login or refresh endpoints to avoid infinite loops
-              if (path.contains('/login') || path.contains('/refresh')) {
-                _handleUnauthorizedError();
-                return handler.reject(
-                  DioException(
-                    requestOptions: error.requestOptions,
-                    response: error.response,
-                    error: ErrorMapper.map(error),
-                    type: error.type,
-                  ),
-                );
-              }
-
-              // Check if we have a refresh token
-              final hasRefresh =
-                  await _storage.read(key: 'refresh_token') != null;
-              if (!hasRefresh) {
-                _handleUnauthorizedError();
-                return handler.reject(
-                  DioException(
-                    requestOptions: error.requestOptions,
-                    response: error.response,
-                    error: ErrorMapper.map(error),
-                    type: error.type,
-                  ),
-                );
-              }
-
-              // SAFETY GUARD: Skip interceptor retry for Multipart uploads
-              // These must be handled by the service layer to reconstruct the stream
-              if (error.requestOptions.extra['isMultipartUpload'] == true) {
-                return handler.next(error);
-              }
-
-              if (_refreshCompleter != null) {
-                try {
-                  await _refreshCompleter!.future;
-                } catch (_) {
-                  return handler.reject(error);
-                }
-
-                final opts = error.requestOptions;
-                final newToken = await _storage.read(key: 'access_token');
-                opts.headers['Authorization'] = 'Bearer $newToken';
-
-                try {
-                  final cloneReq = await instance.fetch(opts);
-                  return handler.resolve(cloneReq);
-                } catch (e) {
-                  if (e is DioException) {
-                    return handler.reject(
-                      DioException(
-                        requestOptions: e.requestOptions,
-                        response: e.response,
-                        error: ErrorMapper.map(e),
-                        type: e.type,
-                      ),
-                    );
-                  }
-                  return handler.reject(error);
-                }
-              }
-
-              _refreshCompleter = Completer<void>();
-              final success = await AuthService.refreshToken();
-
-              if (success) {
-                _refreshCompleter!.complete();
-              } else {
-                _refreshCompleter!.completeError(Exception('refresh failed'));
-              }
-              _refreshCompleter = null;
-
-              if (success) {
-                final opts = error.requestOptions;
-                final newToken = await _storage.read(key: 'access_token');
-                opts.headers['Authorization'] = 'Bearer $newToken';
-
-                try {
-                  final cloneReq = await instance.fetch(opts);
-                  return handler.resolve(cloneReq);
-                } catch (e) {
-                  if (e is DioException) {
-                    return handler.reject(
-                      DioException(
-                        requestOptions: e.requestOptions,
-                        response: e.response,
-                        error: ErrorMapper.map(e),
-                        type: e.type,
-                      ),
-                    );
-                  }
-                  return handler.reject(error);
-                }
-              } else {
-                _handleUnauthorizedError();
-                return handler.reject(
-                  DioException(
-                    requestOptions: error.requestOptions,
-                    response: error.response,
-                    error: ErrorMapper.map(error),
-                    type: error.type,
-                  ),
-                );
-              }
+            if (error.response?.statusCode != 401) {
+              return handler.reject(
+                DioException(
+                  requestOptions: error.requestOptions,
+                  response: error.response,
+                  error: ErrorMapper.map(error),
+                  type: error.type,
+                ),
+              );
             }
-            return handler.reject(
-              DioException(
-                requestOptions: error.requestOptions,
-                response: error.response,
-                error: ErrorMapper.map(error),
-                type: error.type,
-              ),
-            );
+
+            final path = _normalizePath(error.requestOptions.path);
+            if (path.contains('/login') || path.contains('/refresh')) {
+              await _handleUnauthorizedError();
+              return handler.reject(
+                DioException(
+                  requestOptions: error.requestOptions,
+                  response: error.response,
+                  error: ErrorMapper.map(error),
+                  type: error.type,
+                ),
+              );
+            }
+
+            if (error.requestOptions.extra['isMultipartUpload'] == true) {
+              return handler.next(error);
+            }
+
+            if (_refreshCompleter != null) {
+              try {
+                await _refreshCompleter!.future;
+              } catch (_) {
+                return handler.reject(error);
+              }
+              return _retryFailedRequest(error, handler);
+            }
+
+            _refreshCompleter = Completer<void>();
+            final refreshSuccess = await (_refreshHandler?.call() ?? Future.value(false));
+
+            if (refreshSuccess) {
+              _refreshCompleter!.complete();
+            } else {
+              _refreshCompleter!.completeError(Exception('refresh failed'));
+            }
+            _refreshCompleter = null;
+
+            if (!refreshSuccess) {
+              await _handleUnauthorizedError();
+              return handler.reject(
+                DioException(
+                  requestOptions: error.requestOptions,
+                  response: error.response,
+                  error: ErrorMapper.map(error),
+                  type: error.type,
+                ),
+              );
+            }
+
+            return _retryFailedRequest(error, handler);
           },
         ),
       );
-    // Print the baseUrl after setting up Dio
+
+    _initialized = true;
     debugPrint('Dio baseUrl: ${ApiConfig.baseUrl}');
     debugPrint('Dio instance baseUrl: ${instance.options.baseUrl}');
   }
 
-  // Helper function to handle 401 errors (Unauthorized)
-  static void _handleUnauthorizedError() {
-    if (onUnauthorized != null) {
-      onUnauthorized!();
-    } else {
-      // Fallback if no callback registered
-      _logout();
+  static Future<void> _handleUnauthorizedError() async {
+    if (_logoutHandler != null) {
+      await _logoutHandler!.call();
     }
   }
 
-  // Logout function that clears the JWT token and other sensitive data
-  static Future<void> _logout() async {
-    // Clear the stored JWT token and any other sensitive data
-    await _storage.deleteAll();
-    debugPrint('User logged out, navigate to login screen.');
+  static Future<bool> tryRefreshToken() async {
+    return _refreshHandler?.call() ?? false;
   }
 
-  // Public method for logout, accessible from other parts of the app
-  static Future<void> logout() async {
-    await _logout();
-    // You can also navigate to the login page here
+  static Future<void> _retryFailedRequest(
+    DioException error,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final opts = error.requestOptions;
+    final newToken = _sessionResolver?.call().token;
+    if (newToken != null && newToken.isNotEmpty) {
+      opts.headers['Authorization'] = 'Bearer $newToken';
+    }
+
+    try {
+      final response = await instance.fetch(opts);
+      handler.resolve(response);
+    } catch (e) {
+      if (e is DioException) {
+        handler.reject(
+          DioException(
+            requestOptions: e.requestOptions,
+            response: e.response,
+            error: ErrorMapper.map(e),
+            type: e.type,
+          ),
+        );
+        return;
+      }
+      handler.reject(error);
+    }
   }
 
   static String _normalizePath(String path) {
@@ -300,15 +279,15 @@ class DioClient {
   }
 
   static bool _requiresWarehouse(String normalizedPath) {
-    for (final prefix in _warehouseExclusionPrefixes) {
-      if (_matchesPrefix(normalizedPath, prefix)) {
-        return false;
-      }
-    }
-
     for (final prefix in _warehouseScopedPrefixes) {
       if (_matchesPrefix(normalizedPath, prefix)) {
         return true;
+      }
+    }
+
+    for (final prefix in _warehouseExclusionPrefixes) {
+      if (_matchesPrefix(normalizedPath, prefix)) {
+        return false;
       }
     }
 

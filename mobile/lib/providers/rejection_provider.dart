@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../core/warehouse_context.dart';
+import '../core/session/session_guard.dart';
 import '../repositories/rejection_repository.dart';
 
 final rejectionRepositoryProvider = Provider<RejectionRepository>(

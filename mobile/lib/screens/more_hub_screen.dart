@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/auth_provider.dart';
-import '../providers/warehouse_provider.dart';
+import '../core/session/session_controller.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
@@ -17,8 +16,8 @@ class MoreHubScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    final canManageUsers = authState.value?.canManageUsers ?? false;
+    final session = ref.watch(sessionProvider);
+    final canManageUsers = session.canManageUsers;
 
     return Scaffold(
       backgroundColor: AgroColors.background,
@@ -144,11 +143,20 @@ class _WarehouseTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeWarehouse = ref.watch(activeWarehouseAccessProvider);
-    final canSwitch = ref.watch(canSwitchWarehouseProvider);
+    final session = ref.watch(sessionProvider);
+    final warehouses = session.warehouses ?? const [];
+    final activeWarehouseId = session.warehouseId;
+    String? activeWarehouseName;
+    for (final warehouse in warehouses) {
+      if (warehouse.id == activeWarehouseId) {
+        activeWarehouseName = warehouse.name;
+        break;
+      }
+    }
+    final canSwitch = warehouses.length > 1;
 
     final subtitle =
-        activeWarehouse?.name ??
+        activeWarehouseName ??
         (canSwitch ? 'Select active warehouse' : 'Warehouse is auto-selected');
 
     return Card(
@@ -271,7 +279,7 @@ class _LogoutTile extends StatelessWidget {
           ),
     );
     if (confirmed == true) {
-      await ref.read(authProvider.notifier).logout();
+      await ref.read(sessionProvider.notifier).logout();
     }
   }
 }

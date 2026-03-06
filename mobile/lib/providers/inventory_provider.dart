@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/warehouse_context.dart';
+import '../core/session/session_guard.dart';
 import '../repositories/inventory_repository.dart';
 
 final inventoryRepositoryProvider = Provider((ref) => InventoryRepository());

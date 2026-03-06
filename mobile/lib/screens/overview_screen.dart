@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../core/session/session_controller.dart';
 import '../providers/admin_ledger_provider.dart';
-import '../providers/auth_provider.dart';
 import '../providers/dispatch_provider.dart';
 import '../providers/forecasting_provider.dart';
 import '../providers/inventory_provider.dart';
@@ -41,9 +41,7 @@ class OverviewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final canManageUsers = ref.watch(
-      authProvider.select(
-        (async) => async.valueOrNull?.canManageUsers ?? false,
-      ),
+      sessionProvider.select((session) => session.canManageUsers),
     );
     final todayFormatted = DateFormat('EEEE, MMMM d').format(DateTime.now());
 

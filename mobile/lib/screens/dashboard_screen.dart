@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile/providers/auth_provider.dart';
 
+import '../core/session/session_controller.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_shapes.dart';
 import '../ui/theme/agro_spacing.dart';
@@ -105,8 +105,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // Administration Section (Admin only)
             Consumer(
               builder: (context, ref, child) {
-                final authState = ref.watch(authProvider);
-                final canManageUsers = authState.value?.canManageUsers ?? false;
+                final canManageUsers = ref.watch(
+                  sessionProvider.select((session) => session.canManageUsers),
+                );
 
                 if (!canManageUsers) return const SizedBox.shrink();
 
@@ -161,7 +162,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
     );
     if (confirmed == true) {
-      await ref.read(authProvider.notifier).logout();
+      await ref.read(sessionProvider.notifier).logout();
     }
   }
 }

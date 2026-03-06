@@ -1,5 +1,11 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../core/dio_client.dart';
 import '../models/warehouse_access.dart';
+
+final warehouseRepositoryProvider = Provider<WarehouseRepository>(
+  (ref) => WarehouseRepository(),
+);
 
 class WarehouseRepository {
   Future<List<WarehouseAccess>> fetchMyAccess() async {

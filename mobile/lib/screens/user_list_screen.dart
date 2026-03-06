@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/user_read.dart';
-import '../providers/auth_provider.dart';
+import '../core/session/session_controller.dart';
 import '../providers/user_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_shapes.dart';
@@ -18,7 +18,7 @@ class UserListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(userListProvider);
     final currentUserId = ref.watch(
-      authProvider.select((a) => a.valueOrNull?.userId),
+      sessionProvider.select((session) => session.userId),
     );
 
     return Scaffold(

@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../core/session/session_controller.dart';
 import '../providers/active_mart_provider.dart';
-import '../providers/auth_provider.dart';
 import '../providers/dispatch_provider.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
@@ -88,9 +88,7 @@ class DispatchListScreen extends ConsumerWidget {
     );
     final selectedMart = ref.watch(activeMartProvider);
     final canManageUsers = ref.watch(
-      authProvider.select(
-        (async) => async.valueOrNull?.canManageUsers ?? false,
-      ),
+      sessionProvider.select((session) => session.canManageUsers),
     );
 
     return Scaffold(

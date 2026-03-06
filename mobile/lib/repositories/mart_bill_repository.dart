@@ -7,7 +7,6 @@ import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
 import '../core/errors/error_mapper.dart';
 import '../models/mart_bill.dart';
-import '../services/auth_service.dart';
 
 class MartBillRepository {
   /// Fetch list of mart bills, with optional filters and pagination
@@ -112,7 +111,7 @@ class MartBillRepository {
     } on DioException catch (e) {
       // Handle 401 Manually for Multipart
       if (e.response?.statusCode == 401) {
-        final success = await AuthService.refreshToken();
+        final success = await DioClient.tryRefreshToken();
         if (success) {
           final formData = await buildFormData();
           final resp = await DioClient.instance.post(
