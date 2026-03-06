@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart'; // For debugPrint
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -16,8 +18,8 @@ class DioClient {
   static VoidCallback? onUnauthorized;
   static int? Function()? activeWarehouseResolver;
 
-  // Mutex-like flag to prevent concurrent refreshes
-  static bool _isRefreshing = false;
+  // Completer used to queue concurrent 401 refreshes.
+  static Completer<void>? _refreshCompleter;
 
   static const List<String> _warehouseScopedPrefixes = [
     '/orders',
@@ -151,56 +153,68 @@ class DioClient {
                 return handler.next(error);
               }
 
-              // Attempt refresh
-              if (!_isRefreshing) {
-                _isRefreshing = true;
-                final success = await AuthService.refreshToken();
-                _isRefreshing = false;
+              if (_refreshCompleter != null) {
+                try {
+                  await _refreshCompleter!.future;
+                } catch (_) {
+                  return handler.reject(error);
+                }
 
-                if (success) {
-                  // Retry the original request
-                  final opts = error.requestOptions;
-                  final newToken = await _storage.read(key: 'access_token');
-                  opts.headers['Authorization'] = 'Bearer $newToken';
+                final opts = error.requestOptions;
+                final newToken = await _storage.read(key: 'access_token');
+                opts.headers['Authorization'] = 'Bearer $newToken';
 
-                  try {
-                    final cloneReq = await instance.fetch(opts);
-                    return handler.resolve(cloneReq);
-                  } catch (e) {
-                    // If retry fails, propagate via handler.reject
-                    if (e is DioException) {
-                      return handler.reject(
-                        DioException(
-                          requestOptions: e.requestOptions,
-                          response: e.response,
-                          error: ErrorMapper.map(e),
-                          type: e.type,
-                        ),
-                      );
-                    }
-
+                try {
+                  final cloneReq = await instance.fetch(opts);
+                  return handler.resolve(cloneReq);
+                } catch (e) {
+                  if (e is DioException) {
                     return handler.reject(
                       DioException(
-                        requestOptions: error.requestOptions,
-                        error: e,
-                        type: DioExceptionType.unknown,
+                        requestOptions: e.requestOptions,
+                        response: e.response,
+                        error: ErrorMapper.map(e),
+                        type: e.type,
                       ),
                     );
                   }
-                } else {
-                  _handleUnauthorizedError();
-                  return handler.reject(
-                    DioException(
-                      requestOptions: error.requestOptions,
-                      response: error.response,
-                      error: ErrorMapper.map(error),
-                      type: error.type,
-                    ),
-                  );
+                  return handler.reject(error);
+                }
+              }
+
+              _refreshCompleter = Completer<void>();
+              final success = await AuthService.refreshToken();
+
+              if (success) {
+                _refreshCompleter!.complete();
+              } else {
+                _refreshCompleter!.completeError(Exception('refresh failed'));
+              }
+              _refreshCompleter = null;
+
+              if (success) {
+                final opts = error.requestOptions;
+                final newToken = await _storage.read(key: 'access_token');
+                opts.headers['Authorization'] = 'Bearer $newToken';
+
+                try {
+                  final cloneReq = await instance.fetch(opts);
+                  return handler.resolve(cloneReq);
+                } catch (e) {
+                  if (e is DioException) {
+                    return handler.reject(
+                      DioException(
+                        requestOptions: e.requestOptions,
+                        response: e.response,
+                        error: ErrorMapper.map(e),
+                        type: e.type,
+                      ),
+                    );
+                  }
+                  return handler.reject(error);
                 }
               } else {
-                // Another request is refreshing, wait a bit and retry (simple approach)
-                // Ideally we queue, but for now we just fail to keep it simple or wait
+                _handleUnauthorizedError();
                 return handler.reject(
                   DioException(
                     requestOptions: error.requestOptions,
