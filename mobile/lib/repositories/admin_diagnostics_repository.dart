@@ -12,8 +12,8 @@ class AdminDiagnosticsRepository {
         return Map<String, dynamic>.from(resp.data);
       }
       throw const FormatException('Expected a map response');
-    } catch (e) {
-      rethrow;
+    } catch (_) {
+      return {};
     }
   }
 }

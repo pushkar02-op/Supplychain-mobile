@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session/session_controller.dart';
 import '../repositories/admin_ledger_repository.dart';
 
 // Repository provider
@@ -16,6 +17,10 @@ final ledgerHealthProvider =
 class LedgerHealthNotifier extends AsyncNotifier<Map<String, dynamic>> {
   @override
   Future<Map<String, dynamic>> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.canManageUsers) {
+      return const {};
+    }
     final repo = ref.read(adminLedgerRepositoryProvider);
     return repo.fetchLedgerHealth();
   }
@@ -35,6 +40,10 @@ final driftReportProvider =
 class DriftReportNotifier extends AsyncNotifier<List<dynamic>> {
   @override
   Future<List<dynamic>> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.canManageUsers) {
+      return const [];
+    }
     final repo = ref.read(adminLedgerRepositoryProvider);
     return repo.fetchDriftReport();
   }
@@ -48,6 +57,10 @@ class DriftReportNotifier extends AsyncNotifier<List<dynamic>> {
 // Reconciliation Detail Provider
 final reconciliationDetailProvider = FutureProvider.family
     .autoDispose<Map<String, dynamic>, int>((ref, itemId) async {
+      final session = ref.watch(sessionProvider);
+      if (!session.canManageUsers) {
+        return const {};
+      }
       final repo = ref.read(adminLedgerRepositoryProvider);
       return repo.fetchReconciliationDetail(itemId);
     });

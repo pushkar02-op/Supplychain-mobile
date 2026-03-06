@@ -48,10 +48,8 @@ class ForecastingService {
       final resp = await DioClient.instance.get('/admin/forecasting/summary');
       final items = resp.data['items'] as List<dynamic>? ?? [];
       return items.map((e) => ItemForecast.fromJson(e)).toList();
-    } on DioException catch (e) {
-      throw Exception(
-        'Failed to load forecasts: ${e.response?.statusMessage ?? e.message}',
-      );
+    } on DioException {
+      return [];
     }
   }
 

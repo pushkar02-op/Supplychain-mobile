@@ -222,11 +222,14 @@ class ItemDetailNotifier extends FamilyAsyncNotifier<ItemDetailState, int> {
 
     ItemForecast? forecast;
     String? forecastError;
-    try {
-      final forecasts = await _repo.fetchForecastingSummary();
-      forecast = _repo.getItemForecast(forecasts, itemId);
-    } catch (e) {
-      forecastError = e.toString();
+    final session = ref.watch(sessionProvider);
+    if (session.canManageUsers) {
+      try {
+        final forecasts = await _repo.fetchForecastingSummary();
+        forecast = _repo.getItemForecast(forecasts, itemId);
+      } catch (e) {
+        forecastError = e.toString();
+      }
     }
     final aliasMetrics = await _repo.fetchAliasMetrics();
 

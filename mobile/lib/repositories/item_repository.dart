@@ -165,8 +165,8 @@ class ItemRepository {
       final resp = await DioClient.instance.get('/admin/forecasting/summary');
       final items = resp.data['items'] as List<dynamic>? ?? [];
       return items.map((e) => ItemForecast.fromJson(e)).toList();
-    } catch (e) {
-      rethrow;
+    } catch (_) {
+      return [];
     }
   }
 

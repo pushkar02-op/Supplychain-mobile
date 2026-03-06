@@ -1,4 +1,5 @@
 import '../core/dio_client.dart';
+import '../core/errors/domain_errors.dart';
 
 class AdminLedgerRepository {
   /// Fetch high-level ledger health summary (strictly read-only)
@@ -11,7 +12,10 @@ class AdminLedgerRepository {
       }
       throw const FormatException('Expected a map response');
     } catch (e) {
-      rethrow;
+      if (e is UnauthorizedGovernanceError) {
+        rethrow;
+      }
+      return {};
     }
   }
 
@@ -27,7 +31,10 @@ class AdminLedgerRepository {
       }
       throw const FormatException('Expected a list response');
     } catch (e) {
-      rethrow;
+      if (e is UnauthorizedGovernanceError) {
+        rethrow;
+      }
+      return [];
     }
   }
 
@@ -42,7 +49,10 @@ class AdminLedgerRepository {
       }
       throw const FormatException('Expected a map response');
     } catch (e) {
-      rethrow;
+      if (e is UnauthorizedGovernanceError) {
+        rethrow;
+      }
+      return {};
     }
   }
 }

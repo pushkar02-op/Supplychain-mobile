@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session/session_controller.dart';
 import '../repositories/forecasting_repository.dart';
 import '../services/forecasting_service.dart';
 
@@ -17,6 +18,10 @@ class ForecastingNotifier extends AsyncNotifier<List<ItemForecast>> {
 
   @override
   Future<List<ItemForecast>> build() async {
+    final session = ref.watch(sessionProvider);
+    if (!session.canManageUsers) {
+      return const [];
+    }
     _repo = ref.read(forecastingRepositoryProvider);
     return _repo.fetchForecastingSummary();
   }
