@@ -146,11 +146,36 @@ class DioClient {
             }
 
             final path = _normalizePath(error.requestOptions.path);
-            if (path.contains('/login') || path.contains('/refresh')) {
-              await _handleUnauthorizedError();
+            // Permission failures on admin endpoints should never trigger refresh/logout.
+            if (path.startsWith('/admin/')) {
               return handler.reject(
                 DioException(
                   requestOptions: error.requestOptions,
+                  response: error.response,
+                  error: ErrorMapper.map(error),
+                  type: error.type,
+                ),
+              );
+            }
+
+            // Never attempt refresh for login/refresh endpoint failures.
+            if (path.contains('/login') || path.contains('/refresh')) {
+              return handler.reject(
+                DioException(
+                  requestOptions: error.requestOptions,
+                  response: error.response,
+                  error: ErrorMapper.map(error),
+                  type: error.type,
+                ),
+              );
+            }
+
+            // At most one refresh-retry per request.
+            final requestOptions = error.requestOptions;
+            if (requestOptions.extra['retry'] == true) {
+              return handler.reject(
+                DioException(
+                  requestOptions: requestOptions,
                   response: error.response,
                   error: ErrorMapper.map(error),
                   type: error.type,
@@ -166,9 +191,16 @@ class DioClient {
               try {
                 await _refreshCompleter!.future;
               } catch (_) {
-                return handler.reject(error);
+                return handler.reject(
+                  DioException(
+                    requestOptions: requestOptions,
+                    response: error.response,
+                    error: ErrorMapper.map(error),
+                    type: error.type,
+                  ),
+                );
               }
-              return _retryFailedRequest(error, handler);
+              return _retryFailedRequest(error, handler, markRetry: true);
             }
 
             _refreshCompleter = Completer<void>();
@@ -185,7 +217,7 @@ class DioClient {
               await _handleUnauthorizedError();
               return handler.reject(
                 DioException(
-                  requestOptions: error.requestOptions,
+                  requestOptions: requestOptions,
                   response: error.response,
                   error: ErrorMapper.map(error),
                   type: error.type,
@@ -193,7 +225,7 @@ class DioClient {
               );
             }
 
-            return _retryFailedRequest(error, handler);
+            return _retryFailedRequest(error, handler, markRetry: true);
           },
         ),
       );
@@ -218,9 +250,14 @@ class DioClient {
 
   static Future<void> _retryFailedRequest(
     DioException error,
-    ErrorInterceptorHandler handler,
+    ErrorInterceptorHandler handler, {
+    bool markRetry = false,
+  }
   ) async {
     final opts = error.requestOptions;
+    if (markRetry) {
+      opts.extra['retry'] = true;
+    }
     if (_accessToken != null && _accessToken!.isNotEmpty) {
       opts.headers['Authorization'] = 'Bearer $_accessToken';
     }

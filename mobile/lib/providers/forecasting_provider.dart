@@ -27,6 +27,12 @@ class ForecastingNotifier extends AsyncNotifier<List<ItemForecast>> {
   }
 
   Future<void> refresh() async {
+    final session = ref.read(sessionProvider);
+    if (!session.canManageUsers) {
+      state = const AsyncValue.data([]);
+      return;
+    }
+    _repo = ref.read(forecastingRepositoryProvider);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => _repo.fetchForecastingSummary());
   }
