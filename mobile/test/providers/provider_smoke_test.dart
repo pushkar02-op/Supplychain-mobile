@@ -22,6 +22,7 @@ class _FakeSessionController extends SessionController {
 class _FakeOrderRepository extends OrderRepository {
   @override
   Future<List<Map<String, dynamic>>> fetchOrders(
+    int warehouseId,
     DateTime date, {
     String? martName,
   }) async {
@@ -37,6 +38,7 @@ class _FakeDispatchRepository extends DispatchRepository {
     int skip = 0,
     int limit = 100,
     bool hideFullyReversed = false,
+    required int warehouseId,
   }) async {
     return [];
   }
@@ -45,6 +47,7 @@ class _FakeDispatchRepository extends DispatchRepository {
 class _FakeItemRepository extends ItemRepository {
   @override
   Future<List<Map<String, dynamic>>> fetchItems({
+    required int warehouseId,
     bool includeInactive = false,
   }) async {
     return [];
@@ -57,10 +60,7 @@ void main() {
       overrides: [
         sessionProvider.overrideWith(
           () => _FakeSessionController(
-            const Session(
-              state: SessionState.ready,
-              warehouseId: 1,
-            ),
+            const Session(state: SessionState.ready, warehouseId: 1),
           ),
         ),
         orderRepositoryProvider.overrideWithValue(_FakeOrderRepository()),
@@ -77,10 +77,7 @@ void main() {
       overrides: [
         sessionProvider.overrideWith(
           () => _FakeSessionController(
-            const Session(
-              state: SessionState.ready,
-              warehouseId: 1,
-            ),
+            const Session(state: SessionState.ready, warehouseId: 1),
           ),
         ),
         dispatchRepositoryProvider.overrideWithValue(_FakeDispatchRepository()),
@@ -97,10 +94,7 @@ void main() {
       overrides: [
         sessionProvider.overrideWith(
           () => _FakeSessionController(
-            const Session(
-              state: SessionState.ready,
-              warehouseId: 1,
-            ),
+            const Session(state: SessionState.ready, warehouseId: 1),
           ),
         ),
         itemRepositoryProvider.overrideWithValue(_FakeItemRepository()),

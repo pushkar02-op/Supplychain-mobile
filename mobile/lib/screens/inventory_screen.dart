@@ -116,11 +116,10 @@ class InventoryScreen extends ConsumerWidget {
                             itemCount: state.items.length,
                             itemBuilder: (context, i) {
                               final inv = state.items[i];
-                              final availableStock =
-                                  (inv['state_qty'] as num?)?.toDouble() ?? 0.0;
-                              final unit = inv['unit'] ?? '';
-                              final statusKind = _deriveStatusKind(inv);
-                              final lastUpdated = _resolveLastUpdated(inv);
+                              final availableStock = inv.quantity;
+                              final unit = inv.unit;
+                              // For now, mapping simplified status
+                              const statusKind = _InventoryStatusKind.ok;
 
                               return AgroCard(
                                 margin: const EdgeInsets.only(
@@ -129,7 +128,7 @@ class InventoryScreen extends ConsumerWidget {
                                 onTap:
                                     () => InventoryDetailSheet.show(
                                       context,
-                                      inv,
+                                      inv.toJson(),
                                       canManageUsers:
                                           ref
                                               .read(sessionProvider)
@@ -150,12 +149,12 @@ class InventoryScreen extends ConsumerWidget {
                                         children: [
                                           Expanded(
                                             child: Text(
-                                              inv['name'] ?? 'Unknown',
+                                              inv.itemName,
                                               style: AgroTypography.cardTitle,
                                             ),
                                           ),
                                           const SizedBox(width: AgroSpacing.sm),
-                                          _InventoryStatusBadge(
+                                          const _InventoryStatusBadge(
                                             kind: statusKind,
                                           ),
                                         ],
@@ -168,11 +167,6 @@ class InventoryScreen extends ConsumerWidget {
                                         ),
                                         softWrap: false,
                                         overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: AgroSpacing.xs),
-                                      Text(
-                                        'Last updated: $lastUpdated',
-                                        style: AgroTypography.caption,
                                       ),
                                     ],
                                   ),
@@ -210,101 +204,63 @@ class _InventoryFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AgroCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Filter:', style: AgroTypography.captionEmphasis),
-          const SizedBox(height: AgroSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  // ignore: deprecated_member_use
-                  value: selectedItemId,
-                  decoration: const InputDecoration(labelText: 'Item'),
-                  items: [
-                    const DropdownMenuItem<int>(
-                      value: null,
-                      child: Text('All Items'),
-                    ),
-                    ...items.map(
-                      (item) => DropdownMenuItem(
-                        value: item['id'],
-                        child: Text(item['name']),
+      child: Padding(
+        padding: const EdgeInsets.all(AgroSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Filter:', style: AgroTypography.captionEmphasis),
+            const SizedBox(height: AgroSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    value: selectedItemId,
+                    decoration: const InputDecoration(labelText: 'Item'),
+                    items: [
+                      const DropdownMenuItem<int>(
+                        value: null,
+                        child: Text('All Items'),
                       ),
-                    ),
-                  ],
-                  onChanged: onItemChanged,
-                  isExpanded: true,
+                      ...items.map(
+                        (item) => DropdownMenuItem(
+                          value: item['id'],
+                          child: Text(item['name']),
+                        ),
+                      ),
+                    ],
+                    onChanged: onItemChanged,
+                    isExpanded: true,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AgroSpacing.md),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  // ignore: deprecated_member_use
-                  value: selectedUnit,
-                  decoration: const InputDecoration(labelText: 'Unit'),
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: null,
-                      child: Text('All Units'),
-                    ),
-                    ...units.map(
-                      (u) => DropdownMenuItem(value: u, child: Text(u)),
-                    ),
-                  ],
-                  onChanged: onUnitChanged,
-                  isExpanded: true,
+                const SizedBox(width: AgroSpacing.md),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: selectedUnit,
+                    decoration: const InputDecoration(labelText: 'Unit'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('All Units'),
+                      ),
+                      ...units.map(
+                        (u) => DropdownMenuItem(value: u, child: Text(u)),
+                      ),
+                    ],
+                    onChanged: onUnitChanged,
+                    isExpanded: true,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 enum _InventoryStatusKind { criticalDrift, drift, forecastAlert, ok }
-
-_InventoryStatusKind _deriveStatusKind(Map<String, dynamic> inv) {
-  final status = (inv['status'] as String? ?? 'HEALTHY').toUpperCase();
-  final severity = (inv['severity'] as String? ?? 'NONE').toUpperCase();
-  final signals =
-      (inv['signals'] as List<dynamic>?)
-          ?.map((e) => e.toString().toUpperCase())
-          .toList() ??
-      const <String>[];
-
-  if (severity == 'CRITICAL' || status == 'CRITICAL_DRIFT') {
-    return _InventoryStatusKind.criticalDrift;
-  }
-  if (status != 'HEALTHY' || severity == 'MAJOR' || severity == 'MINOR') {
-    return _InventoryStatusKind.drift;
-  }
-  if (signals.any((s) => s != 'STABLE')) {
-    return _InventoryStatusKind.forecastAlert;
-  }
-  return _InventoryStatusKind.ok;
-}
-
-String _resolveLastUpdated(Map<String, dynamic> inv) {
-  final raw =
-      inv['last_updated_at'] ??
-      inv['updated_at'] ??
-      inv['as_of'] ??
-      inv['last_reconciled_at'];
-  if (raw == null) return '--';
-  final parsed = DateTime.tryParse(raw.toString());
-  if (parsed == null) return raw.toString();
-
-  final now = DateTime.now();
-  final diff = now.difference(parsed.toLocal());
-  if (diff.inMinutes < 1) return 'just now';
-  if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-  if (diff.inDays < 1) return '${diff.inHours}h ago';
-  return '${diff.inDays}d ago';
-}
 
 class _InventoryStatusBadge extends StatelessWidget {
   final _InventoryStatusKind kind;

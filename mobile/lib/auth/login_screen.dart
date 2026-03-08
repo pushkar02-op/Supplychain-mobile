@@ -25,25 +25,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
-      final result = await ref.read(sessionProvider.notifier).login(
-        email,
-        password,
-      );
+      final result = await ref
+          .read(sessionProvider.notifier)
+          .login(email, password);
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      if (result == null) {
-        AgroSnackBar.success(context, 'Login successful');
-        return;
-      } else {
+      if (result != null) {
         setState(() => errorMessage = result.toString());
+      } else {
+        AgroSnackBar.success(context, 'Login successful');
       }
     } catch (e, st) {
       debugPrint('[LOGIN_SCREEN] Exception during login: $e');
       debugPrint(st.toString());
-      setState(() => errorMessage = 'An error occurred: $e');
+      if (mounted) {
+        setState(() => errorMessage = 'An error occurred: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
 
     if (mounted) {

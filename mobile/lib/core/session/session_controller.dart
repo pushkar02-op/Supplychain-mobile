@@ -3,13 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../core/models/user_role.dart';
-import '../../providers/dispatch_provider.dart';
-import '../../providers/inventory_provider.dart';
-import '../../providers/item_provider.dart';
-import '../../providers/mart_bill_provider.dart';
-import '../../providers/order_provider.dart';
-import '../../providers/rejection_provider.dart';
-import '../../providers/stock_list_provider.dart';
+import '../../models/warehouse_access.dart';
 import '../../repositories/warehouse_repository.dart';
 import '../../services/auth_service.dart';
 import '../dio_client.dart';
@@ -103,18 +97,13 @@ class SessionController extends Notifier<Session> {
       );
     }
 
-    state = current.copyWith(
-      state: SessionState.ready,
-      warehouseId: id,
-    );
-    _invalidateWarehouseScopedProviders(ref);
+    state = current.copyWith(state: SessionState.ready, warehouseId: id);
   }
 
   Future<void> logout() async {
     await _storage.deleteAll();
     DioClient.setAccessToken(null);
     state = const Session(state: SessionState.unauthenticated);
-    _invalidateWarehouseScopedProviders(ref);
   }
 
   Future<void> _hydrateSessionFromStorage() async {
@@ -146,62 +135,62 @@ class SessionController extends Notifier<Session> {
     required int? userId,
     required UserRole? role,
   }) async {
+    List<WarehouseAccess> warehouses = [];
     try {
       final repo = ref.read(warehouseRepositoryProvider);
-      final warehouses = await repo.fetchMyAccess();
-      if (warehouses.isEmpty) {
-        await logout();
-        return;
-      }
+      warehouses = await repo.fetchMyAccess();
+    } catch (_) {
+      await logout();
+      return;
+    }
 
-      if (warehouses.length == 1) {
-        final selected = warehouses.first.id;
-        if (userId != null) {
-          await _storage.write(
-            key: _warehouseStorageKey(userId),
-            value: selected.toString(),
-          );
-        }
-        state = Session(
-          state: SessionState.ready,
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-          userId: userId,
-          role: role,
-          warehouseId: selected,
-          warehouses: warehouses,
+    if (warehouses.isEmpty) {
+      await logout();
+      return;
+    }
+
+    if (warehouses.length == 1) {
+      final selected = warehouses.first.id;
+      if (userId != null) {
+        await _storage.write(
+          key: _warehouseStorageKey(userId),
+          value: selected.toString(),
         );
-        _invalidateWarehouseScopedProviders(ref);
-        return;
       }
-
-      final persisted = await _readPersistedWarehouse(userId);
-      if (persisted != null && warehouses.any((w) => w.id == persisted)) {
-        state = Session(
-          state: SessionState.ready,
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-          userId: userId,
-          role: role,
-          warehouseId: persisted,
-          warehouses: warehouses,
-        );
-        _invalidateWarehouseScopedProviders(ref);
-        return;
-      }
-
       state = Session(
-        state: SessionState.authenticatedNoWarehouse,
+        state: SessionState.ready,
         accessToken: accessToken,
         refreshToken: refreshToken,
         userId: userId,
         role: role,
+        warehouseId: selected,
         warehouses: warehouses,
       );
-      _invalidateWarehouseScopedProviders(ref);
-    } catch (_) {
-      await logout();
+      return;
     }
+
+    final persisted = await _readPersistedWarehouse(userId);
+    if (persisted != null && warehouses.any((w) => w.id == persisted)) {
+      state = Session(
+        state: SessionState.ready,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        userId: userId,
+        role: role,
+        warehouseId: persisted,
+        warehouses: warehouses,
+      );
+      return;
+    }
+
+    state = Session(
+      state: SessionState.authenticatedNoWarehouse,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      userId: userId,
+      role: role,
+      warehouses: warehouses,
+    );
   }
 
   Future<int?> _readPersistedWarehouse(int? userId) async {
@@ -247,14 +236,4 @@ class SessionController extends Notifier<Session> {
   }
 
   String _warehouseStorageKey(int userId) => 'active_warehouse_user_$userId';
-}
-
-void _invalidateWarehouseScopedProviders(Ref ref) {
-  ref.invalidate(orderListProvider);
-  ref.invalidate(dispatchListProvider);
-  ref.invalidate(martBillProvider);
-  ref.invalidate(inventoryListProvider);
-  ref.invalidate(stockListProvider);
-  ref.invalidate(rejectionListProvider);
-  ref.invalidate(itemListProvider);
 }

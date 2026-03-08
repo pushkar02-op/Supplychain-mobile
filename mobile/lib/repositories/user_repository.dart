@@ -4,9 +4,12 @@ import '../models/user_read.dart';
 
 class UserRepository {
   /// Fetch all users (Owner only)
-  Future<List<UserRead>> fetchUsers() async {
+  Future<List<UserRead>> fetchUsers(int warehouseId) async {
     try {
-      final resp = await DioClient.instance.get('/users/');
+      final resp = await DioClient.instance.get(
+        '/users/',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       if (resp.statusCode != 200) {
         throw AppError(detail: 'Failed to fetch users');
       }
@@ -20,10 +23,15 @@ class UserRepository {
   }
 
   /// Update a user's role (Owner only)
-  Future<UserRead> updateUserRole(int userId, String role) async {
+  Future<UserRead> updateUserRole(
+    int warehouseId,
+    int userId,
+    String role,
+  ) async {
     try {
       final resp = await DioClient.instance.patch(
         '/users/$userId/role',
+        queryParameters: {'warehouse_id': warehouseId},
         data: {'role': role},
       );
       if (resp.statusCode != 200) {
@@ -36,9 +44,12 @@ class UserRepository {
   }
 
   /// Deactivate a user (Owner only)
-  Future<void> deactivateUser(int userId) async {
+  Future<void> deactivateUser(int warehouseId, int userId) async {
     try {
-      final resp = await DioClient.instance.delete('/users/$userId');
+      final resp = await DioClient.instance.delete(
+        '/users/$userId',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       if (resp.statusCode != 204) {
         throw AppError(detail: 'Failed to deactivate user');
       }

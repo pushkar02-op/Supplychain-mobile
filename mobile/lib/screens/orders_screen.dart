@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../models/order.dart';
 import '../providers/active_mart_provider.dart';
 import '../providers/order_provider.dart';
 import '../ui/semantics/agro_severity.dart';
@@ -243,19 +244,19 @@ class OrdersScreen extends ConsumerWidget {
 }
 
 class _OrderCard extends StatelessWidget {
-  final Map<String, dynamic> order;
+  final Order order;
   final Future<void> Function(int) onDelete;
 
   const _OrderCard({required this.order, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
-    final itemName = order['item']?['name'] ?? 'Unknown';
-    final martName = order['mart_name'] ?? '';
-    final ordered = (order['quantity_ordered'] as num?) ?? 0;
-    final dispatched = (order['quantity_dispatched'] as num?) ?? 0;
+    final itemName = order.itemName;
+    final martName = order.martName ?? 'Unknown Mart';
+    final ordered = order.quantityOrdered;
+    const dispatched = 0.0; // Placeholder until map check done
     final remaining = ordered - dispatched;
-    final unit = order['unit'] ?? '';
+    final unit = order.unit;
 
     final status = AgroStatusParser.fromOrderDispatchProgress(
       ordered,
@@ -265,7 +266,6 @@ class _OrderCard extends StatelessWidget {
       ordered,
       dispatched,
     );
-    final severityStyle = AgroSeverity.fromStatus(status);
 
     return Container(
       margin: const EdgeInsets.only(bottom: AgroSpacing.md),
@@ -273,7 +273,10 @@ class _OrderCard extends StatelessWidget {
         color: AgroColors.surface,
         borderRadius: AgroShapes.containerRadius,
         border: Border(
-          left: BorderSide(color: severityStyle.textColor, width: 5),
+          left: BorderSide(
+            color: AgroSeverity.fromStatus(status).textColor,
+            width: 5,
+          ),
         ),
         boxShadow: const [
           BoxShadow(
@@ -288,15 +291,14 @@ class _OrderCard extends StatelessWidget {
           context.push(
             '/dispatch-entry',
             extra: {
-              'order_id': order['id'],
-              'item_id': order['item_id'],
-              'batch_id': order['batch_id'],
-              'mart_name': order['mart_name'],
-              'quantity_ordered': order['quantity_ordered'],
-              'quantity_dispatched': order['quantity_dispatched'],
-              'unit': order['unit'],
-              'dispatch_date': order['order_date'],
-              'item_name': order['item']?['name'],
+              'order_id': order.id,
+              'item_id': order.itemId,
+              'mart_name': order.martName,
+              'quantity_ordered': order.quantityOrdered,
+              'quantity_dispatched': 0.0,
+              'unit': order.unit,
+              'dispatch_date': order.orderDate.toIso8601String(),
+              'item_name': order.itemName,
             },
           );
         },
@@ -326,13 +328,6 @@ class _OrderCard extends StatelessWidget {
                         ),
                         const SizedBox(width: AgroSpacing.sm),
                         _QuantityChip(
-                          label: 'Dispatched',
-                          value: dispatched,
-                          unit: unit,
-                          backgroundColor: AgroColors.success.background,
-                        ),
-                        const SizedBox(width: AgroSpacing.sm),
-                        _QuantityChip(
                           label: 'Remaining',
                           value: remaining,
                           unit: unit,
@@ -351,24 +346,23 @@ class _OrderCard extends StatelessWidget {
               PopupMenuButton<String>(
                 onSelected: (v) {
                   if (v == 'edit') {
-                    context.push('/order-entry', extra: order);
+                    context.push('/order-entry', extra: order.toJson());
                   } else if (v == 'dispatch') {
                     context.push(
                       '/dispatch-entry',
                       extra: {
-                        'order_id': order['id'],
-                        'item_id': order['item_id'],
-                        'batch_id': order['batch_id'],
-                        'mart_name': order['mart_name'],
-                        'quantity_ordered': order['quantity_ordered'],
-                        'quantity_dispatched': order['quantity_dispatched'],
-                        'unit': order['unit'],
-                        'dispatch_date': order['order_date'],
-                        'item_name': order['item']?['name'],
+                        'order_id': order.id,
+                        'item_id': order.itemId,
+                        'mart_name': order.martName,
+                        'quantity_ordered': order.quantityOrdered,
+                        'quantity_dispatched': 0.0,
+                        'unit': order.unit,
+                        'dispatch_date': order.orderDate.toIso8601String(),
+                        'item_name': order.itemName,
                       },
                     );
                   } else {
-                    onDelete(order['id']);
+                    onDelete(order.id);
                   }
                 },
                 itemBuilder:

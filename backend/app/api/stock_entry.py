@@ -114,6 +114,7 @@ def read_all(
             "updated_at": entry.updated_at,
             "created_by": entry.created_by,
             "updated_by": entry.updated_by,
+            "warehouse_id": entry.warehouse_id,
         }
         result.append(entry_dict)
 

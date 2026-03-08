@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/session/session_controller.dart';
+import '../core/session/session_guard.dart';
 import '../repositories/admin_ledger_repository.dart';
 
 // Repository provider
@@ -21,8 +22,9 @@ class LedgerHealthNotifier extends AsyncNotifier<Map<String, dynamic>> {
     if (!session.canManageUsers) {
       return const {};
     }
+    final warehouseId = requireWarehouse(ref);
     final repo = ref.read(adminLedgerRepositoryProvider);
-    return repo.fetchLedgerHealth();
+    return repo.fetchLedgerHealth(warehouseId);
   }
 
   Future<void> refresh() async {
@@ -44,8 +46,9 @@ class DriftReportNotifier extends AsyncNotifier<List<dynamic>> {
     if (!session.canManageUsers) {
       return const [];
     }
+    final warehouseId = requireWarehouse(ref);
     final repo = ref.read(adminLedgerRepositoryProvider);
-    return repo.fetchDriftReport();
+    return repo.fetchDriftReport(warehouseId);
   }
 
   Future<void> refresh() async {
@@ -61,6 +64,7 @@ final reconciliationDetailProvider = FutureProvider.family
       if (!session.canManageUsers) {
         return const {};
       }
+      final warehouseId = requireWarehouse(ref);
       final repo = ref.read(adminLedgerRepositoryProvider);
-      return repo.fetchReconciliationDetail(itemId);
+      return repo.fetchReconciliationDetail(warehouseId, itemId);
     });

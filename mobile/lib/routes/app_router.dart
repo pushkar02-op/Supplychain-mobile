@@ -1,3 +1,6 @@
+import 'dart:developer' as developer;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/screens/admin_diagnostics_screen.dart';
@@ -31,10 +34,19 @@ import '../widgets/app_scaffold.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(sessionProvider);
+  void auditLog(String message) {
+    developer.log(message);
+    debugPrint(message);
+  }
 
   return GoRouter(
     initialLocation: '/splash',
     redirect: (context, state) {
+      auditLog(
+        '[ROUTER_REDIRECT_CHECK] '
+        'state=${session.state} '
+        'location=${state.uri.path}',
+      );
       if (state.uri.path == '/splash' && session.state == SessionState.loading) {
         return null;
       }
@@ -49,17 +61,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         case SessionState.loading:
           return '/splash';
         case SessionState.unauthenticated:
+          if (!isLogin) {
+            auditLog('[ROUTER_REDIRECT] -> /login');
+          }
           return isLogin ? null : '/login';
         case SessionState.authenticatedNoWarehouse:
           return isWarehouseSelect ? null : '/warehouse/select';
         case SessionState.ready:
           if (isLogin || isWarehouseSelect || isSplash) {
+            auditLog('[ROUTER_REDIRECT] -> /main');
             return '/main';
           }
           if (isRestricted && !session.canManageUsers) {
+            auditLog('[ROUTER_REDIRECT] -> /main');
             return '/main';
           }
           if (path == '/dashboard') {
+            auditLog('[ROUTER_REDIRECT] -> /main');
             return '/main';
           }
           return null;

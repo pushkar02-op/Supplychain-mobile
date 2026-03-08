@@ -1,51 +1,76 @@
-
 import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
 import '../services/forecasting_service.dart';
 
 class ItemRepository {
   Future<Map<String, dynamic>?> saveAliasMapping(
+    int warehouseId,
     Map<String, dynamic> body,
   ) async {
     try {
-      final resp = await DioClient.instance.post('/item-alias/', data: body);
+      final resp = await DioClient.instance.post(
+        '/v1/item-alias/',
+        queryParameters: {'warehouse_id': warehouseId},
+        data: body,
+      );
       return resp.data;
     } catch (e) {
       rethrow;
     }
   }
 
-  Future<Map<String, dynamic>?> createItem(Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>?> createItem(
+    int warehouseId,
+    Map<String, dynamic> body,
+  ) async {
     try {
-      final resp = await DioClient.instance.post('/item/', data: body);
+      final resp = await DioClient.instance.post(
+        '/v1/item/',
+        data: body,
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       return resp.data;
     } catch (e) {
       rethrow;
     }
   }
 
-  Future<void> reprocessStock(int billId) async {
+  Future<void> reprocessStock(int warehouseId, int billId) async {
     try {
-      await DioClient.instance.post('/mart-bills/$billId/process-stock');
+      await DioClient.instance.post(
+        '/v1/mart-bills/$billId/process-stock',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
     } catch (e) {
       rethrow;
     }
   }
 
   Future<List<Map<String, dynamic>>> fetchItems({
+    required int warehouseId,
     bool includeInactive = false,
   }) async {
     try {
-      final queryParams = includeInactive ? '?include_inactive=true' : '';
-      final res = await DioClient.instance.get('/item-management/$queryParams');
+      final queryParams = <String, dynamic>{'warehouse_id': warehouseId};
+      if (includeInactive) queryParams['include_inactive'] = 'true';
+      final res = await DioClient.instance.get(
+        '/v1/item-management/',
+        queryParameters: queryParams,
+      );
       return List<Map<String, dynamic>>.from(res.data);
     } catch (e) {
       rethrow;
     }
   }
 
-  Future<Map<String, dynamic>> fetchItemById(int itemId) async {
-    final items = await fetchItems(includeInactive: true);
+  Future<Map<String, dynamic>> fetchItemById(
+    int warehouseId,
+    int itemId,
+  ) async {
+    final items = await fetchItems(
+      warehouseId: warehouseId,
+      includeInactive: true,
+    );
     return items.firstWhere(
       (item) => item['id'] == itemId,
       orElse: () => throw AppError(detail: 'Item not found'),
@@ -54,9 +79,12 @@ class ItemRepository {
 
   /// Deactivate an item (set status to INACTIVE).
   /// This is reversible via reactivateItem.
-  Future<Map<String, dynamic>?> deactivateItem(int id) async {
+  Future<Map<String, dynamic>?> deactivateItem(int warehouseId, int id) async {
     try {
-      final res = await DioClient.instance.post('/item/$id/deactivate');
+      final res = await DioClient.instance.post(
+        '/v1/item/$id/deactivate',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       return res.data;
     } catch (e) {
       rethrow;
@@ -64,18 +92,24 @@ class ItemRepository {
   }
 
   /// Reactivate an item (set status to ACTIVE).
-  Future<Map<String, dynamic>?> reactivateItem(int id) async {
+  Future<Map<String, dynamic>?> reactivateItem(int warehouseId, int id) async {
     try {
-      final res = await DioClient.instance.post('/item/$id/reactivate');
+      final res = await DioClient.instance.post(
+        '/v1/item/$id/reactivate',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       return res.data;
     } catch (e) {
       rethrow;
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchUOMs() async {
+  Future<List<Map<String, dynamic>>> fetchUOMs(int warehouseId) async {
     try {
-      final res = await DioClient.instance.get('/item-management/uoms');
+      final res = await DioClient.instance.get(
+        '/v1/item-management/uoms',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       return List<Map<String, dynamic>>.from(res.data);
     } catch (e) {
       rethrow;
@@ -83,11 +117,13 @@ class ItemRepository {
   }
 
   Future<Map<String, dynamic>> createOrUpdateItem(
+    int warehouseId,
     Map<String, dynamic> payload,
   ) async {
     try {
       final res = await DioClient.instance.post(
-        '/item-management/',
+        '/v1/item-management/',
+        queryParameters: {'warehouse_id': warehouseId},
         data: payload,
       );
       return res.data;
@@ -96,10 +132,13 @@ class ItemRepository {
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchUnmappedMartBillItems() async {
+  Future<List<Map<String, dynamic>>> fetchUnmappedMartBillItems(
+    int warehouseId,
+  ) async {
     try {
       final res = await DioClient.instance.get(
-        '/item-management/unmapped-invoice-items',
+        '/v1/item-management/unmapped-invoice-items',
+        queryParameters: {'warehouse_id': warehouseId},
       );
       return List<Map<String, dynamic>>.from(res.data);
     } catch (e) {
@@ -107,10 +146,15 @@ class ItemRepository {
     }
   }
 
-  Future<void> mapAlias(int billItemId, int masterItemId) async {
+  Future<void> mapAlias(
+    int warehouseId,
+    int billItemId,
+    int masterItemId,
+  ) async {
     try {
       await DioClient.instance.post(
-        '/item-management/map-invoice-item',
+        '/v1/item-management/map-invoice-item',
+        queryParameters: {'warehouse_id': warehouseId},
         data: {'invoice_item_id': billItemId, 'master_item_id': masterItemId},
       );
     } catch (e) {
@@ -120,13 +164,18 @@ class ItemRepository {
 
   /// Checks for similar items for "Duplicate Awareness" (Advisory Only).
   Future<List<Map<String, dynamic>>> checkSimilarity(
+    int warehouseId,
     String name,
     String? uomCode,
   ) async {
     try {
       final res = await DioClient.instance.get(
-        '/item/check-similarity',
-        queryParameters: {'name': name, 'uom': uomCode},
+        '/v1/item/check-similarity',
+        queryParameters: {
+          'name': name,
+          'uom': uomCode,
+          'warehouse_id': warehouseId,
+        },
       );
       return List<Map<String, dynamic>>.from(res.data);
     } catch (_) {
@@ -135,9 +184,12 @@ class ItemRepository {
   }
 
   /// Fetches alias frequency metrics (Read-Only, Observational).
-  Future<List<Map<String, dynamic>>> fetchAliasMetrics() async {
+  Future<List<Map<String, dynamic>>> fetchAliasMetrics(int warehouseId) async {
     try {
-      final res = await DioClient.instance.get('/item-alias/metrics');
+      final res = await DioClient.instance.get(
+        '/v1/item-alias/metrics',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       return List<Map<String, dynamic>>.from(res.data);
     } catch (_) {
       return [];
@@ -145,10 +197,14 @@ class ItemRepository {
   }
 
   /// Fetches item-level alias aggregates (Read-Only, Observational).
-  Future<Map<String, dynamic>> fetchItemAliasAggregates(int itemId) async {
+  Future<Map<String, dynamic>> fetchItemAliasAggregates(
+    int warehouseId,
+    int itemId,
+  ) async {
     try {
       final res = await DioClient.instance.get(
-        '/item-alias/item/$itemId/aggregates',
+        '/v1/item-alias/item/$itemId/aggregates',
+        queryParameters: {'warehouse_id': warehouseId},
       );
       return Map<String, dynamic>.from(res.data);
     } catch (_) {
@@ -160,9 +216,12 @@ class ItemRepository {
     }
   }
 
-  Future<List<ItemForecast>> fetchForecastingSummary() async {
+  Future<List<ItemForecast>> fetchForecastingSummary(int warehouseId) async {
     try {
-      final resp = await DioClient.instance.get('/admin/forecasting/summary');
+      final resp = await DioClient.instance.get(
+        '/v1/admin/forecasting/summary',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       final items = resp.data['items'] as List<dynamic>? ?? [];
       return items.map((e) => ItemForecast.fromJson(e)).toList();
     } catch (_) {

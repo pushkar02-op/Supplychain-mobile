@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
 import '../repositories/rejection_repository.dart';
+import 'warehouse_context_provider.dart';
 
 final rejectionRepositoryProvider = Provider<RejectionRepository>(
   (ref) => RejectionRepository(),
@@ -61,12 +61,10 @@ class RejectionListState {
 }
 
 class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
-  late final RejectionRepository _repo;
-
   @override
   Future<RejectionListState> build() async {
-    final session = ref.watch(sessionProvider);
-    if (!session.isReady) {
+    final warehouseId = ref.watch(warehouseContextProvider);
+    if (warehouseId == null) {
       return RejectionListState(
         items: const [],
         selectedDate: DateTime.now(),
@@ -79,11 +77,11 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
       );
     }
 
-    requireWarehouse(ref);
-    _repo = ref.read(rejectionRepositoryProvider);
+    final repo = ref.read(rejectionRepositoryProvider);
     final today = DateTime.now();
-    final filterItems = await _repo.fetchItemsWithBatches();
-    final firstPage = await _repo.fetchRejections(
+    final filterItems = await repo.fetchItemsWithBatches(warehouseId);
+    final firstPage = await repo.fetchRejections(
+      warehouseId: warehouseId,
       date: _formatDate(today),
       skip: 0,
       limit: 50,
@@ -106,17 +104,47 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
   }
 
   Future<void> refresh() async {
+    final current = state.valueOrNull;
+    if (current == null) {
+      ref.invalidateSelf();
+      return;
+    }
+
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(build);
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(rejectionRepositoryProvider);
+      final result = await repo.fetchRejections(
+        warehouseId: warehouseId,
+        date: _formatDate(current.selectedDate),
+        itemIds:
+            current.selectedItemId != null ? [current.selectedItemId!] : null,
+        skip: 0,
+        limit: current.limit,
+      );
+      final items = List<Map<String, dynamic>>.from(
+        result['items'] ?? const [],
+      );
+      final hasMore = result['has_more'] as bool? ?? false;
+      return current.copyWith(
+        items: items,
+        skip: items.length,
+        hasMore: hasMore,
+        isLoadingMore: false,
+      );
+    });
   }
 
   Future<void> setDate(DateTime date) async {
     final current = state.valueOrNull;
     if (current == null) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final result = await _repo.fetchRejections(
+      final repo = ref.read(rejectionRepositoryProvider);
+      final result = await repo.fetchRejections(
+        warehouseId: warehouseId,
         date: _formatDate(date),
         itemIds:
             current.selectedItemId != null ? [current.selectedItemId!] : null,
@@ -141,9 +169,12 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
     final current = state.valueOrNull;
     if (current == null) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final result = await _repo.fetchRejections(
+      final repo = ref.read(rejectionRepositoryProvider);
+      final result = await repo.fetchRejections(
+        warehouseId: warehouseId,
         date: _formatDate(current.selectedDate),
         itemIds: itemId != null ? [itemId] : null,
         skip: 0,
@@ -168,9 +199,12 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
     final current = state.valueOrNull;
     if (current == null || current.isLoadingMore || !current.hasMore) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = AsyncValue.data(current.copyWith(isLoadingMore: true));
     try {
-      final result = await _repo.fetchRejections(
+      final repo = ref.read(rejectionRepositoryProvider);
+      final result = await repo.fetchRejections(
+        warehouseId: warehouseId,
         date: _formatDate(current.selectedDate),
         itemIds:
             current.selectedItemId != null ? [current.selectedItemId!] : null,
@@ -201,7 +235,10 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
     int skip = 0,
     int limit = 50,
   }) async {
-    return _repo.fetchRejections(
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(rejectionRepositoryProvider);
+    return repo.fetchRejections(
+      warehouseId: warehouseId,
       date: date,
       itemIds: itemIds,
       skip: skip,
@@ -210,11 +247,15 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
   }
 
   Future<List<Map<String, dynamic>>> fetchItemsWithBatches() async {
-    return _repo.fetchItemsWithBatches();
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(rejectionRepositoryProvider);
+    return repo.fetchItemsWithBatches(warehouseId);
   }
 
   Future<List<dynamic>> fetchBatches({required int itemId}) async {
-    return _repo.fetchBatches(itemId: itemId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(rejectionRepositoryProvider);
+    return repo.fetchBatches(warehouseId: warehouseId, itemId: itemId);
   }
 
   Future<void> createRejection({
@@ -226,7 +267,10 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
     required String rejectionDate,
     String? rejectedBy,
   }) async {
-    await _repo.createRejection(
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(rejectionRepositoryProvider);
+    await repo.createRejection(
+      warehouseId: warehouseId,
       itemId: itemId,
       batchId: batchId,
       quantity: quantity,
@@ -239,7 +283,9 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
   }
 
   Future<void> reverseRejection(int id) async {
-    await _repo.reverseRejection(id);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(rejectionRepositoryProvider);
+    await repo.reverseRejection(warehouseId, id);
     ref.invalidateSelf();
   }
 

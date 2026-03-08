@@ -39,7 +39,9 @@ class AuthService {
     final role =
         roleValue == null ? null : UserRole.fromString(roleValue.toUpperCase());
     final userId =
-        data['user_id'] == null ? null : int.tryParse(data['user_id'].toString());
+        data['user_id'] == null
+            ? null
+            : int.tryParse(data['user_id'].toString());
 
     return AuthLoginResponse(
       accessToken: data['access_token'].toString(),

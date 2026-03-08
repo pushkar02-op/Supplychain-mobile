@@ -4,6 +4,7 @@ import '../core/errors/app_error.dart';
 class DispatchRepository {
   /// Fetch dispatch entries, filterable by date and mart
   Future<List<dynamic>> fetchDispatches({
+    required int warehouseId,
     String? dispatchDate,
     String? martName,
     int skip = 0,
@@ -17,6 +18,7 @@ class DispatchRepository {
         'skip': skip,
         'limit': limit,
         'hide_fully_reversed': hideFullyReversed,
+        'warehouse_id': warehouseId,
       };
       final resp = await DioClient.instance.get(
         '/dispatch-entries/',
@@ -29,10 +31,14 @@ class DispatchRepository {
   }
 
   /// Create a new dispatch entry
-  Future<dynamic> createDispatch(Map<String, dynamic> data) async {
+  Future<dynamic> createDispatch(
+    int warehouseId,
+    Map<String, dynamic> data,
+  ) async {
     try {
       final resp = await DioClient.instance.post(
         '/dispatch-entries/from-order',
+        queryParameters: {'warehouse_id': warehouseId},
         data: data,
       );
       if (resp.statusCode == 200 || resp.statusCode == 201) return resp.data;
@@ -44,13 +50,22 @@ class DispatchRepository {
   }
 
   /// Fetch all mart names (reuse orders endpoint)
-  Future<List<String>> fetchMartNames() async {
+  Future<List<Map<String, dynamic>>> fetchMartNames(int warehouseId) async {
     try {
-      final resp = await DioClient.instance.get('/orders/mart-names');
+      final resp = await DioClient.instance.get(
+        '/orders/mart-names',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       final data = resp.data;
-      if (data is List) return List<String>.from(data);
-      if (data is Map && data['mart_names'] is List) {
-        return List<String>.from(data['mart_names']);
+      if (data is List) {
+        return data
+            .map(
+              (e) =>
+                  e is Map<String, dynamic>
+                      ? e
+                      : <String, dynamic>{'name': e.toString()},
+            )
+            .toList();
       }
       throw AppError(detail: 'Unexpected mart-names format');
     } catch (e) {
@@ -60,6 +75,7 @@ class DispatchRepository {
 
   /// Reverse a dispatch entry (Admin only)
   Future<dynamic> reverseDispatch(
+    int warehouseId,
     int id,
     double? quantity,
     String? reason,
@@ -71,6 +87,7 @@ class DispatchRepository {
       };
       final resp = await DioClient.instance.post(
         '/dispatch-entries/$id/reverse',
+        queryParameters: {'warehouse_id': warehouseId},
         data: data,
       );
       if (resp.statusCode == 200 || resp.statusCode == 201) return resp.data;
@@ -82,9 +99,15 @@ class DispatchRepository {
   }
 
   /// Fetch only non‐empty batches for a given item
-  Future<List<dynamic>> fetchBatches({required int itemId}) async {
+  Future<List<dynamic>> fetchBatches({
+    required int warehouseId,
+    required int itemId,
+  }) async {
     try {
-      final resp = await DioClient.instance.get('/batch/by-item/$itemId');
+      final resp = await DioClient.instance.get(
+        '/batch/by-item/$itemId',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       return resp.data as List<dynamic>;
     } catch (e) {
       rethrow;

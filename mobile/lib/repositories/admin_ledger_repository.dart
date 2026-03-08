@@ -4,9 +4,12 @@ import '../core/errors/domain_errors.dart';
 class AdminLedgerRepository {
   /// Fetch high-level ledger health summary (strictly read-only)
   /// GET /admin/ledger/health
-  Future<Map<String, dynamic>> fetchLedgerHealth() async {
+  Future<Map<String, dynamic>> fetchLedgerHealth(int warehouseId) async {
     try {
-      final resp = await DioClient.instance.get('/admin/ledger/health');
+      final resp = await DioClient.instance.get(
+        '/admin/ledger/health',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       if (resp.data is Map) {
         return Map<String, dynamic>.from(resp.data);
       }
@@ -21,10 +24,11 @@ class AdminLedgerRepository {
 
   /// Fetch detailed reconciliation report (strictly read-only)
   /// GET /v1/reports/inventory/reconciliation
-  Future<List<dynamic>> fetchDriftReport() async {
+  Future<List<dynamic>> fetchDriftReport(int warehouseId) async {
     try {
       final resp = await DioClient.instance.get(
         '/reports/inventory/reconciliation',
+        queryParameters: {'warehouse_id': warehouseId},
       );
       if (resp.data is List) {
         return List<dynamic>.from(resp.data);
@@ -39,10 +43,14 @@ class AdminLedgerRepository {
   }
 
   /// GET /v1/reports/inventory/{itemId}/reconciliation
-  Future<Map<String, dynamic>> fetchReconciliationDetail(int itemId) async {
+  Future<Map<String, dynamic>> fetchReconciliationDetail(
+    int warehouseId,
+    int itemId,
+  ) async {
     try {
       final resp = await DioClient.instance.get(
         '/reports/inventory/$itemId/reconciliation',
+        queryParameters: {'warehouse_id': warehouseId},
       );
       if (resp.data is Map) {
         return Map<String, dynamic>.from(resp.data);

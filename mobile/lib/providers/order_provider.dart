@@ -1,139 +1,81 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
+import '../models/order.dart';
 import '../repositories/order_repository.dart';
 import 'active_mart_provider.dart';
 
-final orderRepositoryProvider = Provider<OrderRepository>(
-  (ref) => OrderRepository(),
-);
+final orderRepositoryProvider = Provider((ref) => OrderRepository());
+
+class OrderListState {
+  final List<Order> orders;
+  final DateTime selectedDate;
+
+  const OrderListState({required this.orders, required this.selectedDate});
+
+  OrderListState copyWith({List<Order>? orders, DateTime? selectedDate}) {
+    return OrderListState(
+      orders: orders ?? this.orders,
+      selectedDate: selectedDate ?? this.selectedDate,
+    );
+  }
+}
 
 final orderListProvider =
     AsyncNotifierProvider<OrderListNotifier, OrderListState>(
       OrderListNotifier.new,
     );
 
-class OrderListState {
-  final List<Map<String, dynamic>> orders;
-  final DateTime selectedDate;
-  final int skip;
-  final int limit;
-  final bool hasMore;
-  final bool isLoadingMore;
-
-  const OrderListState({
-    required this.orders,
-    required this.selectedDate,
-    required this.skip,
-    required this.limit,
-    required this.hasMore,
-    required this.isLoadingMore,
-  });
-
-  OrderListState copyWith({
-    List<Map<String, dynamic>>? orders,
-    DateTime? selectedDate,
-    int? skip,
-    int? limit,
-    bool? hasMore,
-    bool? isLoadingMore,
-  }) {
-    return OrderListState(
-      orders: orders ?? this.orders,
-      selectedDate: selectedDate ?? this.selectedDate,
-      skip: skip ?? this.skip,
-      limit: limit ?? this.limit,
-      hasMore: hasMore ?? this.hasMore,
-      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
-    );
-  }
-}
-
 class OrderListNotifier extends AsyncNotifier<OrderListState> {
-  late final OrderRepository _repo;
-
   @override
   Future<OrderListState> build() async {
-    final session = ref.watch(sessionProvider);
-    if (!session.isReady) {
-      return OrderListState(
-        orders: const [],
-        selectedDate: DateTime.now(),
-        skip: 0,
-        limit: 50,
-        hasMore: false,
-        isLoadingMore: false,
-      );
-    }
-
-    requireWarehouse(ref);
-    _repo = ref.read(orderRepositoryProvider);
-    // When active mart changes, refresh data automatically
-    ref.listen<String?>(activeMartProvider, (_, __) => refresh());
-    final today = DateTime.now();
-    final orders = await _repo.fetchOrders(
-      today,
-      martName: ref.read(activeMartProvider),
-    );
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(orderRepositoryProvider);
+    final selectedDate = DateTime.now();
+    final data = await repo.fetchOrders(warehouseId, selectedDate);
     return OrderListState(
-      orders: orders,
-      selectedDate: today,
-      skip: 0,
-      limit: 50,
-      hasMore: false,
-      isLoadingMore: false,
+      orders: data.map((e) => Order.fromJson(e)).toList(),
+      selectedDate: selectedDate,
     );
-  }
-
-  Future<void> setDate(DateTime date) async {
-    final current = state.valueOrNull;
-    if (current == null) return;
-
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final orders = await _repo.fetchOrders(
-        date,
-        martName: ref.read(activeMartProvider),
-      );
-      return current.copyWith(
-        selectedDate: date,
-        orders: orders,
-        skip: 0,
-        hasMore: false,
-        isLoadingMore: false,
-      );
-    });
   }
 
   Future<void> refresh() async {
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(orderRepositoryProvider);
     final current = state.valueOrNull;
     if (current == null) {
-      state = const AsyncValue.loading();
-      state = await AsyncValue.guard(build);
+      ref.invalidateSelf();
       return;
     }
 
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final orders = await _repo.fetchOrders(
+      final data = await repo.fetchOrders(
+        warehouseId,
         current.selectedDate,
         martName: ref.read(activeMartProvider),
       );
       return current.copyWith(
-        orders: orders,
-        skip: 0,
-        hasMore: false,
-        isLoadingMore: false,
+        orders: data.map((e) => Order.fromJson(e)).toList(),
       );
     });
   }
 
-  Future<void> loadMore() async {
-    final current = state.valueOrNull;
-    if (current == null || current.isLoadingMore || !current.hasMore) return;
-
-    state = AsyncValue.data(current.copyWith(isLoadingMore: true));
+  Future<void> setDate(DateTime date) async {
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(orderRepositoryProvider);
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final data = await repo.fetchOrders(
+        warehouseId,
+        date,
+        martName: ref.read(activeMartProvider),
+      );
+      return OrderListState(
+        orders: data.map((e) => Order.fromJson(e)).toList(),
+        selectedDate: date,
+      );
+    });
   }
 
   Future<dynamic> createOrder({
@@ -143,7 +85,10 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
     required double quantityOrdered,
     required String unit,
   }) async {
-    final result = await _repo.createOrder(
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(orderRepositoryProvider);
+    final result = await repo.createOrder(
+      warehouseId: warehouseId,
       itemId: itemId,
       martName: martName,
       orderDate: orderDate,
@@ -155,34 +100,37 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
   }
 
   Future<dynamic> updateOrder(int orderId, Map<String, dynamic> data) async {
-    final result = await _repo.updateOrder(orderId, data);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(orderRepositoryProvider);
+    final result = await repo.updateOrder(warehouseId, orderId, data);
     await refresh();
     return result;
   }
 
   Future<void> deleteOrder(int orderId) async {
-    await _repo.deleteOrder(orderId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(orderRepositoryProvider);
+    await repo.deleteOrder(warehouseId, orderId);
     await refresh();
   }
 
   Future<List<Map<String, dynamic>>> fetchMartList() async {
-    return _repo.fetchMartList();
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(orderRepositoryProvider);
+    return repo.fetchMartList(warehouseId);
   }
 
   Future<List<Map<String, dynamic>>> fetchItemAliases() async {
-    return _repo.fetchItemAliases();
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(orderRepositoryProvider);
+    return repo.fetchItemAliases(warehouseId);
   }
 
   Future<List<Map<String, dynamic>>> fetchDistinctItemsForMart(
     String martName,
   ) async {
-    return _repo.fetchDistinctItemsForMart(martName);
-  }
-
-  Future<List<Map<String, dynamic>>> fetchOrdersForDate(
-    DateTime date, {
-    String? martName,
-  }) async {
-    return _repo.fetchOrders(date, martName: martName);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(orderRepositoryProvider);
+    return repo.fetchDistinctItemsForMart(warehouseId, martName);
   }
 }

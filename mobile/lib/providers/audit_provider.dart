@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session/session_guard.dart';
 import '../models/audit_log_entry.dart';
 import '../repositories/audit_repository.dart';
 
@@ -22,19 +23,20 @@ class AuditLogState {
 }
 
 class AuditLogNotifier extends AsyncNotifier<AuditLogState> {
-  late final AuditRepository _repo;
-
   @override
   Future<AuditLogState> build() async {
-    _repo = ref.read(auditRepositoryProvider);
-    final logs = await _repo.fetchAuditLogs();
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(auditRepositoryProvider);
+    final logs = await repo.fetchAuditLogs(warehouseId);
     return AuditLogState(logs: logs);
   }
 
   Future<void> refresh() async {
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final logs = await _repo.fetchAuditLogs();
+      final repo = ref.read(auditRepositoryProvider);
+      final logs = await repo.fetchAuditLogs(warehouseId);
       return AuditLogState(logs: logs);
     });
   }

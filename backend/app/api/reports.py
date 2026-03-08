@@ -38,7 +38,7 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 def read_reconciliation_report(
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.OWNER)),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ):
     """
     Get detailed reconciliation report showing drift between Batches (Available) and Ledger.
@@ -60,7 +60,7 @@ def read_item_reconciliation(
     item_id: int,
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.OWNER)),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ):
     """
     Get drill-down reconciliation details for a specific item.
@@ -87,7 +87,7 @@ def read_inventory_signals(
     item_id: int,
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.OWNER)),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> InventorySignalResponse:
     """
     Retrieve detailed inventory signals for an item.
@@ -112,7 +112,7 @@ def inventory(
     item_id: Optional[int] = Query(None, description="Filter by item ID"),
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.OWNER)),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[InventorySummaryRead]:
     """
     Retrieve inventory summary report.

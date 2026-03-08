@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
 import '../repositories/dispatch_repository.dart';
 import 'active_mart_provider.dart';
+import 'warehouse_context_provider.dart';
 
 final dispatchRepositoryProvider = Provider<DispatchRepository>(
   (ref) => DispatchRepository(),
@@ -56,12 +56,10 @@ class DispatchListState {
 }
 
 class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
-  late final DispatchRepository _repo;
-
   @override
   Future<DispatchListState> build() async {
-    final session = ref.watch(sessionProvider);
-    if (!session.isReady) {
+    final warehouseId = ref.watch(warehouseContextProvider);
+    if (warehouseId == null) {
       return DispatchListState(
         dispatches: const [],
         selectedDate: DateTime.now(),
@@ -73,12 +71,12 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
       );
     }
 
-    requireWarehouse(ref);
-    _repo = ref.read(dispatchRepositoryProvider);
+    final repo = ref.read(dispatchRepositoryProvider);
     // When active mart changes, refresh data automatically
     ref.listen<String?>(activeMartProvider, (_, __) => refresh());
     final today = DateTime.now();
-    final items = await _repo.fetchDispatches(
+    final items = await repo.fetchDispatches(
+      warehouseId: warehouseId,
       dispatchDate: _formatDate(today),
       martName: ref.read(activeMartProvider),
       hideFullyReversed: true,
@@ -100,9 +98,12 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     final current = state.valueOrNull;
     if (current == null) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final items = await _repo.fetchDispatches(
+      final repo = ref.read(dispatchRepositoryProvider);
+      final items = await repo.fetchDispatches(
+        warehouseId: warehouseId,
         dispatchDate: _formatDate(date),
         martName: ref.read(activeMartProvider),
         hideFullyReversed: !current.showHidden,
@@ -123,9 +124,12 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     final current = state.valueOrNull;
     if (current == null) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final items = await _repo.fetchDispatches(
+      final repo = ref.read(dispatchRepositoryProvider);
+      final items = await repo.fetchDispatches(
+        warehouseId: warehouseId,
         dispatchDate: _formatDate(current.selectedDate),
         martName: ref.read(activeMartProvider),
         hideFullyReversed: !value,
@@ -145,14 +149,16 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
   Future<void> refresh() async {
     final current = state.valueOrNull;
     if (current == null) {
-      state = const AsyncValue.loading();
-      state = await AsyncValue.guard(build);
+      ref.invalidateSelf();
       return;
     }
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final items = await _repo.fetchDispatches(
+      final repo = ref.read(dispatchRepositoryProvider);
+      final items = await repo.fetchDispatches(
+        warehouseId: warehouseId,
         dispatchDate: _formatDate(current.selectedDate),
         martName: ref.read(activeMartProvider),
         hideFullyReversed: !current.showHidden,
@@ -173,10 +179,13 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     if (current == null || current.isLoadingMore || !current.hasMore) return;
 
     state = AsyncValue.data(current.copyWith(isLoadingMore: true));
+    // Pagination logic placeholder if repository supports it
   }
 
   Future<dynamic> createDispatch(Map<String, dynamic> data) async {
-    final result = await _repo.createDispatch(data);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(dispatchRepositoryProvider);
+    final result = await repo.createDispatch(warehouseId, data);
     await refresh();
     return result;
   }
@@ -186,24 +195,38 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     double? quantity,
     String? reason,
   ) async {
-    final result = await _repo.reverseDispatch(id, quantity, reason);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(dispatchRepositoryProvider);
+    final result = await repo.reverseDispatch(
+      warehouseId,
+      id,
+      quantity,
+      reason,
+    );
     await refresh();
     return result;
   }
 
-  Future<List<String>> fetchMartNames() async {
-    return _repo.fetchMartNames();
+  Future<List<Map<String, dynamic>>> fetchMartNames() async {
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(dispatchRepositoryProvider);
+    return repo.fetchMartNames(warehouseId);
   }
 
   Future<List<dynamic>> fetchBatches({required int itemId}) async {
-    return _repo.fetchBatches(itemId: itemId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(dispatchRepositoryProvider);
+    return repo.fetchBatches(warehouseId: warehouseId, itemId: itemId);
   }
 
   Future<List<dynamic>> fetchDispatchesForDate(
     DateTime date, {
     String? martName,
   }) async {
-    return _repo.fetchDispatches(
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(dispatchRepositoryProvider);
+    return repo.fetchDispatches(
+      warehouseId: warehouseId,
       dispatchDate: _formatDate(date),
       martName: martName,
       hideFullyReversed: true,

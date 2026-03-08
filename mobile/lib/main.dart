@@ -40,18 +40,11 @@ class _MyAppState extends ConsumerState<MyApp> {
     }
     _bootstrapped = true;
 
-    final isWidgetTest = WidgetsBinding.instance.runtimeType.toString().contains(
-      'TestWidgetsFlutterBinding',
-    );
+    final isWidgetTest = WidgetsBinding.instance.runtimeType
+        .toString()
+        .contains('TestWidgetsFlutterBinding');
     if (!isWidgetTest) {
       DioClient.setup(
-        sessionResolver: () {
-          final session = ref.read(sessionProvider);
-          return SessionSnapshot(
-            token: session.accessToken,
-            warehouseId: session.warehouseId,
-          );
-        },
         refreshHandler:
             () => ref.read(sessionProvider.notifier).refreshAccessToken(),
         logoutHandler: () => ref.read(sessionProvider.notifier).logout(),

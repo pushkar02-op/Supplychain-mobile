@@ -43,15 +43,16 @@ class InventoryDetailSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemId = item['item_id'] as int;
+    final itemId = item['id'] as int;
     final unit = item['unit'] as String? ?? '';
-    final name = item['name'] as String? ?? 'Unknown';
+    final name = item['name'] ?? item['item_name'] as String? ?? 'Unknown';
     final detailFuture = ref
         .read(inventoryListProvider.notifier)
         .fetchDetail(itemId);
 
     final ledgerStock = (item['ledger_qty'] as num?)?.toDouble() ?? 0.0;
-    final availableStock = (item['state_qty'] as num?)?.toDouble() ?? 0.0;
+    final availableStock =
+        (item['quantity'] ?? item['state_qty'] as num?)?.toDouble() ?? 0.0;
     final status = (item['status'] as String? ?? 'HEALTHY').toUpperCase();
     final severity = (item['severity'] as String? ?? 'NONE').toUpperCase();
     final drift = availableStock - ledgerStock;

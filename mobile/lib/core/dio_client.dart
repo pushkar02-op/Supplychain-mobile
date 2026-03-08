@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -8,62 +9,27 @@ import 'api_config.dart';
 import 'errors/app_error.dart';
 import 'errors/error_mapper.dart';
 
-class SessionSnapshot {
-  final String? token;
-  final int? warehouseId;
-
-  const SessionSnapshot({this.token, this.warehouseId});
-}
-
-typedef SessionSnapshotResolver = SessionSnapshot Function();
 typedef RefreshHandler = Future<bool> Function();
 typedef LogoutHandler = Future<void> Function();
 
 class DioClient {
   static late Dio instance;
   static String? _accessToken;
-
-  static SessionSnapshotResolver? _sessionResolver;
   static RefreshHandler? _refreshHandler;
   static LogoutHandler? _logoutHandler;
   static bool _initialized = false;
 
   static Completer<void>? _refreshCompleter;
 
-  static const List<String> _warehouseScopedPrefixes = [
-    '/orders',
-    '/dispatch-entries',
-    '/stock-entry',
-    '/stock-adjustment',
-    '/rejection-entries',
-    '/mart-bills',
-    '/mart-bill-items',
-    '/reports/inventory',
-    '/inventory-txn',
-    '/admin/ledger',
-    '/batch',
-    '/item',
-    '/items',
-    '/uom',
-    '/item-management',
-    '/item-alias',
-    '/invoice-items',
-  ];
-
-  static const List<String> _warehouseExclusionPrefixes = [
-    '/login',
-    '/refresh',
-    '/warehouses/my-access',
-    '/admin',
-    '/audit-logs',
-  ];
+  static void _auditLog(String message) {
+    developer.log(message);
+    debugPrint(message);
+  }
 
   static void setup({
-    required SessionSnapshotResolver sessionResolver,
     required RefreshHandler refreshHandler,
     required LogoutHandler logoutHandler,
   }) {
-    _sessionResolver = sessionResolver;
     _refreshHandler = refreshHandler;
     _logoutHandler = logoutHandler;
 
@@ -80,99 +46,129 @@ class DioClient {
 
     instance.interceptors.clear();
     instance.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) async {
-            final normalizedPath = _normalizePath(options.path);
-            final snapshot = _sessionResolver?.call();
-            if (_accessToken != null && _accessToken!.isNotEmpty) {
-              options.headers['Authorization'] = 'Bearer $_accessToken';
-            }
+      LogInterceptor(request: true, requestBody: true, responseBody: false),
+    );
+    instance.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final normalizedPath = _normalizePath(options.path);
+          if (_accessToken != null && _accessToken!.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $_accessToken';
+          }
 
-            if (_requiresWarehouse(normalizedPath)) {
-              final warehouseId = snapshot?.warehouseId;
-              if (warehouseId == null) {
-                return handler.reject(
-                  DioException(
-                    requestOptions: options,
-                    error: AppError(
-                      detail: 'Please select a warehouse before continuing.',
-                      metadata: {'path': normalizedPath},
-                    ),
-                    type: DioExceptionType.cancel,
-                  ),
-                );
-              }
-
-              final params = Map<String, dynamic>.from(options.queryParameters);
-              params.putIfAbsent('warehouse_id', () => warehouseId);
-              options.queryParameters = params;
-            }
-
-            if (options.method == 'POST') {
-              final path = normalizedPath;
-              if (path.contains('/stock-entry') ||
-                  path.contains('/dispatch-entries') ||
-                  path.contains('/rejection-entries')) {
-                if (!options.headers.containsKey('Idempotency-Key')) {
-                  options.headers['Idempotency-Key'] = const Uuid().v4();
-                  debugPrint('Injected Idempotency-Key for $path');
-                }
+          if (options.method == 'POST') {
+            final path = normalizedPath;
+            if (path.contains('/stock-entry') ||
+                path.contains('/dispatch-entries') ||
+                path.contains('/rejection-entries')) {
+              if (!options.headers.containsKey('Idempotency-Key')) {
+                options.headers['Idempotency-Key'] = const Uuid().v4();
+                debugPrint('Injected Idempotency-Key for $path');
               }
             }
+          }
 
-            return handler.next(options);
-          },
-          onError: (error, handler) async {
-            if (error.error is AppError) {
-              return handler.reject(
-                DioException(
-                  requestOptions: error.requestOptions,
-                  response: error.response,
-                  error: error.error,
-                  type: error.type,
-                ),
-              );
-            }
+          return handler.next(options);
+        },
+        onError: (error, handler) async {
+          if (error.error is AppError) {
+            return handler.reject(
+              DioException(
+                requestOptions: error.requestOptions,
+                response: error.response,
+                error: error.error,
+                type: error.type,
+              ),
+            );
+          }
 
-            if (error.response?.statusCode != 401) {
-              return handler.reject(
-                DioException(
-                  requestOptions: error.requestOptions,
-                  response: error.response,
-                  error: ErrorMapper.map(error),
-                  type: error.type,
-                ),
-              );
-            }
+          if (error.type == DioExceptionType.connectionError ||
+              error.type == DioExceptionType.connectionTimeout ||
+              error.type == DioExceptionType.receiveTimeout) {
+            return handler.reject(
+              DioException(
+                requestOptions: error.requestOptions,
+                response: error.response,
+                error: ErrorMapper.map(error),
+                type: error.type,
+              ),
+            );
+          }
 
-            final path = _normalizePath(error.requestOptions.path);
-            // Permission failures on admin endpoints should never trigger refresh/logout.
-            if (path.startsWith('/admin/')) {
-              return handler.reject(
-                DioException(
-                  requestOptions: error.requestOptions,
-                  response: error.response,
-                  error: ErrorMapper.map(error),
-                  type: error.type,
-                ),
-              );
-            }
+          if (error.response == null) {
+            return handler.reject(
+              DioException(
+                requestOptions: error.requestOptions,
+                response: error.response,
+                error: ErrorMapper.map(error),
+                type: error.type,
+              ),
+            );
+          }
 
-            // Never attempt refresh for login/refresh endpoint failures.
-            if (path.contains('/login') || path.contains('/refresh')) {
-              return handler.reject(
-                DioException(
-                  requestOptions: error.requestOptions,
-                  response: error.response,
-                  error: ErrorMapper.map(error),
-                  type: error.type,
-                ),
-              );
-            }
+          final statusCode = error.response?.statusCode;
 
-            // At most one refresh-retry per request.
-            final requestOptions = error.requestOptions;
-            if (requestOptions.extra['retry'] == true) {
+          if (statusCode != 401) {
+            return handler.reject(
+              DioException(
+                requestOptions: error.requestOptions,
+                response: error.response,
+                error: ErrorMapper.map(error),
+                type: error.type,
+              ),
+            );
+          }
+
+          developer.log(
+            '[DIO_UNAUTHORIZED_DETECTED] status=${error.response?.statusCode}',
+          );
+
+          final path = _normalizePath(error.requestOptions.path);
+          // Permission failures on admin endpoints should never trigger refresh/logout.
+          if (path.startsWith('/admin/')) {
+            return handler.reject(
+              DioException(
+                requestOptions: error.requestOptions,
+                response: error.response,
+                error: ErrorMapper.map(error),
+                type: error.type,
+              ),
+            );
+          }
+
+          // Never attempt refresh for login/refresh endpoint failures.
+          if (path.contains('/login') || path.contains('/refresh')) {
+            return handler.reject(
+              DioException(
+                requestOptions: error.requestOptions,
+                response: error.response,
+                error: ErrorMapper.map(error),
+                type: error.type,
+              ),
+            );
+          }
+
+          // At most one refresh-retry per request.
+          final requestOptions = error.requestOptions;
+          if (requestOptions.extra['retry'] == true) {
+            return handler.reject(
+              DioException(
+                requestOptions: requestOptions,
+                response: error.response,
+                error: ErrorMapper.map(error),
+                type: error.type,
+              ),
+            );
+          }
+
+          if (error.requestOptions.extra['isMultipartUpload'] == true) {
+            return handler.next(error);
+          }
+
+          if (_refreshCompleter != null) {
+            try {
+              await _refreshCompleter!.future;
+            } catch (_) {
               return handler.reject(
                 DioException(
                   requestOptions: requestOptions,
@@ -182,53 +178,39 @@ class DioClient {
                 ),
               );
             }
-
-            if (error.requestOptions.extra['isMultipartUpload'] == true) {
-              return handler.next(error);
-            }
-
-            if (_refreshCompleter != null) {
-              try {
-                await _refreshCompleter!.future;
-              } catch (_) {
-                return handler.reject(
-                  DioException(
-                    requestOptions: requestOptions,
-                    response: error.response,
-                    error: ErrorMapper.map(error),
-                    type: error.type,
-                  ),
-                );
-              }
-              return _retryFailedRequest(error, handler, markRetry: true);
-            }
-
-            _refreshCompleter = Completer<void>();
-            final refreshSuccess = await (_refreshHandler?.call() ?? Future.value(false));
-
-            if (refreshSuccess) {
-              _refreshCompleter!.complete();
-            } else {
-              _refreshCompleter!.completeError(Exception('refresh failed'));
-            }
-            _refreshCompleter = null;
-
-            if (!refreshSuccess) {
-              await _handleUnauthorizedError();
-              return handler.reject(
-                DioException(
-                  requestOptions: requestOptions,
-                  response: error.response,
-                  error: ErrorMapper.map(error),
-                  type: error.type,
-                ),
-              );
-            }
-
             return _retryFailedRequest(error, handler, markRetry: true);
-          },
-        ),
-      );
+          }
+
+          _refreshCompleter = Completer<void>();
+          _auditLog('[DIO_REFRESH_START]');
+          final refreshSuccess =
+              await (_refreshHandler?.call() ?? Future.value(false));
+
+          if (refreshSuccess) {
+            _auditLog('[DIO_REFRESH_SUCCESS]');
+            _refreshCompleter!.complete();
+          } else {
+            _auditLog('[DIO_REFRESH_FAILED]');
+            _refreshCompleter!.completeError(Exception('refresh failed'));
+          }
+          _refreshCompleter = null;
+
+          if (!refreshSuccess) {
+            await _handleUnauthorizedError();
+            return handler.reject(
+              DioException(
+                requestOptions: requestOptions,
+                response: error.response,
+                error: ErrorMapper.map(error),
+                type: error.type,
+              ),
+            );
+          }
+
+          return _retryFailedRequest(error, handler, markRetry: true);
+        },
+      ),
+    );
 
     debugPrint('Dio baseUrl: ${ApiConfig.baseUrl}');
     debugPrint('Dio instance baseUrl: ${instance.options.baseUrl}');
@@ -239,6 +221,7 @@ class DioClient {
   }
 
   static Future<void> _handleUnauthorizedError() async {
+    _auditLog('[DIO_LOGOUT_TRIGGERED]');
     if (_logoutHandler != null) {
       await _logoutHandler!.call();
     }
@@ -252,8 +235,7 @@ class DioClient {
     DioException error,
     ErrorInterceptorHandler handler, {
     bool markRetry = false,
-  }
-  ) async {
+  }) async {
     final opts = error.requestOptions;
     if (markRetry) {
       opts.extra['retry'] = true;
@@ -266,6 +248,7 @@ class DioClient {
       final response = await instance.fetch(opts);
       handler.resolve(response);
     } catch (e) {
+      _auditLog('[DIO_RETRY_FAILED]');
       if (e is DioException) {
         handler.reject(
           DioException(
@@ -310,25 +293,5 @@ class DioClient {
     }
 
     return normalized.isEmpty ? '/' : normalized;
-  }
-
-  static bool _matchesPrefix(String path, String prefix) {
-    return path == prefix || path.startsWith('$prefix/');
-  }
-
-  static bool _requiresWarehouse(String normalizedPath) {
-    for (final prefix in _warehouseScopedPrefixes) {
-      if (_matchesPrefix(normalizedPath, prefix)) {
-        return true;
-      }
-    }
-
-    for (final prefix in _warehouseExclusionPrefixes) {
-      if (_matchesPrefix(normalizedPath, prefix)) {
-        return false;
-      }
-    }
-
-    return false;
   }
 }

@@ -32,7 +32,12 @@ void main() {
 
   group('AdminLedgerRepository', () {
     test('fetchLedgerHealth returns map on success', () async {
-      when(mockDio.get('/admin/ledger/health')).thenAnswer(
+      when(
+        mockDio.get(
+          '/v1/admin/ledger/health',
+          queryParameters: anyNamed('queryParameters'),
+        ),
+      ).thenAnswer(
         (_) async => Response(
           requestOptions: RequestOptions(path: '/admin/ledger/health'),
           statusCode: 200,
@@ -40,15 +45,22 @@ void main() {
         ),
       );
 
-      final result = await repository.fetchLedgerHealth();
+      final result = await repository.fetchLedgerHealth(1);
       expect(result['status'], 'healthy');
       expect(result['drifted_batches'], 0);
+
+      verify(
+        mockDio.get(
+          '/v1/admin/ledger/health',
+          queryParameters: {'warehouse_id': 1},
+        ),
+      ).called(1);
     });
 
     test('fetchDriftReport returns list on success', () async {
       when(
         mockDio.get(
-          '/reports/inventory/reconciliation',
+          '/v1/reports/inventory/reconciliation',
           queryParameters: anyNamed('queryParameters'),
         ),
       ).thenAnswer(
@@ -63,14 +75,23 @@ void main() {
         ),
       );
 
-      final result = await repository.fetchDriftReport();
+      final result = await repository.fetchDriftReport(1);
       expect(result, isA<List>());
       expect(result.length, 1);
       expect(result[0]['batch_id'], 1);
+
+      verify(
+        mockDio.get(
+          '/v1/reports/inventory/reconciliation',
+          queryParameters: {'warehouse_id': 1},
+        ),
+      ).called(1);
     });
 
     test('throws UnauthorizedGovernanceError on 403', () async {
-      when(mockDio.get(any)).thenThrow(
+      when(
+        mockDio.get(any, queryParameters: anyNamed('queryParameters')),
+      ).thenThrow(
         UnauthorizedGovernanceError(
           detail: 'Forbidden',
           ruleId: 'AUT-001',
@@ -79,7 +100,7 @@ void main() {
       );
 
       expect(
-        () => repository.fetchLedgerHealth(),
+        () => repository.fetchLedgerHealth(1),
         throwsA(isA<UnauthorizedGovernanceError>()),
       );
     });

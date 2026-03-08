@@ -21,11 +21,15 @@ class AuditLogEntry {
   factory AuditLogEntry.fromJson(Map<String, dynamic> json) {
     return AuditLogEntry(
       id: json['id'] as int,
-      actorUserId: json['actor_user_id'] as int,
+      actorUserId:
+          json['user_id'] as int? ?? json['actor_user_id'] as int? ?? 0,
       actionType: json['action_type'] as String? ?? '',
-      entityType: json['entity_type'] as String? ?? '',
-      entityId: json['entity_id'] as int?,
-      eventMetadata: json['event_metadata'] as Map<String, dynamic>?,
+      entityType:
+          json['table_name'] as String? ?? json['entity_type'] as String? ?? '',
+      entityId: json['record_id'] as int? ?? json['entity_id'] as int?,
+      eventMetadata:
+          json['event_metadata'] as Map<String, dynamic>? ??
+          json['changes'] as Map<String, dynamic>?,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }

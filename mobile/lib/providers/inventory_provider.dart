@@ -1,198 +1,131 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
+import '../models/inventory.dart';
 import '../repositories/inventory_repository.dart';
 
 final inventoryRepositoryProvider = Provider((ref) => InventoryRepository());
 
-final inventoryItemOptionsProvider = FutureProvider<List<Map<String, dynamic>>>(
-  (ref) async {
-    final session = ref.watch(sessionProvider);
-    if (!session.isReady) {
-      return const [];
-    }
-    return ref.read(inventoryRepositoryProvider).fetchItemOptions();
-  },
-);
-
-final inventoryUnitOptionsProvider = FutureProvider<List<String>>(
-  (ref) async {
-    final session = ref.watch(sessionProvider);
-    if (!session.isReady) {
-      return const [];
-    }
-    return ref.read(inventoryRepositoryProvider).fetchUnitOptions();
-  },
-);
-
-final inventoryListProvider =
-    AsyncNotifierProvider<InventoryNotifier, InventoryState>(
-      InventoryNotifier.new,
-    );
-
-class InventoryState {
-  final List<Map<String, dynamic>> items;
+class InventoryListState {
+  final List<Inventory> items;
   final int? selectedItemId;
   final String? selectedUnit;
-  final int skip;
-  final int limit;
-  final bool hasMore;
-  final bool isLoadingMore;
 
-  const InventoryState({
+  const InventoryListState({
     required this.items,
     this.selectedItemId,
     this.selectedUnit,
-    required this.skip,
-    required this.limit,
-    required this.hasMore,
-    required this.isLoadingMore,
   });
 
-  InventoryState copyWith({
-    List<Map<String, dynamic>>? items,
+  InventoryListState copyWith({
+    List<Inventory>? items,
     int? selectedItemId,
-    bool clearSelectedItemId = false,
     String? selectedUnit,
-    bool clearSelectedUnit = false,
-    int? skip,
-    int? limit,
-    bool? hasMore,
-    bool? isLoadingMore,
+    bool clearItem = false,
+    bool clearUnit = false,
   }) {
-    return InventoryState(
+    return InventoryListState(
       items: items ?? this.items,
       selectedItemId:
-          clearSelectedItemId ? null : (selectedItemId ?? this.selectedItemId),
-      selectedUnit:
-          clearSelectedUnit ? null : (selectedUnit ?? this.selectedUnit),
-      skip: skip ?? this.skip,
-      limit: limit ?? this.limit,
-      hasMore: hasMore ?? this.hasMore,
-      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+          clearItem ? null : (selectedItemId ?? this.selectedItemId),
+      selectedUnit: clearUnit ? null : (selectedUnit ?? this.selectedUnit),
     );
   }
 }
 
-class InventoryNotifier extends AsyncNotifier<InventoryState> {
-  late final InventoryRepository _repo;
-
-  @override
-  Future<InventoryState> build() async {
-    final session = ref.watch(sessionProvider);
-    if (!session.isReady) {
-      return const InventoryState(
-        items: [],
-        selectedItemId: null,
-        selectedUnit: null,
-        skip: 0,
-        limit: 100,
-        hasMore: false,
-        isLoadingMore: false,
-      );
-    }
-
-    requireWarehouse(ref);
-    _repo = ref.read(inventoryRepositoryProvider);
-    final items = await _repo.fetchInventory();
-    return InventoryState(
-      items: items,
-      selectedItemId: null,
-      selectedUnit: null,
-      skip: 0,
-      limit: 100,
-      hasMore: false,
-      isLoadingMore: false,
+final inventoryListProvider =
+    AsyncNotifierProvider<InventoryNotifier, InventoryListState>(
+      InventoryNotifier.new,
     );
-  }
 
-  Future<void> setItem(int? itemId) async {
-    final current = state.valueOrNull;
-    if (current == null) return;
-
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final items = await _repo.fetchInventory(
-        itemId: itemId,
-        unit: current.selectedUnit,
-      );
-      return current.copyWith(
-        selectedItemId: itemId,
-        clearSelectedItemId: itemId == null,
-        items: items,
-        skip: 0,
-        hasMore: false,
-        isLoadingMore: false,
-      );
+final inventoryItemOptionsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+      final warehouseId = requireWarehouse(ref);
+      final repo = ref.read(inventoryRepositoryProvider);
+      return repo.fetchItemOptions(warehouseId);
     });
-  }
 
-  Future<void> setUnit(String? unit) async {
-    final current = state.valueOrNull;
-    if (current == null) return;
+final inventoryUnitOptionsProvider = FutureProvider.autoDispose<List<String>>((
+  ref,
+) async {
+  final warehouseId = requireWarehouse(ref);
+  final repo = ref.read(inventoryRepositoryProvider);
+  return repo.fetchUnitOptions(warehouseId);
+});
 
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final items = await _repo.fetchInventory(
-        itemId: current.selectedItemId,
-        unit: unit,
-      );
-      return current.copyWith(
-        selectedUnit: unit,
-        clearSelectedUnit: unit == null,
-        items: items,
-        skip: 0,
-        hasMore: false,
-        isLoadingMore: false,
-      );
-    });
+class InventoryNotifier extends AsyncNotifier<InventoryListState> {
+  @override
+  Future<InventoryListState> build() async {
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(inventoryRepositoryProvider);
+    final data = await repo.fetchInventory(warehouseId: warehouseId);
+    return InventoryListState(
+      items: data.map((e) => Inventory.fromJson(e)).toList(),
+    );
   }
 
   Future<void> refresh() async {
-    final current = state.valueOrNull;
-    if (current == null) {
-      state = const AsyncValue.loading();
-      state = await AsyncValue.guard(build);
-      return;
-    }
-
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(inventoryRepositoryProvider);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final items = await _repo.fetchInventory(
-        itemId: current.selectedItemId,
-        unit: current.selectedUnit,
+      final data = await repo.fetchInventory(
+        warehouseId: warehouseId,
+        itemId: state.valueOrNull?.selectedItemId,
+        unit: state.valueOrNull?.selectedUnit,
       );
-      return current.copyWith(
-        items: items,
-        skip: 0,
-        hasMore: false,
-        isLoadingMore: false,
+      return InventoryListState(
+        items: data.map((e) => Inventory.fromJson(e)).toList(),
+        selectedItemId: state.valueOrNull?.selectedItemId,
+        selectedUnit: state.valueOrNull?.selectedUnit,
       );
     });
   }
 
-  Future<void> loadMore() async {
-    final current = state.valueOrNull;
-    if (current == null || current.isLoadingMore || !current.hasMore) return;
-
-    state = AsyncValue.data(current.copyWith(isLoadingMore: true));
+  Future<void> setItem(int? itemId) async {
     state = AsyncValue.data(
-      current.copyWith(items: [...current.items], isLoadingMore: false),
+      state.value!.copyWith(selectedItemId: itemId, clearItem: itemId == null),
     );
+    await refresh();
+  }
+
+  Future<void> setUnit(String? unit) async {
+    state = AsyncValue.data(
+      state.value!.copyWith(selectedUnit: unit, clearUnit: unit == null),
+    );
+    await refresh();
   }
 
   Future<Map<String, dynamic>> fetchDetail(int itemId) async {
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(inventoryRepositoryProvider);
     final results = await Future.wait([
-      _repo.fetchItemSignals(itemId),
-      _repo.fetchTransactions(itemId: itemId, unit: null),
-      _repo.fetchBatches(itemId),
+      repo.fetchTransactions(warehouseId: warehouseId, itemId: itemId),
+      repo.fetchBatches(warehouseId, itemId),
+      repo.fetchItemSignals(warehouseId, itemId),
     ]);
-
     return {
-      'signals': Map<String, dynamic>.from(results[0] as Map),
-      'transactions': List<Map<String, dynamic>>.from(results[1] as List),
-      'batches': List<Map<String, dynamic>>.from(results[2] as List),
+      'transactions': results[0],
+      'batches': results[1],
+      'signals': results[2],
     };
+  }
+
+  Future<List<Map<String, dynamic>>> fetchTransactions(int itemId) async {
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(inventoryRepositoryProvider);
+    return repo.fetchTransactions(warehouseId: warehouseId, itemId: itemId);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchBatches(int itemId) async {
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(inventoryRepositoryProvider);
+    return repo.fetchBatches(warehouseId, itemId);
+  }
+
+  Future<Map<String, dynamic>> fetchItemSignals(int itemId) async {
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(inventoryRepositoryProvider);
+    return repo.fetchItemSignals(warehouseId, itemId);
   }
 }
