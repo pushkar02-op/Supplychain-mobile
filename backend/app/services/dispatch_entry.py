@@ -379,40 +379,49 @@ def _create_dispatch_entry_impl(
         logger.error(msg)
         raise AppException(msg, status_code=400)
 
-    exists = (
-        db.query(DispatchEntry)
-        .filter(
-            DispatchEntry.item_id == entry.item_id,
-            DispatchEntry.mart_id == mart.id,
-            DispatchEntry.warehouse_id == batch.warehouse_id,
-            DispatchEntry.dispatch_date == entry.dispatch_date,
-        )
-        .first()
-    )
-    if exists:
-        logger.error("Dispatch entry already exists for this item/date/mart")
-        raise AppException("Dispatch entry already exists", status_code=400)
-
     from app.utils.audit import resolve_user_audit
 
     user_name, user_id = resolve_user_audit(db, created_by)
 
-    dispatch = DispatchEntry(
-        batch_id=entry.batch_id,
-        item_id=entry.item_id,
-        warehouse_id=batch.warehouse_id,
-        mart_id=mart.id,
-        dispatch_date=entry.dispatch_date,
-        quantity=entry.quantity,  # Store raw user request
-        unit=entry.unit,
-        remarks=entry.remarks,
-        created_by=user_name,
-        created_by_id=user_id,
-        updated_by=user_name,
-        order_id=order.id if order else None,
+    dispatch = db.scalar(
+        select(DispatchEntry).where(
+            DispatchEntry.batch_id == entry.batch_id,
+            DispatchEntry.mart_id == mart.id,
+            DispatchEntry.dispatch_date == entry.dispatch_date,
+        )
     )
-    db.add(dispatch)
-    db.flush()
+    if dispatch:
+        if order and dispatch.order_id and dispatch.order_id != order.id:
+            raise AppException(
+                "Dispatch entry already exists for a different order",
+                status_code=409,
+            )
+        dispatch.quantity = Decimal(str(dispatch.quantity)) + raw_qty
+        dispatch.unit = entry.unit
+        dispatch.remarks = entry.remarks or dispatch.remarks
+        dispatch.updated_by = user_name
+        dispatch.updated_at = datetime.utcnow()
+        if order and dispatch.order_id is None:
+            dispatch.order_id = order.id
+        db.add(dispatch)
+        db.flush()
+    else:
+        dispatch = DispatchEntry(
+            batch_id=entry.batch_id,
+            item_id=entry.item_id,
+            warehouse_id=batch.warehouse_id,
+            mart_id=mart.id,
+            dispatch_date=entry.dispatch_date,
+            quantity=entry.quantity,  # Store raw user request
+            unit=entry.unit,
+            remarks=entry.remarks,
+            created_by=user_name,
+            created_by_id=user_id,
+            updated_by=user_name,
+            order_id=order.id if order else None,
+        )
+        db.add(dispatch)
+        db.flush()
 
     # 3) Mutate Batch (Canonical)
     batch.quantity -= canonical_qty

@@ -254,7 +254,7 @@ class _OrderCard extends StatelessWidget {
     final itemName = order.itemName;
     final martName = order.martName ?? 'Unknown Mart';
     final ordered = order.quantityOrdered;
-    const dispatched = 0.0; // Placeholder until map check done
+    final dispatched = order.quantityDispatched;
     final remaining = ordered - dispatched;
     final unit = order.unit;
 
@@ -295,7 +295,7 @@ class _OrderCard extends StatelessWidget {
               'item_id': order.itemId,
               'mart_name': order.martName,
               'quantity_ordered': order.quantityOrdered,
-              'quantity_dispatched': 0.0,
+              'quantity_dispatched': order.quantityDispatched,
               'unit': order.unit,
               'dispatch_date': order.orderDate.toIso8601String(),
               'item_name': order.itemName,
@@ -355,7 +355,7 @@ class _OrderCard extends StatelessWidget {
                         'item_id': order.itemId,
                         'mart_name': order.martName,
                         'quantity_ordered': order.quantityOrdered,
-                        'quantity_dispatched': 0.0,
+                        'quantity_dispatched': order.quantityDispatched,
                         'unit': order.unit,
                         'dispatch_date': order.orderDate.toIso8601String(),
                         'item_name': order.itemName,

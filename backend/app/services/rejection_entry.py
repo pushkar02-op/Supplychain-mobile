@@ -137,7 +137,7 @@ def create_rejection_entry(
             InventoryTxnCreate(
                 item_id=batch.item_id,
                 batch_id=entry.batch_id,
-                txn_type="ADJUST",  # Phase R2 Refinement: Rejections are adjustments
+                txn_type="OUT",
                 raw_qty=entry.quantity,
                 raw_unit=entry.unit,
                 base_qty=base_qty,

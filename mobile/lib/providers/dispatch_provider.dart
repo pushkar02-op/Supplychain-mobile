@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../core/session/session_guard.dart';
 import '../repositories/dispatch_repository.dart';
 import 'active_mart_provider.dart';
+import 'order_provider.dart';
 import 'warehouse_context_provider.dart';
 
 final dispatchRepositoryProvider = Provider<DispatchRepository>(
@@ -187,6 +188,7 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     final repo = ref.read(dispatchRepositoryProvider);
     final result = await repo.createDispatch(warehouseId, data);
     await refresh();
+    ref.invalidate(orderListProvider);
     return result;
   }
 
@@ -204,6 +206,7 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
       reason,
     );
     await refresh();
+    ref.invalidate(orderListProvider);
     return result;
   }
 

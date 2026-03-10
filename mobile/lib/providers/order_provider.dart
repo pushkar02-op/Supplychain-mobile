@@ -31,8 +31,13 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
   Future<OrderListState> build() async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(orderRepositoryProvider);
+    ref.listen<String?>(activeMartProvider, (_, __) => refresh());
     final selectedDate = DateTime.now();
-    final data = await repo.fetchOrders(warehouseId, selectedDate);
+    final data = await repo.fetchOrders(
+      warehouseId,
+      selectedDate,
+      martName: ref.read(activeMartProvider),
+    );
     return OrderListState(
       orders: data.map((e) => Order.fromJson(e)).toList(),
       selectedDate: selectedDate,

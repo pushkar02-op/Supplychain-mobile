@@ -6,6 +6,7 @@ class Order {
   final String? martName;
   final DateTime orderDate;
   final double quantityOrdered;
+  final double quantityDispatched;
   final String unit;
   final String status;
 
@@ -17,6 +18,7 @@ class Order {
     this.martName,
     required this.orderDate,
     required this.quantityOrdered,
+    required this.quantityDispatched,
     required this.unit,
     required this.status,
   });
@@ -36,6 +38,8 @@ class Order {
           DateTime.tryParse(json['order_date']?.toString() ?? '') ??
           DateTime.now(),
       quantityOrdered: (json['quantity_ordered'] as num?)?.toDouble() ?? 0,
+      quantityDispatched:
+          (json['quantity_dispatched'] as num?)?.toDouble() ?? 0,
       unit: json['unit']?.toString() ?? '',
       status: json['status']?.toString() ?? 'UNKNOWN',
     );
@@ -50,6 +54,7 @@ class Order {
       'mart_name': martName,
       'order_date': orderDate.toIso8601String().split('T')[0],
       'quantity_ordered': quantityOrdered,
+      'quantity_dispatched': quantityDispatched,
       'unit': unit,
       'status': status,
     };
