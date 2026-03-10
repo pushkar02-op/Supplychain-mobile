@@ -3,6 +3,7 @@ Application entrypoint for the AGRO FastAPI service.
 Configures logging, exception handlers, CORS, and database migrations on startup.
 """
 
+import asyncio
 import logging
 import os
 import subprocess
@@ -27,6 +28,7 @@ from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.timing import TimingMiddleware
 from app.db.seed.seed_all import seed_all
 from app.db.session import SessionLocal
+from app.services.ledger_health_monitor import start_ledger_health_monitor
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -120,7 +122,7 @@ app.include_router(
 
 
 @app.on_event("startup")
-def startup() -> None:
+async def startup() -> None:
     """
     Startup event handler.
     Runs database migrations automatically.
@@ -162,3 +164,7 @@ def startup() -> None:
             logger.info("✅ Initial data seeded")
         except Exception:
             logger.exception("❌ Seeding initial data failed")
+
+    app.state.ledger_health_monitor_task = asyncio.create_task(
+        start_ledger_health_monitor()
+    )

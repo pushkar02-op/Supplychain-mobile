@@ -412,22 +412,11 @@ def _create_dispatch_entry_impl(
         order_id=order.id if order else None,
     )
     db.add(dispatch)
+    db.flush()
 
     # 3) Mutate Batch (Canonical)
     batch.quantity -= canonical_qty
     batch.updated_at = datetime.utcnow()
-
-    _update_order_after_dispatch(
-        db,
-        entry.item_id,
-        entry.mart_name,
-        entry.quantity,
-        warehouse_id=batch.warehouse_id,
-        order_id=order.id if order else None,
-    )
-    db.flush()
-    db.refresh(dispatch)
-    logger.debug(f"Created/Updating dispatch record for item_id={entry.item_id}")
 
     # 4) Ledger OUT movement
     # Using the same calculated factor/canonical_qty ensures consistency
@@ -450,6 +439,18 @@ def _create_dispatch_entry_impl(
     except AppException as e:
         logger.error(f"Ledgering failed: {e}")
         raise
+
+    _update_order_after_dispatch(
+        db,
+        entry.item_id,
+        entry.mart_name,
+        entry.quantity,
+        warehouse_id=batch.warehouse_id,
+        order_id=order.id if order else None,
+    )
+    db.flush()
+    db.refresh(dispatch)
+    logger.debug(f"Created/Updating dispatch record for item_id={entry.item_id}")
 
     # EMIT DOMAIN EVENT (Outbox)
     event_payload = DispatchCompleted(
@@ -630,13 +631,15 @@ def _create_dispatch_from_order_impl(
             existing.updated_by = user_name
             existing.updated_at = datetime.utcnow()
             db.add(existing)
-            results.append(existing)
+            dispatch_record = existing
+            db.flush()
+            results.append(dispatch_record)
         else:
             from app.utils.audit import resolve_user_audit
 
             user_name, user_id = resolve_user_audit(db, created_by)
 
-            disp = DispatchEntry(
+            dispatch_record = DispatchEntry(
                 item_id=entry.item_id,
                 batch_id=batch.id,
                 warehouse_id=batch.warehouse_id,
@@ -650,8 +653,9 @@ def _create_dispatch_from_order_impl(
                 updated_by=user_name,
                 order_id=order.id,
             )
-            db.add(disp)
-            results.append(disp)
+            db.add(dispatch_record)
+            db.flush()
+            results.append(dispatch_record)
 
         # Mutate Batch (Canonical)
         batch.quantity -= canonical_qty
@@ -673,7 +677,7 @@ def _create_dispatch_from_order_impl(
                     base_qty=canonical_qty,
                     base_unit=batch.unit,
                     ref_type="dispatch_entry",
-                    ref_id=disp.id if "disp" in locals() else existing.id,
+                    ref_id=dispatch_record.id,
                     remarks="Stock dispatched",
                 ),
             )

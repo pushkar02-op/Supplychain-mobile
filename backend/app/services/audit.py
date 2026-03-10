@@ -10,12 +10,15 @@ logger = logging.getLogger(__name__)
 
 def log_action(
     db: Session,
-    actor_user_id: int,
+    actor_user_id: int | None,
     action_type: str,
     entity_type: str,
     entity_id: int | None = None,
     metadata: dict | None = None,
 ) -> AuditLog | None:
+    if actor_user_id is None:
+        return None
+
     payload = metadata or {}
     try:
         with db.begin_nested():
