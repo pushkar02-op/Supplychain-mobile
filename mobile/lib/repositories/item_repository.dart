@@ -9,7 +9,7 @@ class ItemRepository {
   ) async {
     try {
       final resp = await DioClient.instance.post(
-        '/v1/item-alias/',
+        '/item-alias/',
         queryParameters: {'warehouse_id': warehouseId},
         data: body,
       );
@@ -25,7 +25,7 @@ class ItemRepository {
   ) async {
     try {
       final resp = await DioClient.instance.post(
-        '/v1/item/',
+        '/item/',
         data: body,
         queryParameters: {'warehouse_id': warehouseId},
       );
@@ -38,7 +38,7 @@ class ItemRepository {
   Future<void> reprocessStock(int warehouseId, int billId) async {
     try {
       await DioClient.instance.post(
-        '/v1/mart-bills/$billId/process-stock',
+        '/mart-bills/$billId/process-stock',
         queryParameters: {'warehouse_id': warehouseId},
       );
     } catch (e) {
@@ -54,7 +54,7 @@ class ItemRepository {
       final queryParams = <String, dynamic>{'warehouse_id': warehouseId};
       if (includeInactive) queryParams['include_inactive'] = 'true';
       final res = await DioClient.instance.get(
-        '/v1/item-management/',
+        '/item-management/',
         queryParameters: queryParams,
       );
       return List<Map<String, dynamic>>.from(res.data);
@@ -82,7 +82,7 @@ class ItemRepository {
   Future<Map<String, dynamic>?> deactivateItem(int warehouseId, int id) async {
     try {
       final res = await DioClient.instance.post(
-        '/v1/item/$id/deactivate',
+        '/item/$id/deactivate',
         queryParameters: {'warehouse_id': warehouseId},
       );
       return res.data;
@@ -95,7 +95,7 @@ class ItemRepository {
   Future<Map<String, dynamic>?> reactivateItem(int warehouseId, int id) async {
     try {
       final res = await DioClient.instance.post(
-        '/v1/item/$id/reactivate',
+        '/item/$id/reactivate',
         queryParameters: {'warehouse_id': warehouseId},
       );
       return res.data;
@@ -107,7 +107,7 @@ class ItemRepository {
   Future<List<Map<String, dynamic>>> fetchUOMs(int warehouseId) async {
     try {
       final res = await DioClient.instance.get(
-        '/v1/item-management/uoms',
+        '/item-management/uoms',
         queryParameters: {'warehouse_id': warehouseId},
       );
       return List<Map<String, dynamic>>.from(res.data);
@@ -122,7 +122,7 @@ class ItemRepository {
   ) async {
     try {
       final res = await DioClient.instance.post(
-        '/v1/item-management/',
+        '/item-management/',
         queryParameters: {'warehouse_id': warehouseId},
         data: payload,
       );
@@ -137,7 +137,7 @@ class ItemRepository {
   ) async {
     try {
       final res = await DioClient.instance.get(
-        '/v1/item-management/unmapped-invoice-items',
+        '/item-management/unmapped-invoice-items',
         queryParameters: {'warehouse_id': warehouseId},
       );
       return List<Map<String, dynamic>>.from(res.data);
@@ -153,7 +153,7 @@ class ItemRepository {
   ) async {
     try {
       await DioClient.instance.post(
-        '/v1/item-management/map-invoice-item',
+        '/item-management/map-invoice-item',
         queryParameters: {'warehouse_id': warehouseId},
         data: {'invoice_item_id': billItemId, 'master_item_id': masterItemId},
       );
@@ -170,7 +170,7 @@ class ItemRepository {
   ) async {
     try {
       final res = await DioClient.instance.get(
-        '/v1/item/check-similarity',
+        '/item/check-similarity',
         queryParameters: {
           'name': name,
           'uom': uomCode,
@@ -187,7 +187,7 @@ class ItemRepository {
   Future<List<Map<String, dynamic>>> fetchAliasMetrics(int warehouseId) async {
     try {
       final res = await DioClient.instance.get(
-        '/v1/item-alias/metrics',
+        '/item-alias/metrics',
         queryParameters: {'warehouse_id': warehouseId},
       );
       return List<Map<String, dynamic>>.from(res.data);
@@ -203,7 +203,7 @@ class ItemRepository {
   ) async {
     try {
       final res = await DioClient.instance.get(
-        '/v1/item-alias/item/$itemId/aggregates',
+        '/item-alias/item/$itemId/aggregates',
         queryParameters: {'warehouse_id': warehouseId},
       );
       return Map<String, dynamic>.from(res.data);
@@ -219,7 +219,7 @@ class ItemRepository {
   Future<List<ItemForecast>> fetchForecastingSummary(int warehouseId) async {
     try {
       final resp = await DioClient.instance.get(
-        '/v1/admin/forecasting/summary',
+        '/admin/forecasting/summary',
         queryParameters: {'warehouse_id': warehouseId},
       );
       final items = resp.data['items'] as List<dynamic>? ?? [];

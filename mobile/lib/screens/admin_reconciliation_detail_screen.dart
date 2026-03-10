@@ -9,6 +9,7 @@ import '../ui/theme/agro_shapes.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_card.dart';
+import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_key_value_row.dart';
 import '../ui/widgets/agro_section.dart';
@@ -42,15 +43,24 @@ class AdminReconciliationDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBody(Map<String, dynamic> data) {
-    final item = data['item'] as Map<String, dynamic>;
-    final stateQty = (data['state_qty'] as num).toDouble();
-    final ledgerQty = (data['ledger_qty'] as num).toDouble();
-    final drift = (data['drift'] as num).toDouble();
+  Widget _buildBody(Map<String, dynamic>? data) {
+    if (data == null || data.isEmpty) {
+      return const AgroEmptyState(
+        icon: Icons.analytics_outlined,
+        title: 'No reconciliation data available',
+        message: 'There is no reconciliation context for this item yet.',
+      );
+    }
+
+    final item =
+        (data['item'] is Map) ? Map<String, dynamic>.from(data['item']) : null;
+    final stateQty = (data['state_qty'] as num?)?.toDouble() ?? 0.0;
+    final ledgerQty = (data['ledger_qty'] as num?)?.toDouble() ?? 0.0;
+    final drift = (data['drift'] as num?)?.toDouble() ?? 0.0;
     final severity = data['severity'] as String? ?? 'NONE';
-    final txns = data['recent_transactions'] as List<dynamic>;
-    final batches = data['batch_snapshot'] as List<dynamic>;
-    final unit = item['unit'] ?? '';
+    final txns = data['recent_transactions'] as List<dynamic>? ?? [];
+    final batches = data['batch_snapshot'] as List<dynamic>? ?? [];
+    final unit = item?['unit'] ?? '';
 
     // Derive semantic status and severity styling
     final status = AgroStatusParser.fromDriftSeverity(severity);
@@ -175,10 +185,14 @@ class _SummaryCard extends StatelessWidget {
 }
 
 String _toTitleCase(String value) {
-  return value.toLowerCase().split('_').map((part) {
-    if (part.isEmpty) return part;
-    return '${part[0].toUpperCase()}${part.substring(1)}';
-  }).join(' ');
+  return value
+      .toLowerCase()
+      .split('_')
+      .map((part) {
+        if (part.isEmpty) return part;
+        return '${part[0].toUpperCase()}${part.substring(1)}';
+      })
+      .join(' ');
 }
 
 /// Card displaying a single batch in the snapshot.

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/stock_history.dart';
+import '../providers/warehouse_context_provider.dart';
 import '../services/stock_service.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/widgets/agro_error_state.dart';
 
-class StockHistorySheet extends StatefulWidget {
+class StockHistorySheet extends ConsumerStatefulWidget {
   final int stockEntryId;
   final String itemName;
   final String currentQtyLabel; // e.g. "Current: 8.0 kg"
@@ -40,16 +42,24 @@ class StockHistorySheet extends StatefulWidget {
   }
 
   @override
-  State<StockHistorySheet> createState() => _StockHistorySheetState();
+  ConsumerState<StockHistorySheet> createState() => _StockHistorySheetState();
 }
 
-class _StockHistorySheetState extends State<StockHistorySheet> {
+class _StockHistorySheetState extends ConsumerState<StockHistorySheet> {
   late Future<StockHistoryResponse> _historyFuture;
 
   @override
   void initState() {
     super.initState();
-    _historyFuture = StockService.getStockHistory(widget.stockEntryId);
+    final warehouseId = ref.read(warehouseContextProvider);
+    if (warehouseId == null) {
+      _historyFuture = Future.error('No warehouse selected');
+    } else {
+      _historyFuture = StockService.getStockHistory(
+        warehouseId: warehouseId,
+        stockEntryId: widget.stockEntryId,
+      );
+    }
   }
 
   @override

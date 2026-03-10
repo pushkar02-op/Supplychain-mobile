@@ -25,8 +25,12 @@ class Order {
     return Order(
       id: json['id'] as int,
       itemId: json['item_id'] as int,
-      itemName: json['item_name']?.toString() ?? 'Unknown Item',
-      itemCode: json['item_code']?.toString(),
+      itemName:
+          json['item_name']?.toString() ??
+          json['item']?['name']?.toString() ??
+          'Unknown Item',
+      itemCode:
+          json['item_code']?.toString() ?? json['item']?['code']?.toString(),
       martName: json['mart_name']?.toString(),
       orderDate:
           DateTime.tryParse(json['order_date']?.toString() ?? '') ??

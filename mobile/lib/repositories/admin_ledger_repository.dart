@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../core/dio_client.dart';
 import '../core/errors/domain_errors.dart';
 
@@ -43,7 +45,7 @@ class AdminLedgerRepository {
   }
 
   /// GET /v1/reports/inventory/{itemId}/reconciliation
-  Future<Map<String, dynamic>> fetchReconciliationDetail(
+  Future<Map<String, dynamic>?> fetchReconciliationDetail(
     int warehouseId,
     int itemId,
   ) async {
@@ -56,6 +58,11 @@ class AdminLedgerRepository {
         return Map<String, dynamic>.from(resp.data);
       }
       throw const FormatException('Expected a map response');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return null;
+      }
+      rethrow;
     } catch (e) {
       if (e is UnauthorizedGovernanceError) {
         rethrow;

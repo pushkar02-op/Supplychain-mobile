@@ -9,7 +9,7 @@ final warehouseRepositoryProvider = Provider<WarehouseRepository>(
 
 class WarehouseRepository {
   Future<List<WarehouseAccess>> fetchMyAccess() async {
-    final resp = await DioClient.instance.get('/v1/warehouses/my-access');
+    final resp = await DioClient.instance.get('/warehouses/my-access');
     final data = resp.data as List<dynamic>;
     return data
         .map((entry) => WarehouseAccess.fromJson(entry as Map<String, dynamic>))

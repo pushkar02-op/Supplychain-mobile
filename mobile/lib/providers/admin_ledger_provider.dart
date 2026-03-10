@@ -59,7 +59,7 @@ class DriftReportNotifier extends AsyncNotifier<List<dynamic>> {
 
 // Reconciliation Detail Provider
 final reconciliationDetailProvider = FutureProvider.family
-    .autoDispose<Map<String, dynamic>, int>((ref, itemId) async {
+    .autoDispose<Map<String, dynamic>?, int>((ref, itemId) async {
       final session = ref.watch(sessionProvider);
       if (!session.canManageUsers) {
         return const {};

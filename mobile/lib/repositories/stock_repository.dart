@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
+import '../models/stock_entry_create.dart';
 
 class StockRepository {
   /// Fetch all items for the dropdown
@@ -20,29 +21,15 @@ class StockRepository {
   }
 
   /// Create a new stock entry
-  Future<void> addStockEntry({
-    required int warehouseId,
-    required int itemId,
-    required String receivedDate,
-    required double quantity,
-    required String unit,
-    required double pricePerUnit,
-    required String? source,
-    required double totalCost,
-  }) async {
+  Future<void> createStockEntry(
+    StockEntryCreate payload,
+    int warehouseId,
+  ) async {
     try {
       final resp = await DioClient.instance.post(
         '/stock-entry/',
         queryParameters: {'warehouse_id': warehouseId},
-        data: {
-          'item_id': itemId,
-          'received_date': receivedDate,
-          'quantity': quantity,
-          'unit': unit,
-          'price_per_unit': pricePerUnit,
-          'total_cost': totalCost,
-          'source': source,
-        },
+        data: payload.toJson(),
         options: Options(headers: {'Idempotency-Key': const Uuid().v4()}),
       );
       if (resp.statusCode != 201) {

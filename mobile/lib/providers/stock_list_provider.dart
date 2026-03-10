@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/session/session_guard.dart';
+import '../models/stock_entry_create.dart';
 import '../repositories/stock_repository.dart';
 import 'warehouse_context_provider.dart';
 
@@ -59,8 +60,7 @@ class StockListController extends AsyncNotifier<List<dynamic>> {
   }) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(stockRepositoryProvider);
-    await repo.addStockEntry(
-      warehouseId: warehouseId,
+    final payload = StockEntryCreate(
       itemId: itemId,
       receivedDate: receivedDate,
       quantity: quantity,
@@ -69,6 +69,7 @@ class StockListController extends AsyncNotifier<List<dynamic>> {
       source: source,
       totalCost: totalCost,
     );
+    await repo.createStockEntry(payload, warehouseId);
     ref.invalidateSelf();
   }
 
