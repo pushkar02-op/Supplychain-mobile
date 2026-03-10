@@ -51,9 +51,9 @@ def check_inventory_drift(db: Session) -> list[dict]:
                     "batch_id": batch.id,
                     "item_id": batch.item_id,
                     "warehouse_id": batch.warehouse_id,
-                    "state_qty": float(state_qty),
-                    "ledger_qty": float(ledger_qty),
-                    "drift": float(state_qty - ledger_qty),
+                    "state_qty": str(state_qty),
+                    "ledger_qty": str(ledger_qty),
+                    "drift": str(state_qty - ledger_qty),
                 }
             )
 
