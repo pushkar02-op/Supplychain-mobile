@@ -87,17 +87,50 @@ class SessionController extends Notifier<Session> {
     }
   }
 
-  Future<void> selectWarehouse(int id) async {
+  Future<void> selectWarehouse(int id, {bool rememberSelection = true}) async {
     final current = state;
     final userId = current.userId;
     if (userId != null) {
-      await _storage.write(
-        key: _warehouseStorageKey(userId),
-        value: id.toString(),
-      );
+      if (rememberSelection) {
+        await _storage.write(
+          key: _warehouseStorageKey(userId),
+          value: id.toString(),
+        );
+      } else {
+        await _storage.delete(key: _warehouseStorageKey(userId));
+      }
     }
 
     state = current.copyWith(state: SessionState.ready, warehouseId: id);
+  }
+
+  Future<void> refreshWarehouses() async {
+    final current = state;
+    if (!current.isAuthenticated) {
+      return;
+    }
+
+    final repo = ref.read(warehouseRepositoryProvider);
+    final warehouses = await repo.fetchMyAccess();
+    final currentWarehouseId = current.warehouseId;
+    final stillAccessible =
+        currentWarehouseId != null &&
+        warehouses.any((warehouse) => warehouse.id == currentWarehouseId);
+
+    if (currentWarehouseId != null && !stillAccessible) {
+      final userId = current.userId;
+      if (userId != null) {
+        await _storage.delete(key: _warehouseStorageKey(userId));
+      }
+      state = current.copyWith(
+        state: SessionState.authenticatedNoWarehouse,
+        warehouses: warehouses,
+        clearWarehouseId: true,
+      );
+      return;
+    }
+
+    state = current.copyWith(warehouses: warehouses);
   }
 
   Future<void> logout() async {
