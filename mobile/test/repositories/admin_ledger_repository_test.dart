@@ -34,14 +34,17 @@ void main() {
     test('fetchLedgerHealth returns map on success', () async {
       when(
         mockDio.get(
-          '/v1/admin/ledger/health',
+          '/admin/ledger/health',
           queryParameters: anyNamed('queryParameters'),
         ),
       ).thenAnswer(
         (_) async => Response(
           requestOptions: RequestOptions(path: '/admin/ledger/health'),
           statusCode: 200,
-          data: {'status': 'healthy', 'drifted_batches': 0},
+          data: {
+            'ledger_status': 'healthy',
+            'drift_batches': [],
+          },
         ),
       );
 
@@ -51,7 +54,7 @@ void main() {
 
       verify(
         mockDio.get(
-          '/v1/admin/ledger/health',
+          '/admin/ledger/health',
           queryParameters: {'warehouse_id': 1},
         ),
       ).called(1);
@@ -60,14 +63,12 @@ void main() {
     test('fetchDriftReport returns list on success', () async {
       when(
         mockDio.get(
-          '/v1/reports/inventory/reconciliation',
+          '/admin/ledger/reconcile',
           queryParameters: anyNamed('queryParameters'),
         ),
       ).thenAnswer(
         (_) async => Response(
-          requestOptions: RequestOptions(
-            path: '/reports/inventory/reconciliation',
-          ),
+          requestOptions: RequestOptions(path: '/admin/ledger/reconcile'),
           statusCode: 200,
           data: [
             {'batch_id': 1, 'drift': 0.5},
@@ -82,7 +83,7 @@ void main() {
 
       verify(
         mockDio.get(
-          '/v1/reports/inventory/reconciliation',
+          '/admin/ledger/reconcile',
           queryParameters: {'warehouse_id': 1},
         ),
       ).called(1);

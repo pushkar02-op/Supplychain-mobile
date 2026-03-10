@@ -13,7 +13,18 @@ class AdminLedgerRepository {
         queryParameters: {'warehouse_id': warehouseId},
       );
       if (resp.data is Map) {
-        return Map<String, dynamic>.from(resp.data);
+        final data = Map<String, dynamic>.from(resp.data as Map);
+        final status =
+            data['status'] ?? data['ledger_status'] ?? 'unknown';
+        final driftedBatches = data['drifted_batches'];
+        final driftBatchList = data['drift_batches'];
+        return {
+          ...data,
+          'status': status,
+          'drifted_batches':
+              driftedBatches ??
+              (driftBatchList is List ? driftBatchList.length : 0),
+        };
       }
       throw const FormatException('Expected a map response');
     } catch (e) {
@@ -25,11 +36,11 @@ class AdminLedgerRepository {
   }
 
   /// Fetch detailed reconciliation report (strictly read-only)
-  /// GET /v1/reports/inventory/reconciliation
+  /// GET /admin/ledger/reconcile
   Future<List<dynamic>> fetchDriftReport(int warehouseId) async {
     try {
       final resp = await DioClient.instance.get(
-        '/reports/inventory/reconciliation',
+        '/admin/ledger/reconcile',
         queryParameters: {'warehouse_id': warehouseId},
       );
       if (resp.data is List) {
