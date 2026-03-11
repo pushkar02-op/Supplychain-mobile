@@ -110,7 +110,9 @@ def test_manager_gets_only_assigned_warehouses(db_session):
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == [{"id": allowed.id, "name": allowed.name}]
+    assert response.json() == [
+        {"id": allowed.id, "name": allowed.name, "code": allowed.code}
+    ]
 
 
 def test_worker_gets_only_assigned_warehouses(db_session):
@@ -130,7 +132,9 @@ def test_worker_gets_only_assigned_warehouses(db_session):
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == [{"id": allowed.id, "name": allowed.name}]
+    assert response.json() == [
+        {"id": allowed.id, "name": allowed.name, "code": allowed.code}
+    ]
 
 
 def test_inactive_warehouse_is_excluded_for_assigned_user(db_session):
@@ -153,7 +157,9 @@ def test_inactive_warehouse_is_excluded_for_assigned_user(db_session):
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == [{"id": active.id, "name": active.name}]
+    assert response.json() == [
+        {"id": active.id, "name": active.name, "code": active.code}
+    ]
 
 
 def test_unassigned_user_gets_empty_list(db_session):

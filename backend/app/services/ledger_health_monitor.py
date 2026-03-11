@@ -2,6 +2,8 @@ import asyncio
 import logging
 
 from app.core.structured_logging import log_event
+from app.db.models.batch import Batch
+from app.db.models.warehouse import Warehouse
 from app.db.session import SessionLocal
 from app.services.ledger_guard import check_inventory_drift, check_ledger_integrity
 from sqlalchemy import text
@@ -26,8 +28,28 @@ def run_ledger_health_monitor() -> None:
         if not lock_acquired:
             return
 
-        drift_batches = check_inventory_drift(db)
-        invalid_refs = check_ledger_integrity(db)
+        active_warehouse_ids = {
+            warehouse_id
+            for (warehouse_id,) in db.query(Warehouse.id)
+            .filter(Warehouse.is_active.is_(True))
+            .all()
+        }
+
+        drift_batches = [
+            row
+            for row in check_inventory_drift(db)
+            if row.get("warehouse_id") in active_warehouse_ids
+        ]
+        invalid_refs = []
+        for row in check_ledger_integrity(db):
+            batch_id = row.get("batch_id")
+            if batch_id is None:
+                invalid_refs.append(row)
+                continue
+
+            batch = db.get(Batch, batch_id)
+            if batch is None or batch.warehouse_id in active_warehouse_ids:
+                invalid_refs.append(row)
         ledger_status = (
             "healthy" if not drift_batches and not invalid_refs else "unhealthy"
         )

@@ -4,17 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../core/session/session_controller.dart';
-import '../models/inventory.dart';
 import '../models/order.dart';
-import '../providers/admin_ledger_provider.dart';
-import '../providers/dispatch_provider.dart';
-import '../providers/forecasting_provider.dart';
-import '../providers/inventory_provider.dart';
-import '../providers/mart_bill_provider.dart';
-import '../providers/order_provider.dart';
-import '../providers/rejection_provider.dart';
-import '../providers/stock_list_provider.dart';
-import '../services/forecasting_service.dart';
+import '../providers/overview_provider.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
@@ -22,6 +13,7 @@ import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_card.dart';
 import '../ui/widgets/agro_decision_card.dart';
 import '../ui/widgets/agro_status_badge.dart';
+import '../widgets/warehouse_selector.dart';
 
 /// Overview screen - read-only dashboard showing today's system snapshot.
 /// This is Tab 1 in the bottom navigation.
@@ -29,15 +21,7 @@ class OverviewScreen extends ConsumerWidget {
   const OverviewScreen({super.key});
 
   Future<void> _refreshOverview(WidgetRef ref) async {
-    ref.invalidate(orderListProvider);
-    ref.invalidate(dispatchListProvider);
-    ref.invalidate(stockListProvider);
-    ref.invalidate(rejectionListProvider);
-    ref.invalidate(inventoryListProvider);
-    ref.invalidate(martBillProvider);
-    ref.invalidate(forecastingProvider);
-    ref.invalidate(ledgerHealthProvider);
-    ref.invalidate(driftReportProvider);
+    ref.invalidate(overviewSummaryProvider);
   }
 
   @override
@@ -46,71 +30,42 @@ class OverviewScreen extends ConsumerWidget {
       sessionProvider.select((session) => session.canManageUsers),
     );
     final todayFormatted = DateFormat('EEEE, MMMM d').format(DateTime.now());
+    final summaryAsync = ref.watch(overviewSummaryProvider);
+    final summary = summaryAsync.valueOrNull;
 
-    final healthData = ref.watch(
-      ledgerHealthProvider.select((async) => async.valueOrNull),
+    final healthData = summary?.ledgerHealth;
+    final orders = _deriveOrdersActivity(summary?.orders ?? const <Order>[]);
+    final dispatches = _placeholderActivity(
+      label: 'Dispatches Today',
+      icon: Icons.local_shipping,
+      semanticColor: AgroColors.warning,
+      caption: 'Open Dispatch to load',
     );
-    final orders = _deriveOrdersActivity(
-      ref.watch(
-        orderListProvider.select(
-          (async) => async.valueOrNull?.orders ?? const <Order>[],
-        ),
-      ),
+    final receipts = _placeholderActivity(
+      label: 'Receipts Today',
+      icon: Icons.inventory_2,
+      semanticColor: AgroColors.success,
+      caption: 'Open Stock to load',
     );
-    final dispatches = _deriveDispatchActivity(
-      ref.watch(
-        dispatchListProvider.select(
-          (async) => async.valueOrNull?.dispatches ?? const <dynamic>[],
-        ),
-      ),
+    final rejections = _placeholderActivity(
+      label: 'Rejections Today',
+      icon: Icons.cancel_outlined,
+      semanticColor: AgroColors.caution,
+      caption: 'Open Rejections to load',
     );
-    final receipts = _deriveReceiptsActivity(
-      ref.watch(
-        stockListProvider.select(
-          (async) => async.valueOrNull ?? const <dynamic>[],
-        ),
-      ),
-    );
-    final rejections = _deriveRejectionsActivity(
-      ref.watch(
-        rejectionListProvider.select(
-          (async) => async.valueOrNull?.items ?? const <Map<String, dynamic>>[],
-        ),
-      ),
-    );
-
     final alerts = _deriveAlerts(
       canManageUsers: canManageUsers,
-      inventoryItems: ref.watch(
-        inventoryListProvider.select(
-          (async) => async.valueOrNull?.items ?? const <Inventory>[],
-        ),
-      ),
-      martBills: ref.watch(
-        martBillProvider.select(
-          (async) => async.valueOrNull?.bills ?? const <Map<String, dynamic>>[],
-        ),
-      ),
-      forecasts: ref.watch(
-        forecastingProvider.select(
-          (async) => async.valueOrNull ?? const <ItemForecast>[],
-        ),
-      ),
       ledgerData: healthData,
-      driftRows: ref.watch(
-        driftReportProvider.select(
-          (async) => async.valueOrNull ?? const <dynamic>[],
-        ),
-      ),
     );
 
     return Scaffold(
       backgroundColor: AgroColors.background,
       appBar: AppBar(
-        title: const Text('Overview'),
+        title: const WarehouseSelector(screenTitle: 'Overview'),
         backgroundColor: AgroColors.surface,
         foregroundColor: AgroColors.textPrimary,
         elevation: 1,
+        toolbarHeight: 72,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
@@ -125,6 +80,21 @@ class OverviewScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(AgroSpacing.screenPadding),
           children: [
+            if (summaryAsync.isLoading && summary == null)
+              const Padding(
+                padding: EdgeInsets.only(bottom: AgroSpacing.md),
+                child: LinearProgressIndicator(),
+              ),
+            if (summaryAsync.hasError && summary == null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AgroSpacing.md),
+                child: Text(
+                  'Failed to load overview summary: ${summaryAsync.error}',
+                  style: AgroTypography.caption.copyWith(
+                    color: Colors.red,
+                  ),
+                ),
+              ),
             if (healthData != null) _buildDecisionStrip(healthData),
 
             Text(todayFormatted, style: AgroTypography.captionEmphasis),
@@ -158,6 +128,21 @@ class OverviewScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  _ActivityCardData _placeholderActivity({
+    required String label,
+    required IconData icon,
+    required AgroSemanticColor semanticColor,
+    required String caption,
+  }) {
+    return _ActivityCardData(
+      label: label,
+      value: '--',
+      icon: icon,
+      semanticColor: semanticColor,
+      subtext: [caption],
     );
   }
 
@@ -356,120 +341,15 @@ class OverviewScreen extends ConsumerWidget {
     );
   }
 
-  _ActivityCardData _deriveDispatchActivity(List<dynamic> dispatches) {
-    final total = dispatches.length;
-
-    final partial =
-        dispatches.where((d) {
-          final map = d as Map<String, dynamic>;
-          return (map['status'] as String?) == 'Partially Reversed';
-        }).length;
-    final reversed =
-        dispatches.where((d) {
-          final map = d as Map<String, dynamic>;
-          return (map['status'] as String?) == 'Reversed';
-        }).length;
-
-    return _ActivityCardData(
-      label: 'Dispatches Today',
-      value: '$total',
-      icon: Icons.local_shipping,
-      semanticColor: AgroColors.warning,
-      subtext: ['$partial partial', if (reversed > 0) '$reversed reversed'],
-    );
-  }
-
-  _ActivityCardData _deriveReceiptsActivity(List<dynamic> entries) {
-    final total = entries.length;
-
-    int adjusted = 0;
-    int adjustments = 0;
-    for (final e in entries) {
-      final entry = e as Map<String, dynamic>;
-      final qty = (entry['quantity'] as num?)?.toDouble() ?? 0;
-      final batchQty = (entry['batch_quantity'] as num?)?.toDouble() ?? qty;
-      final isAdjusted = (batchQty - qty).abs() > 0.001;
-      if (!isAdjusted) continue;
-      adjusted += 1;
-
-      final typeFields = [
-        entry['entry_type'],
-        entry['mode'],
-        entry['adjustment_type'],
-        entry['reason'],
-      ];
-      final looksAdjustment = typeFields.whereType<String>().any(
-        (v) => v.toLowerCase().contains('adjust'),
-      );
-      if (looksAdjustment) {
-        adjustments += 1;
-      }
-    }
-    final corrections = adjusted - adjustments;
-
-    return _ActivityCardData(
-      label: 'Receipts Today',
-      value: '$total',
-      icon: Icons.inventory_2,
-      semanticColor: AgroColors.success,
-      subtext: [
-        '$corrections corrections',
-        '$adjustments adjustment${adjustments == 1 ? '' : 's'}',
-      ],
-    );
-  }
-
-  _ActivityCardData _deriveRejectionsActivity(
-    List<Map<String, dynamic>> items,
-  ) {
-    final total = items.length;
-    final reversed =
-        items.where((r) => (r['is_active'] ?? true) == false).length;
-
-    return _ActivityCardData(
-      label: 'Rejections Today',
-      value: '$total',
-      icon: Icons.cancel_outlined,
-      semanticColor: AgroColors.caution,
-      subtext: ['$reversed reversed'],
-    );
-  }
-
   List<_AlertRowData> _deriveAlerts({
     required bool canManageUsers,
-    required List<Inventory> inventoryItems,
-    required List<Map<String, dynamic>> martBills,
-    required List<ItemForecast> forecasts,
     required Map<String, dynamic>? ledgerData,
-    required List<dynamic> driftRows,
   }) {
-    // Inventory alerts based on simple status check if available,
-    // for now we'll use a placeholder logic
-    final unverifiedBills =
-        martBills.where((b) {
-          final status =
-              (b['status'] ?? 'NEEDS_REVIEW').toString().toUpperCase();
-          return status != 'VERIFIED';
-        }).length;
-
-    final forecastAnomalies =
-        forecasts.where((f) {
-          final signal = f.signal.toUpperCase();
-          return signal != 'STABLE';
-        }).length;
-
     final driftedBatches =
         (ledgerData?['drifted_batches'] as num?)?.toInt() ?? 0;
     final ledgerStatus = (ledgerData?['status'] ?? '').toString().toLowerCase();
     final reconciliationNeeded =
         (ledgerStatus == 'unhealthy' || driftedBatches > 0) ? 1 : 0;
-
-    final severeDrift =
-        driftRows.where((d) {
-          final row = d as Map<String, dynamic>;
-          final sev = (row['severity'] ?? '').toString().toUpperCase();
-          return sev == 'CRITICAL';
-        }).length;
 
     final alerts = <_AlertRowData>[];
 
@@ -484,36 +364,6 @@ class OverviewScreen extends ConsumerWidget {
           ),
         );
       }
-      if (severeDrift > 0) {
-        alerts.add(
-          _AlertRowData(
-            status: AgroStatus.critical,
-            badgeLabel: 'Severe',
-            title: 'Severe Drift Count: $severeDrift',
-            route: '/admin/ledger/health',
-          ),
-        );
-      }
-      if (unverifiedBills > 0) {
-        alerts.add(
-          _AlertRowData(
-            status: AgroStatus.major,
-            badgeLabel: 'Verify',
-            title: 'Unverified Mart Bills: $unverifiedBills',
-            route: '/mart-bills',
-          ),
-        );
-      }
-      if (forecastAnomalies > 0) {
-        alerts.add(
-          _AlertRowData(
-            status: AgroStatus.info,
-            badgeLabel: 'Forecast',
-            title: 'Forecast Anomalies: $forecastAnomalies',
-            route: '/items',
-          ),
-        );
-      }
       if (reconciliationNeeded > 0) {
         alerts.add(
           _AlertRowData(
@@ -525,29 +375,6 @@ class OverviewScreen extends ConsumerWidget {
         );
       }
       return alerts;
-    }
-
-    if (unverifiedBills > 0) {
-      alerts.add(
-        _AlertRowData(
-          status: AgroStatus.major,
-          badgeLabel: 'Verify',
-          title:
-              '$unverifiedBills Unverified Mart Bill${unverifiedBills == 1 ? '' : 's'}',
-          route: '/mart-bills',
-        ),
-      );
-    }
-    if (forecastAnomalies > 0) {
-      alerts.add(
-        _AlertRowData(
-          status: AgroStatus.info,
-          badgeLabel: 'Forecast',
-          title:
-              '$forecastAnomalies Forecast Anomal${forecastAnomalies == 1 ? 'y' : 'ies'}',
-          route: '/items',
-        ),
-      );
     }
     if (reconciliationNeeded > 0) {
       alerts.add(

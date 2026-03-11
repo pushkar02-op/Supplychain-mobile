@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../providers/stock_list_provider.dart';
 import '../ui/widgets/agro_snack_bar.dart';
+import '../widgets/warehouse_selector.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/stock_history_sheet.dart';
 
@@ -19,10 +20,11 @@ class StockListScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Stock'),
+        title: const WarehouseSelector(screenTitle: 'Stock'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
+        toolbarHeight: 72,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),

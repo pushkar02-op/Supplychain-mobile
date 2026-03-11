@@ -251,6 +251,47 @@ def get_items_with_available_batches(db: Session, warehouse_id: int) -> List[Ite
     return result
 
 
+def get_operational_items(
+    db: Session,
+    warehouse_id: Optional[int] = None,
+    in_stock: bool = False,
+) -> List[dict]:
+    """
+    Retrieve ACTIVE catalog items for operational workflows.
+
+    Optional stock filtering is supported when both `in_stock` and
+    `warehouse_id` are provided.
+    """
+    logger.debug(
+        "Fetching operational items warehouse_id=%s in_stock=%s",
+        warehouse_id,
+        in_stock,
+    )
+
+    query = db.query(Item).filter(Item.status == ItemStatus.ACTIVE)
+
+    if in_stock and warehouse_id is not None:
+        query = (
+            query.join(Batch, Batch.item_id == Item.id)
+            .filter(Batch.warehouse_id == warehouse_id, Batch.quantity > 0)
+            .distinct()
+        )
+
+    items = query.order_by(Item.name.asc()).all()
+    uoms = {u.id: u.code for u in db.query(UOM).all()}
+
+    return [
+        {
+            "id": item.id,
+            "name": item.name,
+            "item_code": item.item_code,
+            "default_uom_id": item.default_uom_id,
+            "default_unit": uoms.get(item.default_uom_id),
+        }
+        for item in items
+    ]
+
+
 def update_item(
     db: Session, item_id: int, entry_update: ItemUpdate, updated_by: int
 ) -> Optional[Item]:

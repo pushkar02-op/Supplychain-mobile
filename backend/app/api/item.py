@@ -18,6 +18,7 @@ from app.services.item import (
     get_all_items,
     get_item,
     get_items_with_available_batches,
+    get_operational_items,
     reactivate_item,
     update_item,
 )
@@ -27,6 +28,7 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/item", tags=["Items"])
+operational_router = APIRouter(prefix="/items", tags=["Items"])
 
 
 @router.post("/", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
@@ -73,6 +75,36 @@ def read_all(
     )
     return get_all_items(
         db=db, skip=skip, limit=limit, include_inactive=include_inactive
+    )
+
+
+@operational_router.get("/operational", response_model=List[dict])
+def read_operational_items(
+    warehouse_id: Optional[int] = Query(None),
+    in_stock: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> List[dict]:
+    """
+    Retrieve ACTIVE item master records for operational workflows.
+    """
+    logger.info(
+        "Fetching operational items warehouse_id=%s in_stock=%s",
+        warehouse_id,
+        in_stock,
+    )
+    resolved_warehouse_id = None
+    if warehouse_id is not None:
+        resolved_warehouse_id = resolve_warehouse_for_request(
+            current_user=current_user,
+            warehouse_id=warehouse_id,
+            db=db,
+            operation_type="read",
+        )
+    return get_operational_items(
+        db=db,
+        warehouse_id=resolved_warehouse_id,
+        in_stock=in_stock,
     )
 
 

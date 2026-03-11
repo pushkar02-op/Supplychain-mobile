@@ -11,6 +11,7 @@ from app.db.models.mart_bill import MartBill
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.mart_item_alias import MartItemAlias
 from app.db.schemas.mart_item_alias import MartItemAliasCreate
+from app.services.alias_resolver import resolve_alias
 from app.services.audit import log_action
 from sqlalchemy.orm import Session
 
@@ -100,30 +101,14 @@ def resolve_invoice_items(
 
     resolved_count = 0
     for item in unresolved:
-        # Inline resolution logic (Code match > Name match)
-        alias = None
-        if item.item_code:
-            alias = (
-                db.query(MartItemAlias)
-                .filter(
-                    MartItemAlias.mart_id == mart_id,
-                    MartItemAlias.alias_code == item.item_code,
-                )
-                .first()
-            )
-
-        if not alias and item.item_name:
-            alias = (
-                db.query(MartItemAlias)
-                .filter(
-                    MartItemAlias.mart_id == mart_id,
-                    MartItemAlias.alias_name.ilike(item.item_name),
-                )
-                .first()
-            )
-
-        if alias and alias.item_id:
-            item.item_id = alias.item_id
+        item_id = resolve_alias(
+            db=db,
+            mart_id=mart_id,
+            item_code=item.item_code,
+            item_name=item.item_name,
+        )
+        if item_id:
+            item.item_id = item_id
             resolved_count += 1
 
     try:

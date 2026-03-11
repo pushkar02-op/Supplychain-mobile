@@ -124,20 +124,31 @@ class OrderRepository {
     }
   }
 
-  /// Fetch distinct items for a specific mart
-  Future<List<Map<String, dynamic>>> fetchDistinctItemsForMart(
+  /// Fetch operational items from the item master table for order entry.
+  Future<List<Map<String, dynamic>>> fetchOperationalItems(
     int warehouseId,
-    String martName,
   ) async {
     try {
       final resp = await DioClient.instance.get(
-        '/invoice-items/distinct-items',
-        queryParameters: {'mart_name': martName, 'warehouse_id': warehouseId},
+        '/items/operational',
+        queryParameters: {'warehouse_id': warehouseId},
       );
       if (resp.statusCode != 200) {
-        throw AppError(detail: 'Failed to fetch items for mart');
+        throw AppError(detail: 'Failed to fetch operational items');
       }
-      return List<Map<String, dynamic>>.from(resp.data);
+      final data = List<Map<String, dynamic>>.from(resp.data);
+      return data
+          .map(
+            (item) => <String, dynamic>{
+              'item_id': item['id'],
+              'id': item['id'],
+              'item_name': item['name'],
+              'item_code': item['item_code'],
+              'default_uom_id': item['default_uom_id'],
+              'uom': item['default_unit'],
+            },
+          )
+          .toList();
     } catch (e) {
       rethrow;
     }

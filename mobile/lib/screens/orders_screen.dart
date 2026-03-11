@@ -16,6 +16,7 @@ import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_status_badge.dart';
+import '../widgets/warehouse_selector.dart';
 import '../widgets/skeleton_loader.dart';
 
 class OrdersScreen extends ConsumerWidget {
@@ -81,10 +82,11 @@ class OrdersScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AgroColors.background,
       appBar: AppBar(
-        title: const Text('Orders'),
+        title: const WarehouseSelector(screenTitle: 'Orders'),
         backgroundColor: AgroColors.surface,
         foregroundColor: AgroColors.textPrimary,
         elevation: 1,
+        toolbarHeight: 72,
         automaticallyImplyLeading: false,
       ),
       body: stateAsync.when(

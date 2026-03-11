@@ -13,6 +13,9 @@ import 'package:mobile/screens/pdf_view_screen.dart';
 import 'package:mobile/screens/rejection_entry_screen.dart';
 import 'package:mobile/screens/rejection_list_screen.dart';
 import 'package:mobile/screens/splash_screen.dart';
+import 'package:mobile/screens/mart_management_screen.dart';
+import 'package:mobile/screens/uom_management_screen.dart';
+import 'package:mobile/screens/warehouse_management_screen.dart';
 
 import '../auth/login_screen.dart';
 import '../core/session/session_controller.dart';
@@ -180,6 +183,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin/audit-logs',
         builder: (context, state) => const AuditLogScreen(),
+      ),
+      GoRoute(
+        path: '/admin/marts',
+        builder: (context, state) => const MartManagementScreen(),
+      ),
+      GoRoute(
+        path: '/admin/warehouses',
+        builder: (context, state) => const WarehouseManagementScreen(),
+      ),
+      GoRoute(
+        path: '/admin/uoms',
+        builder: (context, state) => const UomManagementScreen(),
       ),
     ],
   );

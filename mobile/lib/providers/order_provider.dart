@@ -131,11 +131,9 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
     return repo.fetchItemAliases(warehouseId);
   }
 
-  Future<List<Map<String, dynamic>>> fetchDistinctItemsForMart(
-    String martName,
-  ) async {
+  Future<List<Map<String, dynamic>>> fetchOperationalItems() async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(orderRepositoryProvider);
-    return repo.fetchDistinctItemsForMart(warehouseId, martName);
+    return repo.fetchOperationalItems(warehouseId);
   }
 }

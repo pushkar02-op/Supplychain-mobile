@@ -120,6 +120,27 @@ class MoreHubScreen extends ConsumerWidget {
               canManageUsers: true,
             ),
             const _NavTile(
+              icon: Icons.store_outlined,
+              title: 'Mart Management',
+              subtitle: 'Create, edit, and deactivate marts',
+              route: '/admin/marts',
+              canManageUsers: true,
+            ),
+            const _NavTile(
+              icon: Icons.warehouse_outlined,
+              title: 'Warehouse Management',
+              subtitle: 'Maintain warehouses and financial locks',
+              route: '/admin/warehouses',
+              canManageUsers: true,
+            ),
+            const _NavTile(
+              icon: Icons.straighten_outlined,
+              title: 'Unit Management',
+              subtitle: 'Create, edit, and deactivate units',
+              route: '/admin/uoms',
+              canManageUsers: true,
+            ),
+            const _NavTile(
               icon: Icons.history_outlined,
               title: 'Audit Logs',
               subtitle: 'View system activity history',
@@ -147,17 +168,18 @@ class _WarehouseTile extends ConsumerWidget {
     final warehouses = session.warehouses ?? const [];
     final activeWarehouseId = session.warehouseId;
     String? activeWarehouseName;
+    String? activeWarehouseCode;
     for (final warehouse in warehouses) {
       if (warehouse.id == activeWarehouseId) {
         activeWarehouseName = warehouse.name;
+        activeWarehouseCode = warehouse.displayCode;
         break;
       }
     }
-    final canSwitch = warehouses.length > 1;
-
     final subtitle =
-        activeWarehouseName ??
-        (canSwitch ? 'Select active warehouse' : 'Warehouse is auto-selected');
+        activeWarehouseName == null
+            ? 'No active warehouse selected'
+            : '$activeWarehouseName${activeWarehouseCode == null || activeWarehouseCode.isEmpty ? '' : ' ($activeWarehouseCode)'}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: AgroSpacing.sm),
@@ -172,12 +194,22 @@ class _WarehouseTile extends ConsumerWidget {
           color: AgroColors.primary,
         ),
         title: const Text('Warehouse', style: AgroTypography.cardTitle),
-        subtitle: Text(subtitle, style: AgroTypography.cardSubtitle),
-        trailing: Icon(
-          canSwitch ? Icons.chevron_right : Icons.lock_outline,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(subtitle, style: AgroTypography.cardSubtitle),
+            const SizedBox(height: 2),
+            Text(
+              '${warehouses.length} accessible workspace${warehouses.length == 1 ? '' : 's'}',
+              style: AgroTypography.caption,
+            ),
+          ],
+        ),
+        trailing: const Icon(
+          Icons.lock_outline,
           color: AgroColors.textDisabled,
         ),
-        onTap: canSwitch ? () => context.push('/warehouse/select') : null,
       ),
     );
   }

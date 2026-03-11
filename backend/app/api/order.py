@@ -94,13 +94,13 @@ def get_mart_names(
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[dict]:
     """
-    Retrieve distinct mart names from orders.
+    Retrieve mart master records for order entry.
 
     Args:
         db (Session): Database session dependency.
 
     Returns:
-        List[dict]: List of mart names.
+        List[dict]: List of mart IDs and names.
     """
     logger.info("Fetching distinct mart names")
     resolved_warehouse_id = resolve_warehouse_for_request(

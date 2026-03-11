@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Boolean, Column, Integer, String
 from sqlalchemy.orm import relationship
 
 from .base_class import Base
@@ -10,5 +10,6 @@ class Mart(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     company_name = Column(String, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
 
     orders = relationship("Order", back_populates="mart")

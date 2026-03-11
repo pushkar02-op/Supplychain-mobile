@@ -10,7 +10,6 @@ from typing import List, Optional
 
 from app.core.exceptions import AppException
 from app.db.models.mart import Mart
-from app.db.models.mart_bill import MartBill
 from app.db.models.order import Order
 from app.db.schemas.order import OrderCreate, OrderUpdate
 from app.services.audit import log_action
@@ -25,21 +24,19 @@ def get_distinct_mart_names(
     db: Session, warehouse_id: Optional[int] = None
 ) -> List[dict]:
     """
-    Retrieve unique mart names from invoices.
+    Retrieve mart master records for order entry.
 
     Args:
         db (Session): Database session.
 
     Returns:
-        List[str]: List of mart names.
+        List[dict]: List of mart IDs and names.
     """
-    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
-    logger.debug("Fetching distinct mart names from invoices")
-    q = db.query(Mart.id, Mart.name).join(MartBill, MartBill.mart_id == Mart.id)
-    q = q.filter(MartBill.warehouse_id == resolved_warehouse_id)
-    results = q.distinct().all()
+    resolve_system_warehouse_id(db, warehouse_id)
+    logger.debug("Fetching mart names from mart master table")
+    results = db.query(Mart.id, Mart.name).order_by(Mart.name.asc()).all()
     marts = [{"id": r.id, "name": r.name} for r in results if r.name]
-    logger.info(f"Found {len(marts)} distinct marts")
+    logger.info(f"Found {len(marts)} marts")
     return marts
 
 

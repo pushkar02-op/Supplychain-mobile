@@ -13,6 +13,7 @@ import '../ui/widgets/agro_status_badge.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 import '../widgets/reversal_dialog.dart';
 import '../widgets/skeleton_loader.dart';
+import '../widgets/warehouse_selector.dart';
 
 class DispatchListScreen extends ConsumerWidget {
   const DispatchListScreen({super.key});
@@ -94,10 +95,11 @@ class DispatchListScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Dispatch Log'),
+        title: const WarehouseSelector(screenTitle: 'Dispatch Log'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        toolbarHeight: 72,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: Colors.grey[200], height: 1),

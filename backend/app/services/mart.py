@@ -1,5 +1,6 @@
+from app.core.exceptions import AppException
 from app.db.models.mart import Mart
-from app.db.schemas.mart import MartCreate
+from app.db.schemas.mart import MartCreate, MartStatusUpdate, MartUpdate
 from sqlalchemy.orm import Session
 
 
@@ -30,5 +31,39 @@ def create_mart(db: Session, mart: MartCreate) -> Mart:
     return db_mart
 
 
-def get_marts_by_company(db: Session, company_id: int):
-    return db.query(Mart).filter(Mart.company_id == company_id).all()
+def list_marts(db: Session, include_inactive: bool = False) -> list[Mart]:
+    query = db.query(Mart)
+    if not include_inactive:
+        query = query.filter(Mart.is_active.is_(True))
+    return query.order_by(Mart.name.asc()).all()
+
+
+def update_mart(db: Session, mart_id: int, mart_in: MartUpdate) -> Mart:
+    mart = db.query(Mart).filter(Mart.id == mart_id).first()
+    if not mart:
+        raise AppException(detail="Mart not found", status_code=404)
+
+    mart.name = mart_in.name
+    mart.company_name = mart_in.company_name
+    db.commit()
+    db.refresh(mart)
+    return mart
+
+
+def set_mart_status(
+    db: Session,
+    mart_id: int,
+    status_in: MartStatusUpdate,
+) -> Mart:
+    mart = db.query(Mart).filter(Mart.id == mart_id).first()
+    if not mart:
+        raise AppException(detail="Mart not found", status_code=404)
+
+    mart.is_active = status_in.is_active
+    db.commit()
+    db.refresh(mart)
+    return mart
+
+
+def get_marts_by_company(db: Session, company_name: str):
+    return db.query(Mart).filter(Mart.company_name == company_name).all()
