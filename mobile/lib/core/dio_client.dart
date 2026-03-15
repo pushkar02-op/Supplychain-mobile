@@ -285,11 +285,11 @@ class DioClient {
       normalized = normalized.substring(0, normalized.length - 1);
     }
 
-    if (normalized == '/v1') {
+    if (normalized == '/api/v1') {
       return '/';
     }
-    if (normalized.startsWith('/v1/')) {
-      normalized = normalized.substring(3);
+    if (normalized.startsWith('/api/v1/')) {
+      normalized = normalized.substring(7);
     }
 
     return normalized.isEmpty ? '/' : normalized;
