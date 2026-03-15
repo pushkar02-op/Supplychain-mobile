@@ -30,7 +30,7 @@ class AuthRefreshResponse {
 class AuthService {
   static Future<AuthLoginResponse> login(String email, String password) async {
     final response = await DioClient.instance.post(
-      '/api/v1/login',
+      '/v1/login',
       data: {'username': email, 'password': password},
     );
     final data = response.data as Map<String, dynamic>;
@@ -54,7 +54,7 @@ class AuthService {
   static Future<AuthRefreshResponse> refreshToken(String refreshToken) async {
     final dio = Dio(BaseOptions(baseUrl: DioClient.instance.options.baseUrl));
     final response = await dio.post(
-      '/api/v1/refresh',
+      '/v1/refresh',
       data: {'refresh_token': refreshToken},
     );
     final data = response.data as Map<String, dynamic>;
