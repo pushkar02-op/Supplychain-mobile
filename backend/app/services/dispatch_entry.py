@@ -159,6 +159,7 @@ def create_reversal_entry(
                 # We should flush reversal first.
                 remarks=f"Reversal: {entry.reason or 'Manual correction'}",
             ),
+            actor_user_id=created_by_user_id,
         )
 
         db.flush()
@@ -444,6 +445,7 @@ def _create_dispatch_entry_impl(
                 ref_id=dispatch.id,
                 remarks="Stock dispatched",
             ),
+            actor_user_id=user_id,
         )
     except AppException as e:
         logger.error(f"Ledgering failed: {e}")
@@ -634,7 +636,7 @@ def _create_dispatch_from_order_impl(
             existing.remarks = entry.remarks or existing.remarks
             from app.utils.audit import resolve_user_audit
 
-            user_name, _ = resolve_user_audit(
+            user_name, user_id = resolve_user_audit(
                 db, created_by
             )  # Treated as updated_by here
             existing.updated_by = user_name
@@ -689,6 +691,7 @@ def _create_dispatch_from_order_impl(
                     ref_id=dispatch_record.id,
                     remarks="Stock dispatched",
                 ),
+                actor_user_id=user_id,
             )
         except AppException as e:
             logger.error(f"Ledgering failed for batch {batch.id}: {e}")

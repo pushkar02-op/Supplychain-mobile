@@ -14,7 +14,11 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 
-def create_inventory_txn(db: Session, data: InventoryTxnCreate) -> InventoryTxn:
+def create_inventory_txn(
+    db: Session,
+    data: InventoryTxnCreate,
+    actor_user_id: Optional[int] = None,
+) -> InventoryTxn:
     # ENFORCEMENT: NUM-001 Ledger Storage Precision
     # Quantize to 3 decimal places to match Numeric(10,3) schema
     # Use ROUND_HALF_UP to ensure consistent behavior
@@ -88,7 +92,7 @@ def create_inventory_txn(db: Session, data: InventoryTxnCreate) -> InventoryTxn:
     try:
         log_action(
             db=db,
-            actor_user_id=None,
+            actor_user_id=actor_user_id,
             action_type="inventory_txn_created",
             entity_type="inventory_txn",
             entity_id=txn.id,

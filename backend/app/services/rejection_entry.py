@@ -146,6 +146,7 @@ def create_rejection_entry(
                 ref_id=rej.id,
                 remarks=f"Rejection: {entry.reason or 'No reason provided'}",
             ),
+            actor_user_id=user_id,
         )
         db.flush()  # Ensure ID is generated before commit
 
@@ -283,6 +284,7 @@ def reverse_rejection_entry(
                 ref_id=rej.id,
                 remarks=f"Reversal of Rejection #{rej.id}",
             ),
+            actor_user_id=user_id,
         )
 
         try:
