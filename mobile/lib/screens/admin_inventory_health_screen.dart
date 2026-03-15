@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/warehouse_analytics.dart';
 import '../providers/admin_ledger_provider.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
@@ -41,11 +42,11 @@ class AdminInventoryHealthScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBody(BuildContext context, Map<String, dynamic> data) {
-    final status = data['status'] as String? ?? 'unknown';
-    final totalBatches = data['total_batches'] ?? 0;
-    final driftedCount = data['drifted_batches'] ?? 0;
-    final negativeCount = data['negative_stock_batches'] ?? 0;
+  Widget _buildBody(BuildContext context, WarehouseAnalytics data) {
+    final status = data.status;
+    final totalBatches = data.totalBatches;
+    final driftedCount = data.driftedBatches;
+    final negativeCount = data.negativeStockBatches;
 
     final isHealthy = status == 'healthy';
     final healthStatus = AgroStatusParser.fromHealthStatus(status);

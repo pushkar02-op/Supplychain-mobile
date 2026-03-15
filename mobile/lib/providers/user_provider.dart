@@ -8,6 +8,17 @@ final userRepositoryProvider = Provider<UserRepository>(
   (ref) => UserRepository(),
 );
 
+final currentUserProfileProvider = FutureProvider.autoDispose<UserRead>((
+  ref,
+) async {
+  final repo = ref.read(userRepositoryProvider);
+  return repo.fetchCurrentUser();
+});
+
+void refreshProfile(WidgetRef ref) {
+  ref.invalidate(currentUserProfileProvider);
+}
+
 final userListProvider = AsyncNotifierProvider<UserListNotifier, UserListState>(
   UserListNotifier.new,
 );

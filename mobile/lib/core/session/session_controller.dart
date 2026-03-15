@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/models/user_role.dart';
 import '../../models/warehouse_access.dart';
 import '../../repositories/warehouse_repository.dart';
+import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
 import '../dio_client.dart';
 import 'session.dart';
@@ -136,6 +137,7 @@ class SessionController extends Notifier<Session> {
   Future<void> logout() async {
     await _storage.deleteAll();
     DioClient.setAccessToken(null);
+    ref.invalidate(currentUserProfileProvider);
     state = const Session(state: SessionState.unauthenticated);
   }
 

@@ -12,6 +12,14 @@ final auditLogProvider = AsyncNotifierProvider<AuditLogNotifier, AuditLogState>(
   AuditLogNotifier.new,
 );
 
+final recentActivityProvider = FutureProvider.autoDispose<List<AuditLogEntry>>((
+  ref,
+) async {
+  final warehouseId = requireWarehouse(ref);
+  final repo = ref.read(auditRepositoryProvider);
+  return repo.fetchAuditLogs(warehouseId, limit: 10, offset: 0);
+});
+
 class AuditLogState {
   final List<AuditLogEntry> logs;
 
@@ -27,7 +35,7 @@ class AuditLogNotifier extends AsyncNotifier<AuditLogState> {
   Future<AuditLogState> build() async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(auditRepositoryProvider);
-    final logs = await repo.fetchAuditLogs(warehouseId);
+    final logs = await repo.fetchAuditLogs(warehouseId, limit: 10);
     return AuditLogState(logs: logs);
   }
 
@@ -36,7 +44,7 @@ class AuditLogNotifier extends AsyncNotifier<AuditLogState> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(auditRepositoryProvider);
-      final logs = await repo.fetchAuditLogs(warehouseId);
+      final logs = await repo.fetchAuditLogs(warehouseId, limit: 10);
       return AuditLogState(logs: logs);
     });
   }

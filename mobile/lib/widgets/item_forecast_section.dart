@@ -25,6 +25,7 @@ class ItemForecastSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currentForecast = forecast;
     if (isLoading) {
       return const Padding(
         padding: EdgeInsets.all(16),
@@ -81,7 +82,7 @@ class ItemForecastSection extends StatelessWidget {
       );
     }
 
-    if (forecast == null) {
+    if (currentForecast == null) {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -114,7 +115,7 @@ class ItemForecastSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Decision Card (Replaces Header/Badge/Explanation logic)
-          _buildDecisionCard(forecast!),
+          _buildDecisionCard(currentForecast),
 
           const SizedBox(height: 16),
 
@@ -130,26 +131,30 @@ class ItemForecastSection extends StatelessWidget {
               children: [
                 _buildMetricRow(
                   'Current Quantity',
-                  '${forecast!.currentLedgerQty.toStringAsFixed(1)} units',
+                  '${currentForecast.currentLedgerQty.toStringAsFixed(1)} units',
                 ),
                 const Divider(height: 16),
                 _buildMetricRow(
                   'Burn Rate (7d avg)',
-                  forecast!.avgDailyOutflow != null
-                      ? '${forecast!.avgDailyOutflow!.toStringAsFixed(2)} units/day'
+                  currentForecast.avgDailyOutflow != null
+                      ? '${currentForecast.avgDailyOutflow!.toStringAsFixed(2)} units/day'
                       : 'No recent outflow',
                 ),
                 const Divider(height: 16),
                 _buildMetricRow(
                   'Days to Zero',
-                  forecast!.daysToZero != null
-                      ? '${forecast!.daysToZero!.toStringAsFixed(0)} days'
+                  currentForecast.daysToZero != null
+                      ? '${currentForecast.daysToZero!.toStringAsFixed(0)} days'
                       : 'N/A (no outflow)',
                 ),
                 const Divider(height: 16),
                 _buildMetricRow(
                   'Est. Stockout Date',
-                  forecast!.projectedStockoutDate ?? 'N/A',
+                  currentForecast.projectedStockoutDate
+                          ?.toIso8601String()
+                          .split('T')
+                          .first ??
+                      'N/A',
                 ),
               ],
             ),

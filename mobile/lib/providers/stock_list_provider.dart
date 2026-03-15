@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/session/session_guard.dart';
 import '../models/stock_entry_create.dart';
+import '../models/stock_transaction.dart';
 import '../repositories/stock_repository.dart';
+import 'overview_provider.dart';
 import 'warehouse_context_provider.dart';
 
 final stockRepositoryProvider = Provider((ref) => StockRepository());
@@ -10,13 +12,13 @@ final stockRepositoryProvider = Provider((ref) => StockRepository());
 final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
 
 final stockListProvider =
-    AsyncNotifierProvider<StockListController, List<dynamic>>(() {
+    AsyncNotifierProvider<StockListController, List<StockTransaction>>(() {
       return StockListController();
     });
 
-class StockListController extends AsyncNotifier<List<dynamic>> {
+class StockListController extends AsyncNotifier<List<StockTransaction>> {
   @override
-  Future<List<dynamic>> build() async {
+  Future<List<StockTransaction>> build() async {
     final warehouseId = ref.watch(warehouseContextProvider);
     if (warehouseId == null) {
       return const [];
@@ -27,7 +29,7 @@ class StockListController extends AsyncNotifier<List<dynamic>> {
     return _fetch(warehouseId, dateString);
   }
 
-  Future<List<dynamic>> _fetch(int warehouseId, String date) async {
+  Future<List<StockTransaction>> _fetch(int warehouseId, String date) async {
     final repo = ref.read(stockRepositoryProvider);
     return await repo.fetchStockEntries(warehouseId: warehouseId, date: date);
   }
@@ -71,9 +73,10 @@ class StockListController extends AsyncNotifier<List<dynamic>> {
     );
     await repo.createStockEntry(payload, warehouseId);
     ref.invalidateSelf();
+    ref.invalidate(overviewSummaryProvider);
   }
 
-  Future<List<dynamic>> fetchItems() async {
+  Future<List<Map<String, dynamic>>> fetchItems() async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(stockRepositoryProvider);
     return repo.fetchItems(warehouseId);

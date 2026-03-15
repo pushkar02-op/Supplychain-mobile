@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/session/session_controller.dart';
+import '../models/inventory_item.dart';
 import '../providers/inventory_provider.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
@@ -20,7 +21,7 @@ class InventoryScreen extends ConsumerWidget {
     final stateAsync = ref.watch(inventoryListProvider);
     final filterItems = ref.watch(
       inventoryItemOptionsProvider.select(
-        (async) => async.valueOrNull ?? const <Map<String, dynamic>>[],
+        (async) => async.valueOrNull ?? const <InventoryItem>[],
       ),
     );
     final filterUnits = ref.watch(
@@ -91,89 +92,112 @@ class InventoryScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AgroSpacing.md),
                 Expanded(
-                  child:
-                      state.items.isEmpty
-                          ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                  child: RefreshIndicator(
+                    onRefresh:
+                        () async => ref.refresh(inventoryListProvider.future),
+                    child:
+                        state.items.isEmpty
+                            ? ListView(
+                              physics:
+                                  const AlwaysScrollableScrollPhysics(),
                               children: [
-                                const Icon(
-                                  Icons.warehouse_outlined,
-                                  size: 64,
-                                  color: AgroColors.textDisabled,
-                                ),
-                                const SizedBox(height: AgroSpacing.lg),
-                                Text(
-                                  'No inventory records found',
-                                  style: AgroTypography.cardTitle.copyWith(
-                                    color: AgroColors.textSecondary,
+                                SizedBox(
+                                  height: 420,
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(
+                                          Icons.warehouse_outlined,
+                                          size: 64,
+                                          color: AgroColors.textDisabled,
+                                        ),
+                                        const SizedBox(
+                                          height: AgroSpacing.lg,
+                                        ),
+                                        Text(
+                                          'No inventory records found',
+                                          style: AgroTypography.cardTitle
+                                              .copyWith(
+                                                color:
+                                                    AgroColors.textSecondary,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],
-                            ),
-                          )
-                          : ListView.builder(
-                            itemCount: state.items.length,
-                            itemBuilder: (context, i) {
-                              final inv = state.items[i];
-                              final availableStock = inv.quantity;
-                              final unit = inv.unit;
-                              // For now, mapping simplified status
-                              const statusKind = _InventoryStatusKind.ok;
+                            )
+                            : ListView.builder(
+                              physics:
+                                  const AlwaysScrollableScrollPhysics(),
+                              itemCount: state.items.length,
+                              itemBuilder: (context, i) {
+                                final inv = state.items[i];
+                                final availableStock = inv.quantity;
+                                final unit = inv.unit;
+                                const statusKind = _InventoryStatusKind.ok;
 
-                              return AgroCard(
-                                margin: const EdgeInsets.only(
-                                  bottom: AgroSpacing.md,
-                                ),
-                                onTap:
-                                    () => InventoryDetailSheet.show(
-                                      context,
-                                      inv.toJson(),
-                                      canManageUsers:
-                                          ref
-                                              .read(sessionProvider)
-                                              .canManageUsers,
+                                return AgroCard(
+                                  margin: const EdgeInsets.only(
+                                    bottom: AgroSpacing.md,
+                                  ),
+                                  onTap:
+                                      () => InventoryDetailSheet.show(
+                                        context,
+                                        inv,
+                                        canManageUsers:
+                                            ref
+                                                .read(sessionProvider)
+                                                .canManageUsers,
+                                      ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AgroSpacing.lg,
+                                      vertical: AgroSpacing.md,
                                     ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AgroSpacing.lg,
-                                    vertical: AgroSpacing.md,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              inv.itemName,
-                                              style: AgroTypography.cardTitle,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                inv.name,
+                                                style:
+                                                    AgroTypography.cardTitle,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: AgroSpacing.sm),
-                                          const _InventoryStatusBadge(
-                                            kind: statusKind,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: AgroSpacing.xs),
-                                      Text(
-                                        '$availableStock $unit',
-                                        style: AgroTypography.emphasis.copyWith(
-                                          fontSize: 16,
+                                            const SizedBox(
+                                              width: AgroSpacing.sm,
+                                            ),
+                                            const _InventoryStatusBadge(
+                                              kind: statusKind,
+                                            ),
+                                          ],
                                         ),
-                                        softWrap: false,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
+                                        const SizedBox(
+                                          height: AgroSpacing.xs,
+                                        ),
+                                        Text(
+                                          '$availableStock $unit',
+                                          style: AgroTypography.emphasis
+                                              .copyWith(fontSize: 16),
+                                          softWrap: false,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
-                          ),
+                                );
+                              },
+                            ),
+                  ),
                 ),
               ],
             ),
@@ -185,7 +209,7 @@ class InventoryScreen extends ConsumerWidget {
 }
 
 class _InventoryFilterBar extends StatelessWidget {
-  final List<Map<String, dynamic>> items;
+  final List<InventoryItem> items;
   final List<String> units;
   final int? selectedItemId;
   final String? selectedUnit;
@@ -224,8 +248,8 @@ class _InventoryFilterBar extends StatelessWidget {
                       ),
                       ...items.map(
                         (item) => DropdownMenuItem(
-                          value: item['id'],
-                          child: Text(item['name']),
+                          value: item.id,
+                          child: Text(item.name),
                         ),
                       ),
                     ],

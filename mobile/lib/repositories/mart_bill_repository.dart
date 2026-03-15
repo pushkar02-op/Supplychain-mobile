@@ -7,10 +7,11 @@ import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
 import '../core/errors/error_mapper.dart';
 import '../models/mart_bill.dart';
+import '../models/mart_bill_page.dart';
 
 class MartBillRepository {
   /// Fetch list of mart bills, with optional filters and pagination
-  Future<Map<String, dynamic>> fetchMartBills({
+  Future<MartBillPage> fetchMartBills({
     required int warehouseId,
     DateTime? date,
     String? martName,
@@ -37,16 +38,18 @@ class MartBillRepository {
         queryParameters: params,
       );
       if (resp.statusCode == 200) {
-        final data = resp.data;
-        return {
-          'total': data['total'],
-          'skip': data['skip'],
-          'limit': data['limit'],
-          'has_more': data['has_more'] ?? false,
-          'items': List<Map<String, dynamic>>.from(
-            data['items'] ?? data['results'],
-          ),
-        };
+        final data = Map<String, dynamic>.from(resp.data as Map);
+        final items = (data['items'] ?? data['results'] ?? const []) as List<dynamic>;
+        return MartBillPage(
+          total: (data['total'] as num?)?.toInt() ?? items.length,
+          skip: (data['skip'] as num?)?.toInt() ?? 0,
+          limit: (data['limit'] as num?)?.toInt() ?? limit,
+          hasMore: data['has_more'] as bool? ?? false,
+          items:
+              items
+                  .map((entry) => MartBill.fromJson(entry as Map<String, dynamic>))
+                  .toList(),
+        );
       }
       throw AppError(detail: 'Failed to load mart bills');
     } catch (e) {

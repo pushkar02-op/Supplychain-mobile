@@ -1,19 +1,17 @@
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../core/session/session_controller.dart';
+import '../core/ui/snackbar_service.dart';
 import '../providers/active_mart_provider.dart';
 import '../providers/dispatch_provider.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/widgets/agro_status_badge.dart';
-import '../ui/widgets/agro_snack_bar.dart';
 import '../widgets/reversal_dialog.dart';
 import '../widgets/skeleton_loader.dart';
-import '../widgets/warehouse_selector.dart';
 
 class DispatchListScreen extends ConsumerWidget {
   const DispatchListScreen({super.key});
@@ -62,10 +60,10 @@ class DispatchListScreen extends ConsumerWidget {
             .read(dispatchListProvider.notifier)
             .reverseDispatch(id, result['quantity'], result['reason']);
         if (!context.mounted) return;
-        AgroSnackBar.success(context, 'Dispatch reversed successfully');
+        SnackbarService.showSuccess(context, 'Dispatch reversed successfully');
       } catch (e) {
         if (!context.mounted) return;
-        AgroSnackBar.error(context, 'Error: $e');
+        SnackbarService.showError(context, 'Error: $e');
       }
     }
   }
@@ -92,20 +90,8 @@ class DispatchListScreen extends ConsumerWidget {
       sessionProvider.select((session) => session.canManageUsers),
     );
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const WarehouseSelector(screenTitle: 'Dispatch Log'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        toolbarHeight: 72,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: Colors.grey[200], height: 1),
-        ),
-      ),
-      body: stateAsync.when(
+    return SafeArea(
+      child: stateAsync.when(
         loading:
             () => const Padding(
               padding: EdgeInsets.all(16),
@@ -272,38 +258,49 @@ class DispatchListScreen extends ConsumerWidget {
               ),
               const Divider(height: 1, thickness: 1),
               Expanded(
-                child:
+                child: RefreshIndicator(
+                  onRefresh: () async => ref.refresh(dispatchListProvider.future),
+                  child:
                     dispatches.isEmpty
-                        ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.local_shipping_outlined,
-                                size: 64,
-                                color: Colors.grey[300],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No dispatches logged',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
+                        ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: 420,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.local_shipping_outlined,
+                                      size: 64,
+                                      color: Colors.grey[300],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No dispatches logged',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Use "Dispatch Order" to start.',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[400],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Use "Dispatch Order" to start.',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[400],
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         )
                         : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.only(
                             left: 16,
                             right: 16,
@@ -480,17 +477,11 @@ class DispatchListScreen extends ConsumerWidget {
                             );
                           },
                         ),
+                ),
               ),
             ],
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/orders'),
-        icon: const Icon(Icons.local_shipping),
-        label: const Text('Dispatch Order'),
-        backgroundColor: Colors.blue[800],
-        foregroundColor: Colors.white,
       ),
     );
   }

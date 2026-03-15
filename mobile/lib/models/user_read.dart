@@ -1,3 +1,5 @@
+import 'warehouse_access.dart';
+
 /// Minimal DTO mirroring backend UserRead schema.
 class UserRead {
   final int id;
@@ -8,6 +10,7 @@ class UserRead {
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<WarehouseAccess> warehouses;
 
   const UserRead({
     required this.id,
@@ -18,6 +21,7 @@ class UserRead {
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
+    this.warehouses = const [],
   });
 
   factory UserRead.fromJson(Map<String, dynamic> json) {
@@ -30,6 +34,13 @@ class UserRead {
       isActive: json['is_active'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
+      warehouses:
+          (json['warehouses'] as List<dynamic>? ?? const [])
+              .map(
+                (warehouse) =>
+                    WarehouseAccess.fromJson(warehouse as Map<String, dynamic>),
+              )
+              .toList(),
     );
   }
 }

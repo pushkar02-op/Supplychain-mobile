@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../core/navigation/create_result.dart';
 import '../providers/order_provider.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
@@ -41,6 +42,13 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   bool _isDuplicate = false;
 
   bool get _isEdit => _editingOrder != null;
+
+  void _handleCancelPop(bool didPop, Object? result) {
+    if (didPop) {
+      return;
+    }
+    Navigator.of(context).pop(CreateResult.cancelled);
+  }
 
   @override
   void initState() {
@@ -197,7 +205,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           context,
           _isEdit ? 'Order adjusted' : 'Order created',
         );
-        Navigator.pop(context);
+        Navigator.pop(context, CreateResult.created);
       }
     } catch (e) {
       debugPrint('Order create error: $e');
@@ -236,24 +244,27 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     final isToday = DateUtils.isSameDay(_orderDate, DateTime.now());
     final dateStr = DateFormat('EEEE, MMM d').format(_orderDate);
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Text(
-          _isEdit ? 'Adjust Order' : 'Create Order',
-          style: const TextStyle(fontWeight: FontWeight.w600),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleCancelPop,
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          title: Text(
+            _isEdit ? 'Adjust Order' : 'Create Order',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(color: Colors.grey[200], height: 1),
+          ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: Colors.grey[200], height: 1),
-        ),
-      ),
-      body:
-          _error.isNotEmpty
-              ? Center(
+        body:
+            _error.isNotEmpty
+                ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -580,7 +591,10 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                               SizedBox(
                                 width: double.infinity,
                                 child: OutlinedButton(
-                                  onPressed: () => context.pop(),
+                                  onPressed:
+                                      () => context.pop(
+                                        CreateResult.cancelled,
+                                      ),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.red.shade700,
                                     side: BorderSide(
@@ -626,6 +640,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                   ],
                 ),
               ),
+      ),
     );
   }
 }

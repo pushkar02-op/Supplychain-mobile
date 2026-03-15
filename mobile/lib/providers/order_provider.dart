@@ -4,6 +4,7 @@ import '../core/session/session_guard.dart';
 import '../models/order.dart';
 import '../repositories/order_repository.dart';
 import 'active_mart_provider.dart';
+import 'overview_provider.dart';
 
 final orderRepositoryProvider = Provider((ref) => OrderRepository());
 
@@ -101,6 +102,7 @@ class OrderListNotifier extends AsyncNotifier<OrderListState> {
       unit: unit,
     );
     await refresh();
+    ref.invalidate(overviewSummaryProvider);
     return result;
   }
 

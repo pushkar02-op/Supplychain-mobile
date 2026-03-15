@@ -5,16 +5,17 @@ import 'package:uuid/uuid.dart';
 import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
 import '../models/stock_entry_create.dart';
+import '../models/stock_transaction.dart';
 
 class StockRepository {
   /// Fetch all items for the dropdown
-  Future<List<dynamic>> fetchItems(int warehouseId) async {
+  Future<List<Map<String, dynamic>>> fetchItems(int warehouseId) async {
     try {
       final resp = await DioClient.instance.get(
         '/item/',
         queryParameters: {'warehouse_id': warehouseId},
       );
-      return resp.data as List<dynamic>;
+      return List<Map<String, dynamic>>.from(resp.data as List);
     } catch (e) {
       rethrow;
     }
@@ -43,7 +44,7 @@ class StockRepository {
   }
 
   /// Fetch stock entries by date
-  Future<List<dynamic>> fetchStockEntries({
+  Future<List<StockTransaction>> fetchStockEntries({
     required int warehouseId,
     required String date,
   }) async {
@@ -58,7 +59,9 @@ class StockRepository {
         },
       );
       if (resp.data is List) {
-        return List<dynamic>.from(resp.data);
+        return (resp.data as List<dynamic>)
+            .map((entry) => StockTransaction.fromJson(entry as Map<String, dynamic>))
+            .toList();
       }
       throw const FormatException('Expected a list of stock entries');
     } on DioException catch (e) {

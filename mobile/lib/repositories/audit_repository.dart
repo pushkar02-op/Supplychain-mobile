@@ -4,11 +4,19 @@ import '../models/audit_log_entry.dart';
 
 class AuditRepository {
   /// Fetch all audit logs (Owner only)
-  Future<List<AuditLogEntry>> fetchAuditLogs(int warehouseId) async {
+  Future<List<AuditLogEntry>> fetchAuditLogs(
+    int warehouseId, {
+    int limit = 10,
+    int offset = 0,
+  }) async {
     try {
       final resp = await DioClient.instance.get(
         '/audit-logs/',
-        queryParameters: {'warehouse_id': warehouseId},
+        queryParameters: {
+          'warehouse_id': warehouseId,
+          'limit': limit,
+          'offset': offset,
+        },
       );
       if (resp.statusCode != 200) {
         throw AppError(detail: 'Failed to fetch audit logs');

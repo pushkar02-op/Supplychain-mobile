@@ -1,3 +1,5 @@
+import 'json_parsers.dart';
+
 class MartBill {
   final int id;
   final String? invoiceDate;
@@ -25,16 +27,29 @@ class MartBill {
 
   factory MartBill.fromJson(Map<String, dynamic> json) {
     return MartBill(
-      id: json['id'],
-      invoiceDate: json['invoice_date'],
-      martId: json['mart_id'],
-      martName: json['mart_name'],
-      totalAmount: (json['total_amount'] ?? 0).toDouble(),
-      filePath: json['file_path'],
-      status: json['status'] ?? 'PROCESSING',
-      remarks: json['remarks'],
-      lockedAt: json['locked_at'],
-      lockedBy: json['locked_by'],
+      id: JsonParsers.parseInt(json['id']),
+      invoiceDate: json['invoice_date']?.toString(),
+      martId: JsonParsers.parseInt(json['mart_id']),
+      martName: json['mart_name']?.toString(),
+      totalAmount: JsonParsers.parseNum(json['total_amount']),
+      filePath: json['file_path']?.toString(),
+      status: JsonParsers.parseString(json['status'], fallback: 'PROCESSING'),
+      remarks: json['remarks']?.toString(),
+      lockedAt: json['locked_at']?.toString(),
+      lockedBy: json['locked_by']?.toString(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'invoice_date': invoiceDate,
+    'mart_id': martId,
+    'mart_name': martName,
+    'total_amount': totalAmount,
+    'file_path': filePath,
+    'status': status,
+    'remarks': remarks,
+    'locked_at': lockedAt,
+    'locked_by': lockedBy,
+  };
 }

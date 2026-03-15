@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/navigation/create_result.dart';
 import '../providers/item_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
@@ -159,7 +160,10 @@ class ItemListScreen extends ConsumerWidget {
             icon: const Icon(Icons.add),
             tooltip: 'Add Item',
             onPressed: () async {
-              await context.push('/item-edit');
+              final result = await context.push('/item-edit');
+              if (result == CreateResult.created) {
+                ref.invalidate(itemListProvider);
+              }
             },
           ),
         ],
@@ -172,38 +176,51 @@ class ItemListScreen extends ConsumerWidget {
               message: e.toString(),
               onRetry: () => ref.read(itemListProvider.notifier).refresh(),
             ),
-        data: (state) {
-          if (state.items.isEmpty) {
-            return AgroEmptyState(
-              icon: Icons.category_outlined,
-              title: 'No items in catalog',
-              actionLabel: 'Add your first item',
-              onAction: () async {
-                await context.push('/item-edit');
-              },
-            );
-          }
-
-          return ListView.builder(
-            itemCount: state.items.length,
-            itemBuilder: (context, index) {
-              final item = state.items[index];
-              return _ItemCard(item: item);
-            },
-          );
-        },
+        data:
+            (state) => RefreshIndicator(
+              onRefresh: () async => ref.refresh(itemListProvider.future),
+              child:
+                  state.items.isEmpty
+                      ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: 420,
+                            child: AgroEmptyState(
+                              icon: Icons.category_outlined,
+                              title: 'No items in catalog',
+                              actionLabel: 'Add your first item',
+                              onAction: () async {
+                                final result = await context.push('/item-edit');
+                                if (result == CreateResult.created) {
+                                  ref.invalidate(itemListProvider);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      )
+                      : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: state.items.length,
+                        itemBuilder: (context, index) {
+                          final item = state.items[index];
+                          return _ItemCard(item: item);
+                        },
+                      ),
+            ),
       ),
     );
   }
 }
 
-class _ItemCard extends StatelessWidget {
+class _ItemCard extends ConsumerWidget {
   final Map<String, dynamic> item;
 
   const _ItemCard({required this.item});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final aliases = List<Map<String, dynamic>>.from(item['aliases'] ?? []);
     final conversions = List<Map<String, dynamic>>.from(
       item['conversions'] ?? [],
@@ -352,7 +369,13 @@ class _ItemCard extends StatelessWidget {
                         ),
                         tooltip: 'Edit',
                         onPressed: () async {
-                          await context.push('/item-edit', extra: item);
+                          final result = await context.push(
+                            '/item-edit',
+                            extra: item,
+                          );
+                          if (result == CreateResult.created) {
+                            ref.invalidate(itemListProvider);
+                          }
                         },
                       ),
                     ],

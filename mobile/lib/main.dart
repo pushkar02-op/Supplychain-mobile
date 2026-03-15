@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/navigation/route_refresh_registry.dart';
 import 'core/dio_client.dart';
 import 'core/session/session_controller.dart';
 import 'routes/app_router.dart';
@@ -16,6 +17,8 @@ void main() {
     debugPrint('[BOOT] Forcing SemanticsBinding');
     SemanticsBinding.instance.ensureSemantics();
   }
+
+  registerRouteRefreshRules();
 
   debugPrint('[BOOT] Running runApp');
   runApp(const ProviderScope(child: MyApp()));

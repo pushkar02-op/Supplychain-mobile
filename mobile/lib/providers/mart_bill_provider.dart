@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/session/session_guard.dart';
 import '../models/mart_bill.dart';
+import '../models/mart_bill_page.dart';
 import '../repositories/mart_bill_repository.dart';
 import 'active_mart_provider.dart';
 import 'warehouse_context_provider.dart';
@@ -13,7 +14,7 @@ final martBillProvider = AsyncNotifierProvider<MartBillNotifier, MartBillState>(
 );
 
 class MartBillState {
-  final List<Map<String, dynamic>> bills;
+  final List<MartBill> bills;
   final DateTime? selectedDate;
   final String search;
   final int skip;
@@ -38,7 +39,7 @@ class MartBillState {
   });
 
   MartBillState copyWith({
-    List<Map<String, dynamic>>? bills,
+    List<MartBill>? bills,
     DateTime? selectedDate,
     bool clearSelectedDate = false,
     String? search,
@@ -95,12 +96,12 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
       limit: 20,
     );
     return MartBillState(
-      bills: List<Map<String, dynamic>>.from(initial['items'] ?? const []),
+      bills: initial.items,
       selectedDate: null,
       search: '',
-      skip: initial['skip'] as int? ?? 0,
-      limit: initial['limit'] as int? ?? 20,
-      hasMore: initial['has_more'] as bool? ?? false,
+      skip: initial.skip,
+      limit: initial.limit,
+      hasMore: initial.hasMore,
       isLoadingMore: false,
       isUploading: false,
       pickedPaths: const [],
@@ -127,9 +128,9 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
       return current.copyWith(
         selectedDate: date,
         clearSelectedDate: date == null,
-        bills: List<Map<String, dynamic>>.from(result['items'] ?? const []),
-        skip: result['skip'] as int? ?? 0,
-        hasMore: result['has_more'] as bool? ?? false,
+        bills: result.items,
+        skip: result.skip,
+        hasMore: result.hasMore,
         isLoadingMore: false,
       );
     });
@@ -154,9 +155,9 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
       );
       return current.copyWith(
         search: trimmed,
-        bills: List<Map<String, dynamic>>.from(result['items'] ?? const []),
-        skip: result['skip'] as int? ?? 0,
-        hasMore: result['has_more'] as bool? ?? false,
+        bills: result.items,
+        skip: result.skip,
+        hasMore: result.hasMore,
         isLoadingMore: false,
       );
     });
@@ -182,9 +183,9 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
         limit: current.limit,
       );
       return current.copyWith(
-        bills: List<Map<String, dynamic>>.from(result['items'] ?? const []),
-        skip: result['skip'] as int? ?? 0,
-        hasMore: result['has_more'] as bool? ?? false,
+        bills: result.items,
+        skip: result.skip,
+        hasMore: result.hasMore,
         isLoadingMore: false,
       );
     });
@@ -199,7 +200,7 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     final nextSkip = current.skip + current.limit;
     final result = await AsyncValue.guard(() async {
       final repo = ref.read(martBillRepositoryProvider);
-      final response = await repo.fetchMartBills(
+      final MartBillPage response = await repo.fetchMartBills(
         warehouseId: warehouseId,
         date: current.selectedDate,
         martName: ref.read(activeMartProvider),
@@ -207,13 +208,10 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
         skip: nextSkip,
         limit: current.limit,
       );
-      final nextItems = List<Map<String, dynamic>>.from(
-        response['items'] ?? const [],
-      );
       return current.copyWith(
-        bills: [...current.bills, ...nextItems],
-        skip: response['skip'] as int? ?? nextSkip,
-        hasMore: response['has_more'] as bool? ?? false,
+        bills: [...current.bills, ...response.items],
+        skip: response.skip,
+        hasMore: response.hasMore,
         isLoadingMore: false,
       );
     });

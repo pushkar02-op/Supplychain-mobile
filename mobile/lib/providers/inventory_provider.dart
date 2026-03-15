@@ -1,13 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/session/session_guard.dart';
-import '../models/inventory.dart';
+import '../models/inventory_batch.dart';
+import '../models/inventory_detail.dart';
+import '../models/inventory_item.dart';
+import '../models/inventory_signal.dart';
+import '../models/inventory_transaction.dart';
 import '../repositories/inventory_repository.dart';
 
 final inventoryRepositoryProvider = Provider((ref) => InventoryRepository());
 
 class InventoryListState {
-  final List<Inventory> items;
+  final List<InventoryItem> items;
   final int? selectedItemId;
   final String? selectedUnit;
 
@@ -18,7 +22,7 @@ class InventoryListState {
   });
 
   InventoryListState copyWith({
-    List<Inventory>? items,
+    List<InventoryItem>? items,
     int? selectedItemId,
     String? selectedUnit,
     bool clearItem = false,
@@ -39,7 +43,7 @@ final inventoryListProvider =
     );
 
 final inventoryItemOptionsProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+    FutureProvider.autoDispose<List<InventoryItem>>((ref) async {
       final warehouseId = requireWarehouse(ref);
       final repo = ref.read(inventoryRepositoryProvider);
       return repo.fetchItemOptions(warehouseId);
@@ -59,9 +63,7 @@ class InventoryNotifier extends AsyncNotifier<InventoryListState> {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(inventoryRepositoryProvider);
     final data = await repo.fetchInventory(warehouseId: warehouseId);
-    return InventoryListState(
-      items: data.map((e) => Inventory.fromJson(e)).toList(),
-    );
+    return InventoryListState(items: data);
   }
 
   Future<void> refresh() async {
@@ -75,7 +77,7 @@ class InventoryNotifier extends AsyncNotifier<InventoryListState> {
         unit: state.valueOrNull?.selectedUnit,
       );
       return InventoryListState(
-        items: data.map((e) => Inventory.fromJson(e)).toList(),
+        items: data,
         selectedItemId: state.valueOrNull?.selectedItemId,
         selectedUnit: state.valueOrNull?.selectedUnit,
       );
@@ -96,7 +98,7 @@ class InventoryNotifier extends AsyncNotifier<InventoryListState> {
     await refresh();
   }
 
-  Future<Map<String, dynamic>> fetchDetail(int itemId) async {
+  Future<InventoryDetail> fetchDetail(int itemId) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(inventoryRepositoryProvider);
     final results = await Future.wait([
@@ -104,26 +106,26 @@ class InventoryNotifier extends AsyncNotifier<InventoryListState> {
       repo.fetchBatches(warehouseId, itemId),
       repo.fetchItemSignals(warehouseId, itemId),
     ]);
-    return {
-      'transactions': results[0],
-      'batches': results[1],
-      'signals': results[2],
-    };
+    return InventoryDetail(
+      transactions: results[0] as List<InventoryTransaction>,
+      batches: results[1] as List<InventoryBatch>,
+      signals: results[2] as InventorySignal,
+    );
   }
 
-  Future<List<Map<String, dynamic>>> fetchTransactions(int itemId) async {
+  Future<List<InventoryTransaction>> fetchTransactions(int itemId) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(inventoryRepositoryProvider);
     return repo.fetchTransactions(warehouseId: warehouseId, itemId: itemId);
   }
 
-  Future<List<Map<String, dynamic>>> fetchBatches(int itemId) async {
+  Future<List<InventoryBatch>> fetchBatches(int itemId) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(inventoryRepositoryProvider);
     return repo.fetchBatches(warehouseId, itemId);
   }
 
-  Future<Map<String, dynamic>> fetchItemSignals(int itemId) async {
+  Future<InventorySignal> fetchItemSignals(int itemId) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(inventoryRepositoryProvider);
     return repo.fetchItemSignals(warehouseId, itemId);

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/navigation/create_result.dart';
 import '../providers/warehouse_context_provider.dart';
 import '../services/stock_service.dart';
 import '../ui/widgets/agro_snack_bar.dart';
@@ -49,6 +50,13 @@ class _StockEntryScreenState extends ConsumerState<StockEntryScreen> {
   final bool _is409Error = false;
   List<dynamic> _items = [];
   List<String> _unitOptions = [];
+
+  void _handleCancelPop(bool didPop, Object? result) {
+    if (didPop) {
+      return;
+    }
+    Navigator.of(context).pop(CreateResult.cancelled);
+  }
 
   @override
   void initState() {
@@ -155,7 +163,7 @@ class _StockEntryScreenState extends ConsumerState<StockEntryScreen> {
 
     if (result == true) {
       AgroSnackBar.success(context, 'Stock receipt saved');
-      context.pop(true);
+      context.pop(CreateResult.created);
     } else {
       setState(() {
         _isLoading = false;
@@ -235,7 +243,7 @@ class _StockEntryScreenState extends ConsumerState<StockEntryScreen> {
 
     if (result == true) {
       AgroSnackBar.success(context, 'Stock corrected');
-      context.pop(true);
+      context.pop(CreateResult.created);
     } else {
       setState(() {
         _isLoading = false;
@@ -262,15 +270,19 @@ class _StockEntryScreenState extends ConsumerState<StockEntryScreen> {
   Widget build(BuildContext context) {
     final isCorrectMode = _mode == StockEntryMode.correct;
 
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        title: Text(isCorrectMode ? 'Correct Stock' : 'Receive Stock'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleCancelPop,
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          title: Text(isCorrectMode ? 'Correct Stock' : 'Receive Stock'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 1,
+        ),
+        body: _buildBody(isCorrectMode),
       ),
-      body: _buildBody(isCorrectMode),
     );
   }
 
@@ -323,7 +335,7 @@ class _StockEntryScreenState extends ConsumerState<StockEntryScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () => context.pop(),
+            onPressed: () => context.pop(CreateResult.cancelled),
             icon: const Icon(Icons.arrow_back),
             label: const Text('Back to Stock List'),
           ),

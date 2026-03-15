@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../core/navigation/create_result.dart';
 import '../providers/rejection_provider.dart';
 import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_snack_bar.dart';
@@ -35,6 +36,13 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
   bool _loadingBatches = false;
   bool _submitting = false;
   String? _error;
+
+  void _handleCancelPop(bool didPop, Object? result) {
+    if (didPop) {
+      return;
+    }
+    Navigator.of(context).pop(CreateResult.cancelled);
+  }
 
   @override
   void initState() {
@@ -114,7 +122,7 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
           );
       if (!mounted) return;
       AgroSnackBar.success(context, 'Rejection saved');
-      context.pop(true);
+      context.pop(CreateResult.created);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -124,18 +132,21 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Rejection Entry')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child:
-            _error != null
-                ? AgroErrorState.general(
-                  customTitle: 'Failed to load rejection entry',
-                  message: _error,
-                  onRetry: _loadItems,
-                )
-                : Form(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleCancelPop,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Rejection Entry')),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child:
+              _error != null
+                  ? AgroErrorState.general(
+                    customTitle: 'Failed to load rejection entry',
+                    message: _error,
+                    onRetry: _loadItems,
+                  )
+                  : Form(
                   key: _formKey,
                   child: ListView(
                     children: [
@@ -277,6 +288,7 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
                     ],
                   ),
                 ),
+        ),
       ),
     );
   }

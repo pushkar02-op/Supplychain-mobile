@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../core/session/session_guard.dart';
 import '../repositories/rejection_repository.dart';
+import 'overview_provider.dart';
 import 'warehouse_context_provider.dart';
 
 final rejectionRepositoryProvider = Provider<RejectionRepository>(
@@ -280,6 +281,7 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
       rejectedBy: rejectedBy,
     );
     ref.invalidateSelf();
+    ref.invalidate(overviewSummaryProvider);
   }
 
   Future<void> reverseRejection(int id) async {

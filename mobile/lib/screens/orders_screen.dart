@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../core/navigation/create_result.dart';
 import '../models/order.dart';
 import '../providers/active_mart_provider.dart';
+import '../providers/dispatch_provider.dart';
 import '../providers/order_provider.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
@@ -16,11 +18,23 @@ import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_status_badge.dart';
-import '../widgets/warehouse_selector.dart';
 import '../widgets/skeleton_loader.dart';
 
 class OrdersScreen extends ConsumerWidget {
   const OrdersScreen({super.key});
+
+  Map<String, dynamic> _dispatchExtra(Order order) {
+    return {
+      'order_id': order.id,
+      'item_id': order.itemId,
+      'mart_name': order.martName,
+      'quantity_ordered': order.quantityOrdered,
+      'quantity_dispatched': order.quantityDispatched,
+      'unit': order.unit,
+      'dispatch_date': order.orderDate.toIso8601String(),
+      'item_name': order.itemName,
+    };
+  }
 
   Future<void> _pickDate(
     BuildContext context,
@@ -67,6 +81,32 @@ class OrdersScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _openOrderEditor(
+    BuildContext context,
+    WidgetRef ref,
+    Order order,
+  ) async {
+    final result = await context.push('/order-entry', extra: order.toJson());
+    if (result == CreateResult.created) {
+      ref.invalidate(orderListProvider);
+    }
+  }
+
+  Future<void> _openDispatch(
+    BuildContext context,
+    WidgetRef ref,
+    Order order,
+  ) async {
+    final result = await context.push(
+      '/dispatch-entry',
+      extra: _dispatchExtra(order),
+    );
+    if (result == CreateResult.created) {
+      ref.invalidate(orderListProvider);
+      ref.invalidate(dispatchListProvider);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(orderListProvider);
@@ -79,17 +119,8 @@ class OrdersScreen extends ConsumerWidget {
     );
     final selectedMart = ref.watch(activeMartProvider);
 
-    return Scaffold(
-      backgroundColor: AgroColors.background,
-      appBar: AppBar(
-        title: const WarehouseSelector(screenTitle: 'Orders'),
-        backgroundColor: AgroColors.surface,
-        foregroundColor: AgroColors.textPrimary,
-        elevation: 1,
-        toolbarHeight: 72,
-        automaticallyImplyLeading: false,
-      ),
-      body: stateAsync.when(
+    return SafeArea(
+      child: stateAsync.when(
         loading: () => const StaticSkeletonList(itemCount: 5),
         error:
             (e, _) => AgroErrorState(
@@ -226,6 +257,12 @@ class OrdersScreen extends ConsumerWidget {
                                   order: state.orders[i],
                                   onDelete:
                                       (id) => _confirmDelete(context, ref, id),
+                                  onEdit:
+                                      (order) =>
+                                          _openOrderEditor(context, ref, order),
+                                  onDispatch:
+                                      (order) =>
+                                          _openDispatch(context, ref, order),
                                 ),
                           ),
                         ),
@@ -234,13 +271,6 @@ class OrdersScreen extends ConsumerWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/order-entry'),
-        backgroundColor: AgroColors.success.text,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Order'),
-        heroTag: 'orders-add-fab',
-      ),
     );
   }
 }
@@ -248,8 +278,15 @@ class OrdersScreen extends ConsumerWidget {
 class _OrderCard extends StatelessWidget {
   final Order order;
   final Future<void> Function(int) onDelete;
+  final Future<void> Function(Order) onEdit;
+  final Future<void> Function(Order) onDispatch;
 
-  const _OrderCard({required this.order, required this.onDelete});
+  const _OrderCard({
+    required this.order,
+    required this.onDelete,
+    required this.onEdit,
+    required this.onDispatch,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -289,21 +326,7 @@ class _OrderCard extends StatelessWidget {
         ],
       ),
       child: InkWell(
-        onTap: () {
-          context.push(
-            '/dispatch-entry',
-            extra: {
-              'order_id': order.id,
-              'item_id': order.itemId,
-              'mart_name': order.martName,
-              'quantity_ordered': order.quantityOrdered,
-              'quantity_dispatched': order.quantityDispatched,
-              'unit': order.unit,
-              'dispatch_date': order.orderDate.toIso8601String(),
-              'item_name': order.itemName,
-            },
-          );
-        },
+        onTap: () => onDispatch(order),
         borderRadius: AgroShapes.containerRadius,
         child: Padding(
           padding: const EdgeInsets.all(AgroSpacing.md + 2),
@@ -348,21 +371,9 @@ class _OrderCard extends StatelessWidget {
               PopupMenuButton<String>(
                 onSelected: (v) {
                   if (v == 'edit') {
-                    context.push('/order-entry', extra: order.toJson());
+                    onEdit(order);
                   } else if (v == 'dispatch') {
-                    context.push(
-                      '/dispatch-entry',
-                      extra: {
-                        'order_id': order.id,
-                        'item_id': order.itemId,
-                        'mart_name': order.martName,
-                        'quantity_ordered': order.quantityOrdered,
-                        'quantity_dispatched': order.quantityDispatched,
-                        'unit': order.unit,
-                        'dispatch_date': order.orderDate.toIso8601String(),
-                        'item_name': order.itemName,
-                      },
-                    );
+                    onDispatch(order);
                   } else {
                     onDelete(order.id);
                   }

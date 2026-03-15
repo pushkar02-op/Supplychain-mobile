@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../models/user_read.dart';
+import '../core/navigation/create_result.dart';
 import '../core/session/session_controller.dart';
+import '../models/user_read.dart';
 import '../providers/user_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_shapes.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_error_state.dart';
-import '../ui/widgets/agro_snack_bar.dart';
 
 class UserListScreen extends ConsumerWidget {
   const UserListScreen({super.key});
@@ -28,6 +29,15 @@ class UserListScreen extends ConsumerWidget {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await context.push<CreateResult>('/admin/users/create');
+          if (result == CreateResult.created) {
+            ref.invalidate(userListProvider);
+          }
+        },
+        child: const Icon(Icons.add),
       ),
       body: stateAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -52,15 +62,15 @@ class UserListScreen extends ConsumerWidget {
                           return _UserCard(
                             user: user,
                             isSelf: user.id == currentUserId,
-                            onRoleChange:
-                                () => _showRoleSheet(context, ref, user),
-                            onDeactivate:
-                                () => _confirmDeactivate(
-                                  context,
-                                  ref,
-                                  user,
-                                  currentUserId,
-                                ),
+                            onTap: () async {
+                              final result = await context.push<CreateResult>(
+                                '/admin/users/edit',
+                                extra: user,
+                              );
+                              if (result == CreateResult.created) {
+                                ref.invalidate(userListProvider);
+                              }
+                            },
                           );
                         },
                       ),
@@ -68,173 +78,17 @@ class UserListScreen extends ConsumerWidget {
       ),
     );
   }
-
-  void _showRoleSheet(BuildContext context, WidgetRef ref, UserRead user) {
-    String selectedRole = user.role;
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder:
-          (ctx) => StatefulBuilder(
-            builder:
-                (ctx, setSheetState) => Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Update Role for ${user.fullName}',
-                        style: AgroTypography.sectionTitle,
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: selectedRole,
-                        decoration: const InputDecoration(
-                          labelText: 'Role',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'OWNER',
-                            child: Text('Owner'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'MANAGER',
-                            child: Text('Manager'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'WORKER',
-                            child: Text('Worker'),
-                          ),
-                        ],
-                        onChanged: (v) {
-                          if (v != null) {
-                            setSheetState(() => selectedRole = v);
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed:
-                              selectedRole == user.role
-                                  ? null
-                                  : () async {
-                                    Navigator.pop(ctx);
-                                    try {
-                                      await ref
-                                          .read(userListProvider.notifier)
-                                          .updateRole(user.id, selectedRole);
-                                      if (context.mounted) {
-                                        AgroSnackBar.success(
-                                          context,
-                                          'Role updated to $selectedRole',
-                                        );
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
-                                        AgroSnackBar.error(
-                                          context,
-                                          'Failed to update role: $e',
-                                        );
-                                      }
-                                    }
-                                  },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AgroColors.primary,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Update Role'),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-          ),
-    );
-  }
-
-  void _confirmDeactivate(
-    BuildContext context,
-    WidgetRef ref,
-    UserRead user,
-    int? currentUserId,
-  ) {
-    // Self-deactivation guard
-    if (user.id == currentUserId) {
-      showDialog(
-        context: context,
-        builder:
-            (ctx) => AlertDialog(
-              title: const Text('Not Allowed'),
-              content: const Text('You cannot deactivate your own account.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Deactivate User'),
-            content: Text(
-              'Are you sure you want to deactivate "${user.fullName}" (${user.username})?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  try {
-                    await ref
-                        .read(userListProvider.notifier)
-                        .deactivateUser(user.id);
-                    if (context.mounted) {
-                      AgroSnackBar.success(context, 'User deactivated');
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      AgroSnackBar.error(context, 'Failed to deactivate: $e');
-                    }
-                  }
-                },
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Deactivate'),
-              ),
-            ],
-          ),
-    );
-  }
 }
 
 class _UserCard extends StatelessWidget {
   final UserRead user;
   final bool isSelf;
-  final VoidCallback onRoleChange;
-  final VoidCallback onDeactivate;
+  final VoidCallback onTap;
 
   const _UserCard({
     required this.user,
     required this.isSelf,
-    required this.onRoleChange,
-    required this.onDeactivate,
+    required this.onTap,
   });
 
   @override
@@ -255,6 +109,7 @@ class _UserCard extends StatelessWidget {
         ),
       ),
       child: ListTile(
+        onTap: onTap,
         leading: CircleAvatar(
           backgroundColor: roleColor.withValues(alpha: 0.15),
           child: Text(
@@ -328,24 +183,7 @@ class _UserCard extends StatelessWidget {
             ],
           ],
         ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (action) {
-            if (action == 'role') onRoleChange();
-            if (action == 'deactivate') onDeactivate();
-          },
-          itemBuilder:
-              (_) => [
-                const PopupMenuItem(value: 'role', child: Text('Change Role')),
-                if (user.isActive)
-                  const PopupMenuItem(
-                    value: 'deactivate',
-                    child: Text(
-                      'Deactivate',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-              ],
-        ),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }

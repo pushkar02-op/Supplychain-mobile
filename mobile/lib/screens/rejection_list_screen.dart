@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../core/navigation/create_result.dart';
+import '../core/ui/snackbar_service.dart';
 import '../providers/rejection_provider.dart';
 import '../ui/widgets/agro_error_state.dart';
-import '../ui/widgets/agro_snack_bar.dart';
 
 class RejectionListScreen extends ConsumerStatefulWidget {
   const RejectionListScreen({super.key});
@@ -43,7 +44,12 @@ class _RejectionListScreenState extends ConsumerState<RejectionListScreen> {
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
           icon: const Icon(Icons.add),
           label: const Text('New Reject'),
-          onPressed: () => context.push('/rejection-entry'),
+          onPressed: () async {
+            final result = await context.push('/rejection-entry');
+            if (result == CreateResult.created) {
+              ref.invalidate(rejectionListProvider);
+            }
+          },
         ),
       ],
     );
@@ -113,14 +119,14 @@ class _RejectionListScreenState extends ConsumerState<RejectionListScreen> {
             .read(rejectionListProvider.notifier)
             .reverseRejection(rejection['id']);
         if (mounted) {
-          AgroSnackBar.success(
+          SnackbarService.showSuccess(
             context,
             'Rejection reversed. Stock has been restored.',
           );
         }
       } catch (e) {
         if (mounted) {
-          AgroSnackBar.error(context, 'Error: $e');
+          SnackbarService.showError(context, 'Error: $e');
         }
       }
     }
@@ -128,28 +134,42 @@ class _RejectionListScreenState extends ConsumerState<RejectionListScreen> {
 
   Widget _buildList(RejectionListState state) {
     if (state.items.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.cancel_outlined, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No rejections recorded',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 420,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cancel_outlined, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No rejections recorded',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final result = await context.push('/rejection-entry');
+                      if (result == CreateResult.created) {
+                        ref.invalidate(rejectionListProvider);
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Record a rejection'),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () => context.push('/rejection-entry'),
-              icon: const Icon(Icons.add),
-              label: const Text('Record a rejection'),
-            ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: state.items.length + 1,
       itemBuilder: (_, index) {
         if (index == state.items.length) {
@@ -167,7 +187,7 @@ class _RejectionListScreenState extends ConsumerState<RejectionListScreen> {
                                 .loadMore();
                           } catch (e) {
                             if (!mounted) return;
-                            AgroSnackBar.error(
+                            SnackbarService.showError(
                               context,
                               'Failed to load rejections: $e',
                             );
@@ -272,14 +292,19 @@ class _RejectionListScreenState extends ConsumerState<RejectionListScreen> {
               message: e.toString(),
               onRetry: () => ref.read(rejectionListProvider.notifier).refresh(),
             ),
-        data:
-            (state) => Column(
-              children: [
-                _buildFilters(state),
-                const Divider(),
-                Expanded(child: _buildList(state)),
-              ],
+        data: (state) => Column(
+          children: [
+            _buildFilters(state),
+            const Divider(),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh:
+                    () async => ref.refresh(rejectionListProvider.future),
+                child: _buildList(state),
+              ),
             ),
+          ],
+        ),
       ),
     );
   }
