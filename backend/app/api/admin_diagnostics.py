@@ -4,6 +4,7 @@ from app.core.auth import require_role
 from app.db.enums.role import Role
 from app.db.models.item import Item
 from app.db.models.user import User
+from app.db.schemas.admin_read_models import MissingDefaultUomResponse
 from app.db.session import get_db
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -12,7 +13,11 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.get("/diagnostics/uom/missing-default", status_code=200)
+@router.get(
+    "/diagnostics/uom/missing-default",
+    response_model=MissingDefaultUomResponse,
+    status_code=200,
+)
 def get_items_missing_default_uom(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),

@@ -11,7 +11,7 @@ from app.db.models.user import User
 from app.db.schemas.audit_log import AuditLogRead
 from app.db.session import get_db
 from app.services.audit import get_audit_logs
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,15 @@ router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])
 )
 def read_logs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.OWNER)),
+    warehouse_id: int | None = Query(default=None),
+    limit: int = Query(default=10, le=50),
+    offset: int = Query(default=0),
+    current_user: User = Depends(require_role(Role.OWNER, Role.MANAGER)),
 ) -> List[AuditLogRead]:
     logger.info("Fetching all audit logs")
-    return get_audit_logs(db=db)
+    return get_audit_logs(
+        db=db,
+        warehouse_id=warehouse_id,
+        limit=limit,
+        offset=offset,
+    )

@@ -5,8 +5,9 @@ from app.core.exceptions import AppException
 from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.schemas.reconciliation import (
+    DriftResolutionRequest,
+    DriftResolutionResult,
     ReconciliationRecordRead,
-    ReconciliationRecordResolve,
 )
 from app.db.session import get_db
 from app.services.reconciliation import (
@@ -68,29 +69,63 @@ def create_reconciliation_record(
     return record
 
 
-@router.post("/resolve", response_model=ReconciliationRecordRead)
+@router.post("/resolve", response_model=DriftResolutionResult)
 def resolve_reconciliation_drift(
-    data: ReconciliationRecordResolve,
+    data: DriftResolutionRequest,
     warehouse_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ):
     """
-    Resolve a drift record by creating an adjustment transaction.
+    Resolve a drift item directly from the drift report.
+
+    Current reconciliation semantics support adjusting the ledger to match the
+    current batch state. "state_to_ledger" therefore creates a reconciliation
+    record (if needed) and posts an adjusting transaction against the ledger.
     """
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "update"
     )
+
+    if data.resolution_type != "state_to_ledger":
+        raise AppException(
+            detail=(
+                "ledger_to_state is not supported by the current "
+                "reconciliation semantics"
+            ),
+            status_code=400,
+            rule_id=None,
+            metadata={},
+        )
+
+    record = create_drift_record(db, data.batch_id, warehouse_id=resolved_warehouse_id)
+    if not record:
+        raise AppException(
+            detail="No drift detected for this batch or batch not found",
+            status_code=400,
+            rule_id=None,
+            metadata={},
+        )
+
     result = resolve_drift(
         db,
-        record_id=data.record_id,
-        adjustment_qty=data.adjustment_qty,
+        record_id=record.id,
+        adjustment_qty=record.drift_amount,
         user_id=current_user.id,
-        apply_to_batch=data.apply_to_batch,
+        apply_to_batch=False,
         warehouse_id=resolved_warehouse_id,
     )
     if "error" in result:
         raise AppException(
             detail=result["error"], status_code=400, rule_id=None, metadata={}
         )
-    return result["record"]
+    resolved_record = result["record"]
+    adjustment_txn_id = resolved_record.resolution_txn_id
+    if adjustment_txn_id is None:
+        raise AppException(
+            detail="Resolution completed without an adjustment transaction",
+            status_code=500,
+            rule_id=None,
+            metadata={},
+        )
+    return DriftResolutionResult(success=True, adjustment_txn_id=adjustment_txn_id)

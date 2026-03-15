@@ -3,6 +3,8 @@ from typing import Dict, List
 from app.core.auth import require_role
 from app.db.enums.role import Role
 from app.db.models.user import User
+from app.db.schemas.admin_read_models import WarehouseHealthSummary
+from app.db.schemas.reconciliation import DriftReportItem
 from app.db.session import get_db
 from app.services.reconciliation import get_ledger_health_report
 from app.services.warehouse_scope import resolve_warehouse_for_request
@@ -17,7 +19,11 @@ def set_no_cache(response: Response):
     response.headers["Pragma"] = "no-cache"
 
 
-@router.get("/health", summary="Get high-level ledger health summary")
+@router.get(
+    "/health",
+    response_model=WarehouseHealthSummary,
+    summary="Get high-level ledger health summary",
+)
 def get_health_summary(
     response: Response,
     warehouse_id: int | None = Query(None),
@@ -54,7 +60,9 @@ def get_health_summary(
 
 
 @router.get(
-    "/reconcile", summary="Get detailed drift report for all problematic batches"
+    "/reconcile",
+    response_model=list[DriftReportItem],
+    summary="Get detailed drift report for all problematic batches",
 )
 def get_reconciliation_report(
     response: Response,
