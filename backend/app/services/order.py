@@ -15,7 +15,7 @@ from app.db.schemas.order import OrderCreate, OrderUpdate
 from app.services.audit import log_action
 from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.warehouse_scope import resolve_system_warehouse_id
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,12 @@ def get_distinct_mart_names(
     """
     resolve_system_warehouse_id(db, warehouse_id)
     logger.debug("Fetching mart names from mart master table")
-    results = db.query(Mart.id, Mart.name).order_by(Mart.name.asc()).all()
+    results = (
+        db.query(Mart.id, Mart.name)
+        .filter(Mart.is_active.is_(True))
+        .order_by(Mart.name.asc())
+        .all()
+    )
     marts = [{"id": r.id, "name": r.name} for r in results if r.name]
     logger.info(f"Found {len(marts)} marts")
     return marts
@@ -181,7 +186,14 @@ def get_orders(
     """
     resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug(f"Fetching orders date={order_date}, mart={mart_name}")
-    q = db.query(Order).filter(Order.warehouse_id == resolved_warehouse_id)
+    q = (
+        db.query(Order)
+        .options(
+            joinedload(Order.item),
+            joinedload(Order.mart),
+        )
+        .filter(Order.warehouse_id == resolved_warehouse_id)
+    )
     if order_date:
         q = q.filter(Order.order_date == order_date)
     if mart_name:
