@@ -68,7 +68,7 @@ class AdminLedgerRepository {
     }
   }
 
-  /// GET /v1/reports/inventory/{itemId}/reconciliation
+  /// GET /reports/inventory/{itemId}/reconciliation
   Future<Map<String, dynamic>?> fetchReconciliationDetail(
     int warehouseId,
     int itemId,
