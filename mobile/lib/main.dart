@@ -35,6 +35,28 @@ class MyApp extends ConsumerStatefulWidget {
 class _MyAppState extends ConsumerState<MyApp> {
   bool _bootstrapped = false;
 
+  Future<bool> _confirmExit(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Exit App'),
+            content: const Text('Do you want to exit the app?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Exit'),
+              ),
+            ],
+          ),
+    );
+    return confirmed ?? false;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -65,6 +87,12 @@ class _MyAppState extends ConsumerState<MyApp> {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       routerConfig: router,
+      builder: (context, child) {
+        return WillPopScope(
+          onWillPop: () => _confirmExit(context),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       title: 'Fruit Vendor Tool',
       theme: ThemeData(
         useMaterial3: true,
