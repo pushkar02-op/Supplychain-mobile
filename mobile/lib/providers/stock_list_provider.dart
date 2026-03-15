@@ -48,7 +48,12 @@ class StockListController extends AsyncNotifier<List<StockTransaction>> {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(stockRepositoryProvider);
     await repo.deleteStockEntry(warehouseId, id);
-    ref.invalidateSelf();
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final date = ref.read(selectedDateProvider);
+      final dateString = date.toIso8601String().split('T')[0];
+      return _fetch(warehouseId, dateString);
+    });
   }
 
   Future<void> addStockEntry({

@@ -5,6 +5,7 @@ import 'order_provider.dart';
 
 /// Global mart selection — null means "All Marts".
 /// Use [activeMartProvider.notifier].state = value to switch mart.
+/// Persisted per user via secure storage in SessionController.
 final activeMartProvider = StateProvider<String?>((ref) => null);
 
 /// Single source of truth for the mart dropdown list.

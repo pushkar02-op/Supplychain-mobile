@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../core/models/user_role.dart';
 import '../../models/warehouse_access.dart';
+import '../../providers/active_mart_provider.dart';
 import '../../repositories/warehouse_repository.dart';
 import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
@@ -21,6 +24,7 @@ class SessionController extends Notifier<Session> {
   static const _refreshTokenKey = 'refresh_token';
   static const _roleKey = 'user_role';
   static const _userIdKey = 'user_id';
+  static const _activeMartKeyPrefix = 'active_mart_user_';
 
   bool _initialized = false;
 
@@ -34,6 +38,7 @@ class SessionController extends Notifier<Session> {
       return;
     }
     _initialized = true;
+    _setupActiveMartPersistence();
     await _hydrateSessionFromStorage();
   }
 
@@ -138,6 +143,7 @@ class SessionController extends Notifier<Session> {
     await _storage.deleteAll();
     DioClient.setAccessToken(null);
     ref.invalidate(currentUserProfileProvider);
+    ref.read(activeMartProvider.notifier).state = null;
     state = const Session(state: SessionState.unauthenticated);
   }
 
@@ -201,6 +207,7 @@ class SessionController extends Notifier<Session> {
         warehouseId: selected,
         warehouses: warehouses,
       );
+      await _hydrateActiveMartSelection(userId);
       return;
     }
 
@@ -215,6 +222,7 @@ class SessionController extends Notifier<Session> {
         warehouseId: persisted,
         warehouses: warehouses,
       );
+      await _hydrateActiveMartSelection(userId);
       return;
     }
 
@@ -226,6 +234,7 @@ class SessionController extends Notifier<Session> {
       role: role,
       warehouses: warehouses,
     );
+    await _hydrateActiveMartSelection(userId);
   }
 
   Future<int?> _readPersistedWarehouse(int? userId) async {
@@ -271,4 +280,33 @@ class SessionController extends Notifier<Session> {
   }
 
   String _warehouseStorageKey(int userId) => 'active_warehouse_user_$userId';
+
+  String _activeMartStorageKey(int userId) => '$_activeMartKeyPrefix$userId';
+
+  void _setupActiveMartPersistence() {
+    ref.listen<String?>(activeMartProvider, (_, next) {
+      unawaited(_persistActiveMartSelection(next));
+    });
+  }
+
+  Future<void> _persistActiveMartSelection(String? martName) async {
+    final userId = state.userId;
+    if (userId == null) {
+      return;
+    }
+    if (martName == null || martName.isEmpty) {
+      await _storage.delete(key: _activeMartStorageKey(userId));
+      return;
+    }
+    await _storage.write(key: _activeMartStorageKey(userId), value: martName);
+  }
+
+  Future<void> _hydrateActiveMartSelection(int? userId) async {
+    if (userId == null) {
+      ref.read(activeMartProvider.notifier).state = null;
+      return;
+    }
+    final persisted = await _storage.read(key: _activeMartStorageKey(userId));
+    ref.read(activeMartProvider.notifier).state = persisted;
+  }
 }
