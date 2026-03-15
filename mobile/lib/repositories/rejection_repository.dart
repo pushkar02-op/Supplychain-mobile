@@ -96,9 +96,7 @@ class RejectionRepository {
 
       if (date != null) params['rejection_date'] = date;
       if (itemIds != null && itemIds.isNotEmpty) {
-        for (var id in itemIds) {
-          params.putIfAbsent('item_ids', () => []).add(id);
-        }
+        params['item_ids'] = itemIds;
       }
 
       final resp = await DioClient.instance.get(
