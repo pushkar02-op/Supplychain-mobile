@@ -172,31 +172,35 @@ class DioClient {
 
           _refreshCompleter = Completer<void>();
           _auditLog('[DIO_REFRESH_START]');
-          final refreshSuccess =
-              await (_refreshHandler?.call() ?? Future.value(false));
 
-          if (refreshSuccess) {
-            _auditLog('[DIO_REFRESH_SUCCESS]');
-            _refreshCompleter!.complete();
-          } else {
-            _auditLog('[DIO_REFRESH_FAILED]');
-            _refreshCompleter!.completeError(Exception('refresh failed'));
+          try {
+            final refreshSuccess =
+                await (_refreshHandler?.call() ?? Future.value(false));
+
+            if (refreshSuccess) {
+              _auditLog('[DIO_REFRESH_SUCCESS]');
+              _refreshCompleter!.complete();
+            } else {
+              _auditLog('[DIO_REFRESH_FAILED]');
+              _refreshCompleter!.completeError(Exception('refresh failed'));
+            }
+
+            if (!refreshSuccess) {
+              await _handleUnauthorizedError();
+              return handler.reject(
+                DioException(
+                  requestOptions: requestOptions,
+                  response: error.response,
+                  error: ErrorMapper.map(error),
+                  type: error.type,
+                ),
+              );
+            }
+
+            return _retryFailedRequest(error, handler, markRetry: true);
+          } finally {
+            _refreshCompleter = null;
           }
-          _refreshCompleter = null;
-
-          if (!refreshSuccess) {
-            await _handleUnauthorizedError();
-            return handler.reject(
-              DioException(
-                requestOptions: requestOptions,
-                response: error.response,
-                error: ErrorMapper.map(error),
-                type: error.type,
-              ),
-            );
-          }
-
-          return _retryFailedRequest(error, handler, markRetry: true);
         },
       ),
     );

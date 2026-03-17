@@ -108,9 +108,12 @@ def dispatch_from_order(
             warehouse_id=resolved_warehouse_id,
             idempotency_key=idempotency_key,
         )
-    except Exception as e:
-        logger.exception("Failed to create dispatch from order")
-        raise AppException(str(e), status_code=400)
+    except AppException:
+        raise
+
+    except Exception:
+        logger.exception("Unexpected error in dispatch from order")
+        raise AppException("Internal server error", status_code=500)
 
 
 @router.get("/", response_model=List[DispatchEntryNetRead])
