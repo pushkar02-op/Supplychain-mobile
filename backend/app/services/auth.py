@@ -71,6 +71,7 @@ def register_user(db: Session, user: UserCreate) -> Token:
         role=new_user.role,
         is_admin=new_user.is_admin,
         refresh_token=refresh_token,
+        user_id=new_user.id,
     )
 
 
@@ -123,6 +124,7 @@ def login_user(db: Session, user: UserLogin) -> Token:
         role=db_user.role,
         is_admin=db_user.is_admin,
         refresh_token=refresh_token,
+        user_id=db_user.id,
     )
 
 
@@ -206,4 +208,5 @@ def refresh_token(db: Session, token_str: str) -> Token:
         role=user.role,
         is_admin=user.is_admin,
         refresh_token=new_refresh_token,
+        user_id=db_token.user_id,
     )

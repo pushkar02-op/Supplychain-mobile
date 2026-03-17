@@ -59,7 +59,7 @@ def create_route(
     return create_rejection_entry(
         db=db,
         entry=entry,
-        created_by="system",
+        created_by=current_user.id,
         idempotency_key=idempotency_key,
         warehouse_id=resolved_warehouse_id,
     )

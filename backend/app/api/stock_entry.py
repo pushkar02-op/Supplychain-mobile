@@ -59,7 +59,7 @@ def create(
     return create_stock_entry(
         db=db,
         entry=entry,
-        created_by=1,
+        created_by=current_user.id,
         idempotency_key=idempotency_key,
         warehouse_id=resolved_warehouse_id,
     )
@@ -193,7 +193,10 @@ def update(
             metadata={"warehouse_id": resolved_warehouse_id},
         )
     updated = update_stock_entry(
-        db=db, stock_entry_id=stock_entry_id, entry_update=entry_update, updated_by=1
+        db=db,
+        stock_entry_id=stock_entry_id,
+        entry_update=entry_update,
+        updated_by=current_user.id,
     )
     if not updated:
         logger.error(f"Stock entry not found: id={stock_entry_id}")

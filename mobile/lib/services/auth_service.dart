@@ -34,18 +34,20 @@ class AuthService {
       data: {'username': email, 'password': password},
     );
     final data = response.data as Map<String, dynamic>;
+    final accessToken = data['access_token'];
+    final refreshToken = data['refresh_token'];
+    if (accessToken == null || refreshToken == null) {
+      throw Exception('Invalid auth response');
+    }
 
     final roleValue = data['role']?.toString();
     final role =
         roleValue == null ? null : UserRole.fromString(roleValue.toUpperCase());
-    final userId =
-        data['user_id'] == null
-            ? null
-            : int.tryParse(data['user_id'].toString());
+    final userId = data['user_id'] as int?;
 
     return AuthLoginResponse(
-      accessToken: data['access_token'].toString(),
-      refreshToken: data['refresh_token'].toString(),
+      accessToken: accessToken.toString(),
+      refreshToken: refreshToken.toString(),
       userId: userId,
       role: role,
     );
