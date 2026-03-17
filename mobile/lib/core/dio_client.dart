@@ -50,7 +50,6 @@ class DioClient {
     instance.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final normalizedPath = _normalizePath(options.path);
           if (_accessToken != null && _accessToken!.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $_accessToken';
           }
