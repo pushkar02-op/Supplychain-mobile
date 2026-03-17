@@ -28,7 +28,7 @@ from app.api.user import router as user_router
 from app.api.warehouse import router as warehouse_router
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/v1")
+router = APIRouter()
 
 router.include_router(stock_entry_router)
 router.include_router(cost_control_router)
