@@ -65,5 +65,10 @@ def set_mart_status(
     return mart
 
 
-def get_marts_by_company(db: Session, company_name: str):
-    return db.query(Mart).filter(Mart.company_name == company_name).all()
+def get_marts_by_company(
+    db: Session, company_name: str, include_inactive: bool = False
+):
+    query = db.query(Mart).filter(Mart.company_name == company_name)
+    if not include_inactive:
+        query = query.filter(Mart.is_active.is_(True))
+    return query.all()

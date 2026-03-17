@@ -102,6 +102,7 @@ class RejectionRepository {
       final resp = await DioClient.instance.get(
         '/rejection-entries/list',
         queryParameters: params,
+        options: Options(listFormat: ListFormat.multi),
       );
 
       return resp.data as Map<String, dynamic>;
