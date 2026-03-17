@@ -24,6 +24,8 @@ router = APIRouter()
 @router.get("/invoices/unresolved", response_model=List[UnresolvedInvoiceItemRead])
 def get_unresolved_invoice_items(
     warehouse_id: int | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ):
@@ -41,7 +43,7 @@ def get_unresolved_invoice_items(
         )
         .all()
     )
-    return items
+    return items[skip : skip + limit]
 
 
 @router.post("/aliases", response_model=MartItemAliasRead)

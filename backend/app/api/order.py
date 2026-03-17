@@ -60,6 +60,8 @@ def read_all(
     warehouse_id: Optional[int] = Query(None),
     order_date: Optional[date] = Query(None, description="Filter by order date"),
     mart_name: Optional[str] = Query(None, description="Filter by mart name"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[OrderRead]:
@@ -83,6 +85,8 @@ def read_all(
         warehouse_id=resolved_warehouse_id,
         order_date=order_date,
         mart_name=mart_name,
+        skip=skip,
+        limit=limit,
     )
     return orders
 
@@ -90,6 +94,8 @@ def read_all(
 @router.get("/mart-names", response_model=List[dict], summary="List mart names")
 def get_mart_names(
     warehouse_id: Optional[int] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[dict]:
@@ -106,7 +112,8 @@ def get_mart_names(
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "read"
     )
-    return get_distinct_mart_names(db, warehouse_id=resolved_warehouse_id)
+    results = get_distinct_mart_names(db, warehouse_id=resolved_warehouse_id)
+    return results[skip : skip + limit]
 
 
 @router.get("/{order_id}", response_model=OrderRead, summary="Get order by ID")

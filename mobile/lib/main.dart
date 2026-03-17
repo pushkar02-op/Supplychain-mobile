@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/navigation/route_refresh_registry.dart';
@@ -88,8 +89,17 @@ class _MyAppState extends ConsumerState<MyApp> {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       builder: (context, child) {
-        return WillPopScope(
-          onWillPop: () => _confirmExit(context),
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) async {
+            if (didPop) {
+              return;
+            }
+            final shouldExit = await _confirmExit(context);
+            if (shouldExit) {
+              SystemNavigator.pop();
+            }
+          },
           child: child ?? const SizedBox.shrink(),
         );
       },

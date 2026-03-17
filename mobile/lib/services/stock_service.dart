@@ -35,6 +35,7 @@ class StockService {
     required double pricePerUnit,
     required String? source,
     required double totalCost,
+    required String idempotencyKey,
   }) async {
     try {
       final resp = await DioClient.instance.post(
@@ -49,6 +50,7 @@ class StockService {
           'total_cost': totalCost,
           'source': source,
         },
+        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
       );
       if (resp.statusCode == 201) return true;
       return resp.data['detail'] ?? 'Unknown error';

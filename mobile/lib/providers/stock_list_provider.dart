@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/session/session_guard.dart';
@@ -48,14 +49,14 @@ class StockListController extends AsyncNotifier<List<StockTransaction>> {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(stockRepositoryProvider);
     state = const AsyncValue.loading();
-    print('Deleting stock id=$id');
-    print('Warehouse=$warehouseId');
+    debugPrint('Deleting stock id=$id');
+    debugPrint('Warehouse=$warehouseId');
     state = await AsyncValue.guard(() async {
       await repo.deleteStockEntry(warehouseId, id);
       final date = ref.read(selectedDateProvider);
       final dateString = date.toIso8601String().split('T')[0];
       final items = await _fetch(warehouseId, dateString);
-      print('Stock refreshed: count=${items.length}');
+      debugPrint('Stock refreshed: count=${items.length}');
       return items;
     });
   }
@@ -68,6 +69,7 @@ class StockListController extends AsyncNotifier<List<StockTransaction>> {
     required double pricePerUnit,
     required String? source,
     required double totalCost,
+    required String idempotencyKey,
   }) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(stockRepositoryProvider);
@@ -80,7 +82,7 @@ class StockListController extends AsyncNotifier<List<StockTransaction>> {
       source: source,
       totalCost: totalCost,
     );
-    await repo.createStockEntry(payload, warehouseId);
+    await repo.createStockEntry(payload, warehouseId, idempotencyKey);
     ref.invalidateSelf();
     ref.invalidate(overviewSummaryProvider);
   }

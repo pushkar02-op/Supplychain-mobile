@@ -59,7 +59,7 @@ def create(
     return create_stock_entry(
         db=db,
         entry=entry,
-        created_by=1,
+        created_by=current_user.id,
         idempotency_key=idempotency_key,
         warehouse_id=resolved_warehouse_id,
     )
@@ -69,8 +69,8 @@ def create(
 def read_all(
     date: Optional[date] = Query(None, description="Filter by date"),
     warehouse_id: Optional[int] = Query(None),
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[StockEntryRead]:
@@ -193,7 +193,10 @@ def update(
             metadata={"warehouse_id": resolved_warehouse_id},
         )
     updated = update_stock_entry(
-        db=db, stock_entry_id=stock_entry_id, entry_update=entry_update, updated_by=1
+        db=db,
+        stock_entry_id=stock_entry_id,
+        entry_update=entry_update,
+        updated_by=current_user.id,
     )
     if not updated:
         logger.error(f"Stock entry not found: id={stock_entry_id}")

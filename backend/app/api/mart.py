@@ -30,10 +30,12 @@ def create(
 @router.get("/", response_model=List[MartRead])
 def list_all(
     include_inactive: bool = Query(False),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ):
-    return list_marts(db, include_inactive=include_inactive)
+    return list_marts(db, include_inactive=include_inactive, skip=skip, limit=limit)
 
 
 @router.put("/{mart_id}", response_model=MartRead)
@@ -57,5 +59,10 @@ def patch_status(
 
 
 @router.get("/company/{company_name}", response_model=List[MartRead])
-def list_by_company(company_name: str, db: Session = Depends(get_db)):
-    return get_marts_by_company(db, company_name)
+def list_by_company(
+    company_name: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    return get_marts_by_company(db, company_name, skip=skip, limit=limit)

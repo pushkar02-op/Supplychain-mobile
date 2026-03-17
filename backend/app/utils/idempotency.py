@@ -62,7 +62,7 @@ def save_idempotency_record(
     endpoint: str,
     payload: Any,
     entity_type: str,
-    entity_id: int,
+    entity_id: str,
 ) -> IdempotencyRecord:
     """
     Persist the idempotency record. Must be called before commit.
@@ -73,7 +73,7 @@ def save_idempotency_record(
         endpoint=endpoint,
         request_hash=input_hash,
         result_entity_type=entity_type,
-        result_entity_id=entity_id,
+        result_entity_id=str(entity_id),
     )
     db.add(record)
     db.flush()

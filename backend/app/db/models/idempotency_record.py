@@ -22,6 +22,6 @@ class IdempotencyRecord(Base):
     result_entity_type = Column(
         String, nullable=False
     )  # e.g. "stock_entry", "rejection_entry"
-    result_entity_id = Column(Integer, nullable=False)
+    result_entity_id = Column(String, nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

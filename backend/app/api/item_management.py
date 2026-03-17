@@ -27,18 +27,31 @@ class InvoiceItemMapInput(BaseModel):
 
 
 @router.get("/", response_model=List[ItemManagementRead])
-def get_items(include_inactive: bool = False, db: Session = Depends(get_db)):
-    return svc.get_master_items_details(db, include_inactive=include_inactive)
+def get_items(
+    include_inactive: bool = False,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    results = svc.get_master_items_details(db, include_inactive=include_inactive)
+    return results[skip : skip + limit]
 
 
 @router.get("/uoms", response_model=List[UOMRead])
-def get_uoms(db: Session = Depends(get_db)):
-    return db.query(UOM).order_by(UOM.code).all()
+def get_uoms(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    results = db.query(UOM).order_by(UOM.code).all()
+    return results[skip : skip + limit]
 
 
 @router.get("/unmapped-invoice-items", summary="Fetch unmapped invoice items")
 def fetchUnmappedInvoiceItems(
     warehouse_id: int | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List[dict]:
@@ -48,9 +61,10 @@ def fetchUnmappedInvoiceItems(
         db=db,
         operation_type="read",
     )
-    return svc.get_unmapped_invoice_items_with_suggestions(
+    results = svc.get_unmapped_invoice_items_with_suggestions(
         db, warehouse_id=resolved_warehouse_id
     )
+    return results[skip : skip + limit]
 
 
 @router.post("/", response_model=ItemManagementRead)

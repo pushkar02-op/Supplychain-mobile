@@ -140,11 +140,29 @@ class SessionController extends Notifier<Session> {
   }
 
   Future<void> logout() async {
-    await _storage.deleteAll();
-    DioClient.setAccessToken(null);
-    ref.invalidate(currentUserProfileProvider);
-    ref.read(activeMartProvider.notifier).state = null;
-    state = const Session(state: SessionState.unauthenticated);
+    final refreshToken =
+        state.refreshToken ?? await _storage.read(key: _refreshTokenKey);
+    try {
+      if (refreshToken != null) {
+        try {
+          await DioClient.instance.post(
+            '/logout',
+            options: Options(
+              headers: {'Authorization': 'Bearer $refreshToken'},
+            ),
+          );
+        } catch (_) {
+          // Ignore backend logout failures.
+        }
+      }
+      await _storage.delete(key: _warehouseStorageKey(state.userId ?? 0));
+    } finally {
+      await _storage.deleteAll();
+      DioClient.setAccessToken(null);
+      ref.invalidate(currentUserProfileProvider);
+      ref.read(activeMartProvider.notifier).state = null;
+      state = const Session(state: SessionState.unauthenticated);
+    }
   }
 
   Future<void> _hydrateSessionFromStorage() async {

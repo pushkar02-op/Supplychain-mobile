@@ -7,11 +7,15 @@ final martRepositoryProvider = Provider<MartRepository>((ref) => MartRepository(
 
 class MartRepository {
   Future<List<Map<String, dynamic>>> fetchMarts({
-    bool includeInactive = true,
+    bool includeInactive = false,
   }) async {
+    final params = <String, dynamic>{};
+    if (includeInactive) {
+      params['include_inactive'] = true;
+    }
     final resp = await DioClient.instance.get(
       '/marts/',
-      queryParameters: {'include_inactive': includeInactive},
+      queryParameters: params,
     );
     if (resp.statusCode != 200) {
       throw AppError(detail: 'Failed to load marts');

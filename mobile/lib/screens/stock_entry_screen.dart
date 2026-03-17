@@ -5,6 +5,7 @@ import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
 import '../core/navigation/create_result.dart';
 import '../providers/warehouse_context_provider.dart';
@@ -38,6 +39,7 @@ class _StockEntryScreenState extends ConsumerState<StockEntryScreen> {
   String _unit = '';
   String _pricePerUnit = '';
   String _source = '';
+  String? _currentIdempotencyKey;
 
   // Correct mode fields
   String _adjustmentQty = '';
@@ -148,6 +150,7 @@ class _StockEntryScreenState extends ConsumerState<StockEntryScreen> {
       return;
     }
 
+    _currentIdempotencyKey ??= const Uuid().v4();
     final result = await StockService.addStockEntry(
       warehouseId: warehouseId,
       itemId: _selectedItem!['id'],
@@ -157,12 +160,14 @@ class _StockEntryScreenState extends ConsumerState<StockEntryScreen> {
       pricePerUnit: price,
       source: _source.isEmpty ? null : _source,
       totalCost: qty * price,
+      idempotencyKey: _currentIdempotencyKey!,
     );
 
     if (!mounted) return;
 
     if (result == true) {
       AgroSnackBar.success(context, 'Stock receipt saved');
+      _currentIdempotencyKey = null;
       context.pop(CreateResult.created);
     } else {
       setState(() {

@@ -65,8 +65,8 @@ def create(
 @router.get("/", response_model=List[BatchRead], summary="List batches")
 def read_all(
     warehouse_id: Optional[int] = Query(None),
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[BatchRead]:
@@ -96,6 +96,8 @@ def read_all(
 def get_batches_by_item(
     item_id: int,
     warehouse_id: Optional[int] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[BatchRead]:
@@ -113,7 +115,8 @@ def get_batches_by_item(
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "read"
     )
-    return get_batches_by_item_with_quantity(db, item_id, resolved_warehouse_id)
+    results = get_batches_by_item_with_quantity(db, item_id, resolved_warehouse_id)
+    return results[skip : skip + limit]
 
 
 @router.get("/{batch_id}", response_model=BatchRead, summary="Get batch by ID")

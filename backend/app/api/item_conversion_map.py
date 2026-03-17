@@ -23,7 +23,7 @@ from app.services.item_conversion_map import (
     get_conversion,
     update_conversion,
 )
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,11 @@ def create_conv(
 
 
 @router.get("/", response_model=List[ItemConversionRead], summary="List conversions")
-def list_convs(db: Session = Depends(get_db)) -> List[ItemConversionRead]:
+def list_convs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+) -> List[ItemConversionRead]:
     """
     Retrieve all item conversion mappings.
 
@@ -64,7 +68,8 @@ def list_convs(db: Session = Depends(get_db)) -> List[ItemConversionRead]:
         List[ItemConversionRead]: List of conversion mappings.
     """
     logger.info("Fetching all item conversion mappings")
-    return get_all_conversions(db)
+    results = get_all_conversions(db)
+    return results[skip : skip + limit]
 
 
 @router.get(

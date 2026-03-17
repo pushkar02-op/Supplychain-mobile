@@ -3,6 +3,7 @@ Service functions for dispatch entry management.
 Handles creation from single entries or orders, and CRUD operations.
 """
 
+import json
 import logging
 from datetime import date, datetime
 from decimal import Decimal
@@ -29,6 +30,7 @@ from app.services.financial_lock import enforce_financial_lock, enforce_lock_for
 from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
 from app.services.order import update_order_status_after_reversal
+from app.utils.idempotency import check_idempotency, save_idempotency_record
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -223,9 +225,12 @@ def create_dispatch_entry(
     entry: DispatchEntryCreate,
     created_by: Optional[str] = None,
     warehouse_id: Optional[int] = None,
+    idempotency_key: Optional[str] = None,
 ) -> DispatchEntry:
     try:
-        return _create_dispatch_entry_impl(db, entry, created_by, warehouse_id)
+        return _create_dispatch_entry_impl(
+            db, entry, created_by, warehouse_id, idempotency_key
+        )
     except Exception:
         db.rollback()
         raise
@@ -236,6 +241,7 @@ def _create_dispatch_entry_impl(
     entry: DispatchEntryCreate,
     created_by: Optional[str] = None,
     warehouse_id: Optional[int] = None,
+    idempotency_key: Optional[str] = None,
 ) -> DispatchEntry:
     """
     Create a single dispatch entry, decrementing batch stock and updating order status.
@@ -257,6 +263,18 @@ def _create_dispatch_entry_impl(
     logger.info(
         f"Creating dispatch for batch_id={entry.batch_id}, qty={entry.quantity}"
     )
+    payload = entry.dict(exclude_unset=True)
+    if idempotency_key:
+        existing_record = check_idempotency(
+            db, idempotency_key, "dispatch_entry_create", payload
+        )
+        if existing_record:
+            existing_entry = db.get(
+                DispatchEntry, int(existing_record.result_entity_id)
+            )
+            if not existing_entry:
+                raise AppException("Dispatch entry not found", status_code=404)
+            return existing_entry
     batch = db.query(Batch).filter(Batch.id == entry.batch_id).with_for_update().first()
     if not batch:
         logger.error("Invalid batch_id provided")
@@ -497,6 +515,16 @@ def _create_dispatch_entry_impl(
     except Exception:
         logger.warning("Audit log failed for dispatch_created", exc_info=True)
 
+    if idempotency_key:
+        save_idempotency_record(
+            db,
+            idempotency_key,
+            "dispatch_entry_create",
+            payload,
+            "dispatch_entry",
+            str(dispatch.id),
+        )
+
     db.commit()
     log_event(
         level="INFO",
@@ -512,9 +540,12 @@ def create_dispatch_from_order(
     entry: DispatchEntryMultiCreate,
     created_by: Optional[str] = None,
     warehouse_id: Optional[int] = None,
+    idempotency_key: Optional[str] = None,
 ) -> List[DispatchEntry]:
     try:
-        return _create_dispatch_from_order_impl(db, entry, created_by, warehouse_id)
+        return _create_dispatch_from_order_impl(
+            db, entry, created_by, warehouse_id, idempotency_key
+        )
     except Exception:
         db.rollback()
         raise
@@ -525,6 +556,7 @@ def _create_dispatch_from_order_impl(
     entry: DispatchEntryMultiCreate,
     created_by: Optional[str] = None,
     warehouse_id: Optional[int] = None,
+    idempotency_key: Optional[str] = None,
 ) -> List[DispatchEntry]:
     """
     Create dispatch entries from an order allocation across batches.
@@ -544,6 +576,35 @@ def _create_dispatch_from_order_impl(
         AppException: If no pending order or batch issues.
     """
     logger.info(f"Creating dispatches from order for item_id={entry.item_id}")
+    payload = entry.dict(exclude_unset=True)
+    if idempotency_key:
+        existing_record = check_idempotency(
+            db, idempotency_key, "dispatch_entry_from_order", payload
+        )
+        if existing_record:
+            try:
+                ids = json.loads(existing_record.result_entity_id)
+            except Exception:
+                raise AppException(
+                    "Invalid idempotency record for dispatch bulk",
+                    status_code=500,
+                )
+            if not isinstance(ids, list):
+                raise AppException(
+                    "Invalid idempotency record for dispatch bulk",
+                    status_code=500,
+                )
+            results_by_id = {
+                d.id: d
+                for d in db.query(DispatchEntry).filter(DispatchEntry.id.in_(ids)).all()
+            }
+            ordered = [results_by_id[i] for i in ids if i in results_by_id]
+            if len(ordered) != len(ids):
+                raise AppException(
+                    "Dispatch entries not found for idempotency hit",
+                    status_code=404,
+                )
+            return ordered
     order = None
     if entry.order_id:
         order = db.get(Order, entry.order_id)
@@ -751,6 +812,16 @@ def _create_dispatch_from_order_impl(
     except Exception:
         logger.warning(
             "Audit log failed for dispatch_created_from_order", exc_info=True
+        )
+
+    if idempotency_key:
+        save_idempotency_record(
+            db,
+            idempotency_key,
+            "dispatch_entry_from_order",
+            payload,
+            "dispatch_entry_bulk",
+            json.dumps([d.id for d in results]),
         )
 
     db.commit()

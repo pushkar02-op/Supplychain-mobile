@@ -172,6 +172,8 @@ def get_orders(
     warehouse_id: Optional[int] = None,
     order_date: Optional[date] = None,
     mart_name: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
 ) -> List[Order]:
     """
     Retrieve orders with optional filters.
@@ -200,7 +202,7 @@ def get_orders(
         from app.db.models.mart import Mart
 
         q = q.join(Mart, Order.mart_id == Mart.id).filter(Mart.name == mart_name)
-    return q.order_by(Order.created_at.desc()).all()
+    return q.order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
 
 
 def recalculate_status_helper(order: Order) -> str:

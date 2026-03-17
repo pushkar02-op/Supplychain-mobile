@@ -87,7 +87,7 @@ def read_invoices(
     mart_id: Optional[int] = Query(None, description="Filter by mart id"),
     search: Optional[str] = Query(None, description="Search term"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Page size"),
+    page_size: int = Query(20, ge=1, le=200, description="Page size"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> JSONResponse:

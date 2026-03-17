@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:uuid/uuid.dart';
 
 import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
@@ -48,6 +47,7 @@ class RejectionRepository {
     required String reason,
     required String rejectionDate,
     String? rejectedBy,
+    required String idempotencyKey,
   }) async {
     final data = {
       'batch_id': batchId,
@@ -62,7 +62,7 @@ class RejectionRepository {
         '/rejection-entries/',
         queryParameters: {'warehouse_id': warehouseId},
         data: data,
-        options: Options(headers: {'Idempotency-Key': const Uuid().v4()}),
+        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
       );
       if (resp.statusCode != 200 && resp.statusCode != 201) {
         throw AppError(
@@ -102,6 +102,7 @@ class RejectionRepository {
       final resp = await DioClient.instance.get(
         '/rejection-entries/list',
         queryParameters: params,
+        options: Options(listFormat: ListFormat.multi),
       );
 
       return resp.data as Map<String, dynamic>;

@@ -19,10 +19,13 @@ router = APIRouter(prefix="/warehouses", tags=["Warehouses"])
 
 @router.get("/", response_model=list[WarehouseRead])
 def list_all_warehouses(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> list[WarehouseRead]:
-    return list_warehouses(db)
+    results = list_warehouses(db)
+    return results[skip : skip + limit]
 
 
 @router.post("/", response_model=WarehouseRead)
@@ -52,10 +55,13 @@ def update_existing_warehouse(
 
 @router.get("/my-access", response_model=list[WarehouseAccessRead])
 def get_my_accessible_warehouses(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[WarehouseAccessRead]:
-    return list_accessible_warehouses(current_user, db)
+    results = list_accessible_warehouses(current_user, db)
+    return results[skip : skip + limit]
 
 
 @router.post("/{warehouse_id}/lock", response_model=WarehouseLockRead)

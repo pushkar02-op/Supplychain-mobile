@@ -74,7 +74,7 @@ def _create_stock_entry_impl(
             db, idempotency_key, "create_stock_entry", entry.dict()
         )
         if existing_record:
-            return get_stock_entry(db, existing_record.result_entity_id)
+            return get_stock_entry(db, int(existing_record.result_entity_id))
 
     # 1) Find-or-create Batch
     batch_query = db.query(Batch).filter(
