@@ -285,7 +285,7 @@ class StockListScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
-          (_) => AlertDialog(
+          (ctx) => AlertDialog(
             title: const Text('Void Stock Entry'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -306,11 +306,11 @@ class StockListScreen extends ConsumerWidget {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.of(ctx).pop(false),
                 child: const Text('Cancel'),
               ),
               TextButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => Navigator.of(ctx).pop(true),
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
                 child: const Text('Void Entry'),
               ),
