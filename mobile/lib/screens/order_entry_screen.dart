@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../core/navigation/create_result.dart';
 import '../providers/order_provider.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
@@ -25,7 +26,10 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   String _quantity = '';
   String _unit = '';
   bool _isLoading = false;
+  bool _isLoadingMarts = true;
   String _error = '';
+  bool _isLoadingItems = false;
+  String? _itemsError;
 
   List<Map<String, dynamic>> _items = <Map<String, dynamic>>[];
   List<String> _unitOptions = [];
@@ -38,6 +42,13 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   bool _isDuplicate = false;
 
   bool get _isEdit => _editingOrder != null;
+
+  void _handleCancelPop(bool didPop, Object? result) {
+    if (didPop) {
+      return;
+    }
+    Navigator.of(context).pop(CreateResult.cancelled);
+  }
 
   @override
   void initState() {
@@ -84,6 +95,8 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     bool keepSelection = false,
   }) async {
     setState(() {
+      _isLoadingItems = true;
+      _itemsError = null;
       _items = [];
       if (!keepSelection) {
         _selectedItem = null;
@@ -95,26 +108,41 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     try {
       final items = await ref
           .read(orderListProvider.notifier)
-          .fetchDistinctItemsForMart(martName);
+          .fetchOperationalItems();
       if (!mounted) return;
       setState(() {
+        _isLoadingItems = false;
         _items = items;
       });
     } catch (e, st) {
       debugPrint('Error loading items: $e\n$st');
-      if (mounted) setState(() => _error = e.toString());
+      if (!mounted) return;
+      setState(() {
+        _isLoadingItems = false;
+        _itemsError = e.toString();
+      });
     }
   }
 
   Future<void> _loadMarts() async {
+    setState(() {
+      _isLoadingMarts = true;
+      _error = '';
+    });
     try {
       final marts = await ref.read(orderListProvider.notifier).fetchMartList();
       if (!mounted) return;
       setState(() {
         _marts = marts;
+        _isLoadingMarts = false;
       });
     } catch (e) {
       debugPrint('Failed to load marts: $e');
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isLoadingMarts = false;
+      });
     }
   }
 
@@ -177,7 +205,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           context,
           _isEdit ? 'Order adjusted' : 'Order created',
         );
-        Navigator.pop(context);
+        Navigator.pop(context, CreateResult.created);
       }
     } catch (e) {
       debugPrint('Order create error: $e');
@@ -216,24 +244,27 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     final isToday = DateUtils.isSameDay(_orderDate, DateTime.now());
     final dateStr = DateFormat('EEEE, MMM d').format(_orderDate);
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Text(
-          _isEdit ? 'Adjust Order' : 'Create Order',
-          style: const TextStyle(fontWeight: FontWeight.w600),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleCancelPop,
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          title: Text(
+            _isEdit ? 'Adjust Order' : 'Create Order',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(color: Colors.grey[200], height: 1),
+          ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: Colors.grey[200], height: 1),
-        ),
-      ),
-      body:
-          _error.isNotEmpty
-              ? Center(
+        body:
+            _error.isNotEmpty
+                ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -253,8 +284,30 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                   ],
                 ),
               )
-              : (_marts.isEmpty)
+              : _isLoadingMarts
               ? const Center(child: CircularProgressIndicator())
+              : (_marts.isEmpty)
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.storefront_outlined,
+                      size: 48,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No marts available',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
+                ),
+              )
               : Form(
                 key: _formKey,
                 child: ListView(
@@ -442,10 +495,25 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                             (item) =>
                                 item == null ? 'Please select an item' : null,
                       ),
-                    if (_selectedMart != null && _items.isEmpty && !_isEdit)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Center(child: CircularProgressIndicator()),
+                    if (_selectedMart != null && !_isEdit)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child:
+                            _isLoadingItems
+                                ? const Center(
+                                  child: CircularProgressIndicator(),
+                                )
+                                : _itemsError != null
+                                ? Text(
+                                  _itemsError!,
+                                  style: TextStyle(color: Colors.red[700]),
+                                )
+                                : _items.isEmpty
+                                ? Text(
+                                  'No items available for this mart',
+                                  style: TextStyle(color: Colors.grey[600]),
+                                )
+                                : const SizedBox.shrink(),
                       ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -523,7 +591,10 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                               SizedBox(
                                 width: double.infinity,
                                 child: OutlinedButton(
-                                  onPressed: () => context.pop(),
+                                  onPressed:
+                                      () => context.pop(
+                                        CreateResult.cancelled,
+                                      ),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.red.shade700,
                                     side: BorderSide(
@@ -569,6 +640,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                   ],
                 ),
               ),
+      ),
     );
   }
 }

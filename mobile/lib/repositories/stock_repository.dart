@@ -4,40 +4,33 @@ import 'package:uuid/uuid.dart';
 
 import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
+import '../models/stock_entry_create.dart';
+import '../models/stock_transaction.dart';
 
 class StockRepository {
   /// Fetch all items for the dropdown
-  Future<List<dynamic>> fetchItems() async {
+  Future<List<Map<String, dynamic>>> fetchItems(int warehouseId) async {
     try {
-      final resp = await DioClient.instance.get('/item/');
-      return resp.data as List<dynamic>;
+      final resp = await DioClient.instance.get(
+        '/item/',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
+      return List<Map<String, dynamic>>.from(resp.data as List);
     } catch (e) {
       rethrow;
     }
   }
 
   /// Create a new stock entry
-  Future<void> addStockEntry({
-    required int itemId,
-    required String receivedDate,
-    required double quantity,
-    required String unit,
-    required double pricePerUnit,
-    required String? source,
-    required double totalCost,
-  }) async {
+  Future<void> createStockEntry(
+    StockEntryCreate payload,
+    int warehouseId,
+  ) async {
     try {
       final resp = await DioClient.instance.post(
         '/stock-entry/',
-        data: {
-          'item_id': itemId,
-          'received_date': receivedDate,
-          'quantity': quantity,
-          'unit': unit,
-          'price_per_unit': pricePerUnit,
-          'total_cost': totalCost,
-          'source': source,
-        },
+        queryParameters: {'warehouse_id': warehouseId},
+        data: payload.toJson(),
         options: Options(headers: {'Idempotency-Key': const Uuid().v4()}),
       );
       if (resp.statusCode != 201) {
@@ -51,14 +44,24 @@ class StockRepository {
   }
 
   /// Fetch stock entries by date
-  Future<List<dynamic>> fetchStockEntries({required String date}) async {
+  Future<List<StockTransaction>> fetchStockEntries({
+    required int warehouseId,
+    required String date,
+  }) async {
     try {
       final resp = await DioClient.instance.get(
         '/stock-entry/',
-        queryParameters: {'date': date, 'skip': 0, 'limit': 100},
+        queryParameters: {
+          'date': date,
+          'skip': 0,
+          'limit': 100,
+          'warehouse_id': warehouseId,
+        },
       );
       if (resp.data is List) {
-        return List<dynamic>.from(resp.data);
+        return (resp.data as List<dynamic>)
+            .map((entry) => StockTransaction.fromJson(entry as Map<String, dynamic>))
+            .toList();
       }
       throw const FormatException('Expected a list of stock entries');
     } on DioException catch (e) {
@@ -71,21 +74,26 @@ class StockRepository {
   }
 
   /// Delete stock entry by ID
-  Future<void> deleteStockEntry(int stockEntryId) async {
+  Future<void> deleteStockEntry(int warehouseId, int stockEntryId) async {
     try {
-      await DioClient.instance.delete('/stock-entry/$stockEntryId');
+      await DioClient.instance.delete(
+        '/stock-entry/$stockEntryId',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
     } catch (e) {
       rethrow;
     }
   }
 
   Future<void> updateStockEntry(
+    int warehouseId,
     int stockEntryId,
     Map<String, dynamic> data,
   ) async {
     try {
       final resp = await DioClient.instance.put(
         '/stock-entry/$stockEntryId',
+        queryParameters: {'warehouse_id': warehouseId},
         data: data,
       );
       if (resp.statusCode != 200) {

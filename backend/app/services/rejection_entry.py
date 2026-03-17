@@ -137,7 +137,7 @@ def create_rejection_entry(
             InventoryTxnCreate(
                 item_id=batch.item_id,
                 batch_id=entry.batch_id,
-                txn_type="ADJUST",  # Phase R2 Refinement: Rejections are adjustments
+                txn_type="OUT",
                 raw_qty=entry.quantity,
                 raw_unit=entry.unit,
                 base_qty=base_qty,
@@ -146,6 +146,7 @@ def create_rejection_entry(
                 ref_id=rej.id,
                 remarks=f"Rejection: {entry.reason or 'No reason provided'}",
             ),
+            actor_user_id=user_id,
         )
         db.flush()  # Ensure ID is generated before commit
 
@@ -283,6 +284,7 @@ def reverse_rejection_entry(
                 ref_id=rej.id,
                 remarks=f"Reversal of Rejection #{rej.id}",
             ),
+            actor_user_id=user_id,
         )
 
         try:

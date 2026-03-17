@@ -10,13 +10,12 @@ from typing import List, Optional
 
 from app.core.exceptions import AppException
 from app.db.models.mart import Mart
-from app.db.models.mart_bill import MartBill
 from app.db.models.order import Order
 from app.db.schemas.order import OrderCreate, OrderUpdate
 from app.services.audit import log_action
 from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.warehouse_scope import resolve_system_warehouse_id
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +24,24 @@ def get_distinct_mart_names(
     db: Session, warehouse_id: Optional[int] = None
 ) -> List[dict]:
     """
-    Retrieve unique mart names from invoices.
+    Retrieve mart master records for order entry.
 
     Args:
         db (Session): Database session.
 
     Returns:
-        List[str]: List of mart names.
+        List[dict]: List of mart IDs and names.
     """
-    resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
-    logger.debug("Fetching distinct mart names from invoices")
-    q = db.query(Mart.id, Mart.name).join(MartBill, MartBill.mart_id == Mart.id)
-    q = q.filter(MartBill.warehouse_id == resolved_warehouse_id)
-    results = q.distinct().all()
+    resolve_system_warehouse_id(db, warehouse_id)
+    logger.debug("Fetching mart names from mart master table")
+    results = (
+        db.query(Mart.id, Mart.name)
+        .filter(Mart.is_active.is_(True))
+        .order_by(Mart.name.asc())
+        .all()
+    )
     marts = [{"id": r.id, "name": r.name} for r in results if r.name]
-    logger.info(f"Found {len(marts)} distinct marts")
+    logger.info(f"Found {len(marts)} marts")
     return marts
 
 
@@ -184,7 +186,14 @@ def get_orders(
     """
     resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug(f"Fetching orders date={order_date}, mart={mart_name}")
-    q = db.query(Order).filter(Order.warehouse_id == resolved_warehouse_id)
+    q = (
+        db.query(Order)
+        .options(
+            joinedload(Order.item),
+            joinedload(Order.mart),
+        )
+        .filter(Order.warehouse_id == resolved_warehouse_id)
+    )
     if order_date:
         q = q.filter(Order.order_date == order_date)
     if mart_name:
@@ -292,7 +301,10 @@ def update_order(
 
 
 def delete_order(
-    db: Session, order_id: int, warehouse_id: Optional[int] = None
+    db: Session,
+    order_id: int,
+    warehouse_id: Optional[int] = None,
+    current_user_id: Optional[int] = None,
 ) -> bool:
     """
     Delete an order by ID.
@@ -324,7 +336,7 @@ def delete_order(
     try:
         log_action(
             db=db,
-            actor_user_id=None,
+            actor_user_id=current_user_id or 0,
             action_type="order_deleted",
             entity_type="order",
             entity_id=order_pk,

@@ -5,9 +5,12 @@ import '../models/stock_history.dart';
 
 class StockService {
   /// Fetch all items for the dropdown
-  static Future<List<dynamic>> fetchItems() async {
+  static Future<List<dynamic>> fetchItems({required int warehouseId}) async {
     try {
-      final resp = await DioClient.instance.get('/item/');
+      final resp = await DioClient.instance.get(
+        '/item/',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       return resp.data as List<dynamic>;
     } on DioException catch (e) {
       throw Exception(
@@ -24,6 +27,7 @@ class StockService {
   /// - [totalCost]: quantity * pricePerUnit
   /// - [source]: optional supplier name
   static Future<dynamic> addStockEntry({
+    required int warehouseId,
     required int itemId,
     required String receivedDate,
     required double quantity,
@@ -35,6 +39,7 @@ class StockService {
     try {
       final resp = await DioClient.instance.post(
         '/stock-entry/',
+        queryParameters: {'warehouse_id': warehouseId},
         data: {
           'item_id': itemId,
           'received_date': receivedDate,
@@ -53,11 +58,19 @@ class StockService {
   }
 
   /// Fetch stock entries by date
-  static Future<List<dynamic>> fetchStockEntries({required String date}) async {
+  static Future<List<dynamic>> fetchStockEntries({
+    required int warehouseId,
+    required String date,
+  }) async {
     try {
       final resp = await DioClient.instance.get(
         '/stock-entry/',
-        queryParameters: {'date': date, 'skip': 0, 'limit': 100},
+        queryParameters: {
+          'date': date,
+          'skip': 0,
+          'limit': 100,
+          'warehouse_id': warehouseId,
+        },
       );
       return resp.data as List<dynamic>;
     } on DioException catch (e) {
@@ -68,9 +81,15 @@ class StockService {
   }
 
   /// Delete stock entry by ID
-  static Future<void> deleteStockEntry(int stockEntryId) async {
+  static Future<void> deleteStockEntry({
+    required int warehouseId,
+    required int stockEntryId,
+  }) async {
     try {
-      await DioClient.instance.delete('/stock-entry/$stockEntryId');
+      await DioClient.instance.delete(
+        '/stock-entry/$stockEntryId',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
     } on DioException catch (e) {
       throw Exception(
         'Failed to delete stock entry: ${e.response?.statusMessage ?? e.message}',
@@ -84,6 +103,7 @@ class StockService {
   /// - [unit]: unit of measurement
   /// - [reason]: required reason for the adjustment
   static Future<dynamic> createStockAdjustment({
+    required int warehouseId,
     required int batchId,
     required double quantityDelta,
     required String unit,
@@ -92,6 +112,7 @@ class StockService {
     try {
       final resp = await DioClient.instance.post(
         '/stock-adjustment/',
+        queryParameters: {'warehouse_id': warehouseId},
         data: {
           'batch_id': batchId,
           'quantity_delta': quantityDelta,
@@ -107,10 +128,14 @@ class StockService {
   }
 
   /// Get history for a stock entry
-  static Future<StockHistoryResponse> getStockHistory(int stockEntryId) async {
+  static Future<StockHistoryResponse> getStockHistory({
+    required int warehouseId,
+    required int stockEntryId,
+  }) async {
     try {
       final resp = await DioClient.instance.get(
         '/stock-entry/$stockEntryId/history',
+        queryParameters: {'warehouse_id': warehouseId},
       );
       return StockHistoryResponse.fromJson(resp.data);
     } on DioException catch (e) {

@@ -1,4 +1,3 @@
-from app.api.admin_audit import router as admin_audit_router
 from app.api.admin_forecasting import router as admin_forecasting_router
 from app.api.admin_ledger import router as admin_ledger_router
 from app.api.admin_reconciliation import router as admin_recon_router
@@ -11,6 +10,7 @@ from app.api.health import router as health_router
 from app.api.inventory_txn import router as inventory_txn_router
 from app.api.invoice import router as invoice_router
 from app.api.invoice_item import router as invoice_item_router
+from app.api.item import operational_router as operational_item_router
 from app.api.item import router as item_router
 from app.api.item_alias import router as item_alias_router
 from app.api.item_conversion_map import router as conversion_router
@@ -28,12 +28,13 @@ from app.api.user import router as user_router
 from app.api.warehouse import router as warehouse_router
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/v1")
+router = APIRouter()
 
 router.include_router(stock_entry_router)
 router.include_router(cost_control_router)
 router.include_router(stock_adjustment_router)
 router.include_router(item_router)
+router.include_router(operational_item_router)
 router.include_router(batch_router)
 router.include_router(auth_router)
 router.include_router(dispatch_router)
@@ -56,5 +57,4 @@ router.include_router(admin_recon_router)
 router.include_router(mart_bill_router)
 router.include_router(mart_bill_item_router)
 router.include_router(admin_forecasting_router)
-router.include_router(admin_audit_router)
 router.include_router(health_router)

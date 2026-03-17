@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/uom_diagnostic_item.dart';
 import '../providers/admin_diagnostics_provider.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
@@ -94,7 +95,7 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
   Widget _buildUOMSection(
     BuildContext context,
     WidgetRef ref,
-    AsyncValue<List<Map<String, dynamic>>> asyncValue,
+    AsyncValue<List<UomDiagnosticItem>> asyncValue,
   ) {
     return AgroSection(
       title: 'UOM Configuration Risks',
@@ -135,9 +136,8 @@ class AdminDiagnosticsScreen extends ConsumerWidget {
   }
 }
 
-/// Diagnostic item card showing a configuration warning.
 class _DiagnosticItemCard extends StatelessWidget {
-  final Map<String, dynamic> item;
+  final UomDiagnosticItem item;
 
   const _DiagnosticItemCard({required this.item});
 
@@ -152,9 +152,8 @@ class _DiagnosticItemCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Warning icon container
           Container(
-            padding: const EdgeInsets.all(AgroSpacing.sm + 2), // 10px
+            padding: const EdgeInsets.all(AgroSpacing.sm + 2),
             decoration: BoxDecoration(
               color: warningSeverity.backgroundColor,
               borderRadius: AgroShapes.containerRadius,
@@ -166,24 +165,19 @@ class _DiagnosticItemCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AgroSpacing.lg),
-          // Content
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item['name'] ?? 'Unknown Item',
-                  style: AgroTypography.cardTitle,
-                ),
+                Text(item.name, style: AgroTypography.cardTitle),
                 const SizedBox(height: AgroSpacing.xs),
                 Text(
-                  'ID: ${item['id']} • Code: ${item['item_code'] ?? 'N/A'}',
+                  'ID: ${item.id} � Code: ${item.itemCode}',
                   style: AgroTypography.caption.copyWith(
                     fontFamily: 'Monospace',
                   ),
                 ),
                 const SizedBox(height: AgroSpacing.sm),
-                // Blocked badge
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AgroSpacing.sm,

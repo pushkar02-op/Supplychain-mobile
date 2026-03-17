@@ -3,8 +3,11 @@ import 'dart:async';
 
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/navigation/create_result.dart';
+import '../providers/warehouse_context_provider.dart';
 import '../services/stock_service.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 import '../widgets/form/custom_date_picker.dart';
@@ -15,14 +18,13 @@ enum StockEntryMode {
   correct, // Adjust existing stock (correction)
 }
 
-class StockEntryScreen extends StatefulWidget {
+class StockEntryScreen extends ConsumerStatefulWidget {
   const StockEntryScreen({super.key});
-
   @override
-  State<StockEntryScreen> createState() => _StockEntryScreenState();
+  ConsumerState<StockEntryScreen> createState() => _StockEntryScreenState();
 }
 
-class _StockEntryScreenState extends State<StockEntryScreen> {
+class _StockEntryScreenState extends ConsumerState<StockEntryScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // Mode detection
@@ -48,6 +50,13 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   final bool _is409Error = false;
   List<dynamic> _items = [];
   List<String> _unitOptions = [];
+
+  void _handleCancelPop(bool didPop, Object? result) {
+    if (didPop) {
+      return;
+    }
+    Navigator.of(context).pop(CreateResult.cancelled);
+  }
 
   @override
   void initState() {
@@ -77,7 +86,10 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
 
   Future<void> _loadItems() async {
     try {
-      final items = await StockService.fetchItems();
+      final warehouseId = ref.read(warehouseContextProvider);
+      if (warehouseId == null) return;
+
+      final items = await StockService.fetchItems(warehouseId: warehouseId);
       items.sort(
         (a, b) => a['name'].toString().compareTo(b['name'].toString()),
       );
@@ -127,7 +139,17 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     final qty = double.parse(_quantity);
     final price = double.parse(_pricePerUnit);
 
+    final warehouseId = ref.read(warehouseContextProvider);
+    if (warehouseId == null) {
+      setState(() {
+        _isLoading = false;
+        _error = 'No warehouse selected';
+      });
+      return;
+    }
+
     final result = await StockService.addStockEntry(
+      warehouseId: warehouseId,
       itemId: _selectedItem!['id'],
       receivedDate: _receivedDate.toIso8601String().split('T')[0],
       quantity: qty,
@@ -141,7 +163,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
 
     if (result == true) {
       AgroSnackBar.success(context, 'Stock receipt saved');
-      context.pop(true);
+      context.pop(CreateResult.created);
     } else {
       setState(() {
         _isLoading = false;
@@ -200,7 +222,17 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
       finalReason = 'Other: ${_adjustmentReason.trim()}';
     }
 
+    final warehouseId = ref.read(warehouseContextProvider);
+    if (warehouseId == null) {
+      setState(() {
+        _isLoading = false;
+        _error = 'No warehouse selected';
+      });
+      return;
+    }
+
     final result = await StockService.createStockAdjustment(
+      warehouseId: warehouseId,
       batchId: batchId,
       quantityDelta: adjustQty,
       unit: unit,
@@ -211,7 +243,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
 
     if (result == true) {
       AgroSnackBar.success(context, 'Stock corrected');
-      context.pop(true);
+      context.pop(CreateResult.created);
     } else {
       setState(() {
         _isLoading = false;
@@ -238,15 +270,19 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
   Widget build(BuildContext context) {
     final isCorrectMode = _mode == StockEntryMode.correct;
 
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        title: Text(isCorrectMode ? 'Correct Stock' : 'Receive Stock'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleCancelPop,
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          title: Text(isCorrectMode ? 'Correct Stock' : 'Receive Stock'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 1,
+        ),
+        body: _buildBody(isCorrectMode),
       ),
-      body: _buildBody(isCorrectMode),
     );
   }
 
@@ -299,7 +335,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () => context.pop(),
+            onPressed: () => context.pop(CreateResult.cancelled),
             icon: const Icon(Icons.arrow_back),
             label: const Text('Back to Stock List'),
           ),

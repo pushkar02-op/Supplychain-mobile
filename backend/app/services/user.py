@@ -8,13 +8,14 @@ from datetime import datetime
 from typing import List, Optional
 
 from app.core.exceptions import AppException
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.models.user_warehouse_access import UserWarehouseAccess
 from app.db.models.warehouse import Warehouse
-from app.db.schemas.user import UserCreateGoverned, UserUpdate
+from app.db.schemas.user import UserCreateGoverned, UserProfileRead, UserUpdate
 from app.services.audit import log_action
+from app.services.warehouse_scope import list_accessible_warehouses
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,47 @@ def get_user(db: Session, user_id: int) -> Optional[User]:
     """
     logger.debug(f"Retrieving user id={user_id}")
     return db.query(User).filter(User.id == user_id).first()
+
+
+def get_current_user_profile(db: Session, user_id: int) -> User:
+    """
+    Retrieve the currently authenticated user's profile.
+
+    Args:
+        db (Session): Database session.
+        user_id (int): Authenticated user ID.
+
+    Returns:
+        User: Current user model.
+
+    Raises:
+        AppException: If the user does not exist.
+    """
+    logger.debug(f"Retrieving current user profile id={user_id}")
+    user = get_user(db, user_id)
+    if not user:
+        logger.error(f"Current user not found id={user_id}")
+        raise AppException("User not found", status_code=404)
+    return user
+
+
+def get_user_profile_with_warehouses(db: Session, user_id: int) -> UserProfileRead:
+    user = get_current_user_profile(db, user_id)
+    rows = list_accessible_warehouses(user, db)
+    return UserProfileRead(
+        id=user.id,
+        username=user.username,
+        full_name=user.full_name,
+        role=user.role,
+        is_admin=user.is_admin,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        warehouses=[
+            {"id": warehouse.id, "name": warehouse.name, "code": warehouse.code}
+            for warehouse in rows
+        ],
+    )
 
 
 def get_all_users(db: Session, skip: int = 0, limit: int = 100) -> List[User]:
@@ -83,6 +125,54 @@ def update_user(
     db.refresh(user)
     logger.debug(f"User id={user_id} updated")
     return user
+
+
+def update_user_profile(
+    db: Session,
+    user_id: int,
+    full_name: str,
+    updated_by: Optional[str] = None,
+) -> User:
+    user = get_current_user_profile(db, user_id)
+    normalized_name = full_name.strip()
+    if not normalized_name:
+        raise AppException("Full name cannot be empty", status_code=400)
+
+    user.full_name = normalized_name
+    user.updated_by = updated_by
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def change_password(
+    db: Session,
+    user_id: int,
+    old_password: str,
+    new_password: str,
+    updated_by: Optional[str] = None,
+) -> None:
+    user = get_current_user_profile(db, user_id)
+
+    if not verify_password(old_password, user.hashed_password):
+        raise AppException("Current password is incorrect", status_code=400)
+
+    if len(new_password) < 8:
+        raise AppException(
+            "New password must be at least 8 characters long", status_code=400
+        )
+
+    if old_password == new_password:
+        raise AppException(
+            "New password must be different from the current password",
+            status_code=400,
+        )
+
+    user.hashed_password = hash_password(new_password)
+    user.updated_by = updated_by
+    user.updated_at = datetime.utcnow()
+    db.commit()
 
 
 def _owner_count(db: Session) -> int:

@@ -20,8 +20,10 @@ class InventoryTxn(Base):
     raw_unit = Column(String(16), nullable=False)
     base_qty = Column(Numeric(10, 3), nullable=False)
     base_unit = Column(String(16), nullable=False)
-    ref_type = Column(String(32), nullable=True)  # 'stock_entry', 'invoice_item', etc.
-    ref_id = Column(Integer, nullable=True)
+    ref_type = Column(
+        String(32), nullable=False, default="manual"
+    )  # 'stock_entry', 'invoice_item', etc.
+    ref_id = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     remarks = Column(String(255), nullable=True)
 

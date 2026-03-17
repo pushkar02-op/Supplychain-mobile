@@ -11,6 +11,7 @@ from app.core.auth import require_role
 from app.core.exceptions import AppException
 from app.db.enums.role import Role
 from app.db.models.user import User
+from app.db.schemas.inventory_reports import TopMovingItem
 from app.db.schemas.inventory_summary import (
     InventorySignalResponse,
     InventorySummaryRead,
@@ -20,6 +21,7 @@ from app.db.schemas.inventory_summary import (
 from app.db.schemas.kpi import FinancialKpiResponse, OperationalKpiResponse
 from app.db.schemas.pnl_summary import PnlSummaryRead
 from app.db.session import get_db
+from app.services.inventory_reports import get_top_moving_items
 from app.services.kpi import get_financial_kpi, get_operational_kpi
 from app.services.reports import get_inventory_report, get_pnl_report
 from app.services.warehouse_scope import resolve_warehouse_for_request
@@ -38,7 +40,7 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 def read_reconciliation_report(
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.OWNER)),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ):
     """
     Get detailed reconciliation report showing drift between Batches (Available) and Ledger.
@@ -60,7 +62,7 @@ def read_item_reconciliation(
     item_id: int,
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.OWNER)),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ):
     """
     Get drill-down reconciliation details for a specific item.
@@ -87,7 +89,7 @@ def read_inventory_signals(
     item_id: int,
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.OWNER)),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> InventorySignalResponse:
     """
     Retrieve detailed inventory signals for an item.
@@ -112,7 +114,7 @@ def inventory(
     item_id: Optional[int] = Query(None, description="Filter by item ID"),
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.OWNER)),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[InventorySummaryRead]:
     """
     Retrieve inventory summary report.
@@ -131,6 +133,23 @@ def inventory(
     return get_inventory_report(
         db=db, warehouse_id=resolved_warehouse_id, item_id=item_id
     )
+
+
+@router.get(
+    "/inventory/top-moving",
+    response_model=List[TopMovingItem],
+    summary="Top moving inventory items for today",
+)
+def top_moving_items(
+    warehouse_id: Optional[int] = Query(None),
+    limit: int = Query(5, ge=1, le=20),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> List[TopMovingItem]:
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_top_moving_items(db=db, warehouse_id=resolved_warehouse_id, limit=limit)
 
 
 @router.get("/pnl", response_model=List[PnlSummaryRead], summary="P&L report")

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../models/mart_bill.dart';
 import '../providers/active_mart_provider.dart';
 import '../providers/mart_bill_provider.dart';
 import '../ui/theme/agro_colors.dart';
@@ -308,7 +309,12 @@ class MartBillListScreen extends ConsumerWidget {
                       await _pickFiles(ref);
                     },
                   ),
-                Expanded(child: _buildBillList(context, ref, state)),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () async => ref.refresh(martBillProvider.future),
+                    child: _buildBillList(context, ref, state),
+                  ),
+                ),
               ],
             ),
           );
@@ -323,15 +329,24 @@ class MartBillListScreen extends ConsumerWidget {
     MartBillState state,
   ) {
     if (state.bills.isEmpty) {
-      return AgroEmptyState(
-        icon: Icons.receipt_long_outlined,
-        title: 'No mart bills found',
-        actionLabel: 'Upload your first bill',
-        onAction: () => _pickFiles(ref),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 420,
+            child: AgroEmptyState(
+              icon: Icons.receipt_long_outlined,
+              title: 'No mart bills found',
+              actionLabel: 'Upload your first bill',
+              onAction: () => _pickFiles(ref),
+            ),
+          ),
+        ],
       );
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(
         top: AgroSpacing.md,
         bottom: AgroSpacing.xl,
@@ -508,7 +523,7 @@ class _UploadResultsCard extends StatelessWidget {
 }
 
 class _BillCard extends StatelessWidget {
-  final Map<String, dynamic> bill;
+  final MartBill bill;
   final Future<void> Function(int) onDelete;
   final Future<void> Function(Map<String, dynamic>) onEditItem;
   final Future<void> Function(int) onVerify;
@@ -528,7 +543,7 @@ class _BillCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = bill['status'] as String? ?? 'NEEDS_REVIEW';
+    final status = bill.status;
     final isVerified = status == 'VERIFIED';
     final isProcessing = status == 'PROCESSING';
 
@@ -537,7 +552,7 @@ class _BillCard extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              bill['mart_name'] ?? 'Unknown Mart',
+              bill.martName ?? 'Unknown Mart',
               style: AgroTypography.cardTitle,
             ),
           ),
@@ -545,7 +560,7 @@ class _BillCard extends StatelessWidget {
         ],
       ),
       subtitle: Text(
-        '${DateFormat('MMM dd, yyyy').format(DateTime.parse(bill['invoice_date']))}   \u20b9 ${bill['total_amount'].toStringAsFixed(2)}',
+        '${DateFormat('MMM dd, yyyy').format(DateTime.parse(bill.invoiceDate!))}   \u20b9 ${bill.totalAmount.toStringAsFixed(2)}',
         style: AgroTypography.caption,
       ),
       trailing: Wrap(
@@ -565,9 +580,9 @@ class _BillCard extends StatelessWidget {
                 onPressed: () async {
                   try {
                     if (isVerified) {
-                      await onUnverify(bill['id']);
+                      await onUnverify(bill.id);
                     } else {
-                      await onVerify(bill['id']);
+                      await onVerify(bill.id);
                     }
                   } catch (e) {
                     if (!context.mounted) return;
@@ -592,7 +607,7 @@ class _BillCard extends StatelessWidget {
                           'Cannot delete a verified bill. Unlock it first.',
                         );
                       }
-                      : () => onDelete(bill['id']),
+                      : () => onDelete(bill.id),
             ),
           ),
         ],
@@ -600,21 +615,21 @@ class _BillCard extends StatelessWidget {
       children: [
         ListTile(
           title: Text(
-            bill['file_path'].toString().split('/').last,
+            (bill.filePath ?? '').split('/').last,
             style: AgroTypography.body,
           ),
           trailing: TextButton(
             onPressed: () {
               context.push(
                 '/pdf-viewer',
-                extra: int.parse(bill['id'].toString()),
+                extra: bill.id,
               );
             },
             child: const Text('View'),
           ),
         ),
         FutureBuilder<List<Map<String, dynamic>>>(
-          future: onFetchItems(bill['id']),
+          future: onFetchItems(bill.id),
           builder: (ctx, snap) {
             if (!snap.hasData) {
               return const LinearProgressIndicator();

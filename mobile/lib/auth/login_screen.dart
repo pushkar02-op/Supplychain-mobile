@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile/providers/auth_provider.dart';
 
-import '../services/auth_service.dart';
+import '../core/session/session_controller.dart';
 import '../ui/widgets/agro_snack_bar.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -26,30 +25,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
-      debugPrint('[LOGIN_SCREEN] Calling AuthService.login...');
-      final result = await AuthService.login(email, password);
-      debugPrint('[LOGIN_SCREEN] AuthService.login result: $result');
+      final result = await ref
+          .read(sessionProvider.notifier)
+          .login(email, password);
 
-      if (!mounted) {
-        debugPrint('[LOGIN_SCREEN] Widget unmounted after login call.');
-        return;
-      }
+      if (!mounted) return;
 
-      if (result == true) {
-        debugPrint('[LOGIN_SCREEN] Login SUCCESS. Triggering AuthNotifier...');
-        AgroSnackBar.success(context, 'Login successful');
-
-        await ref.read(authProvider.notifier).login();
-        debugPrint('[LOGIN_SCREEN] AuthNotifier.login() returned.');
-        return;
-      } else {
-        debugPrint('[LOGIN_SCREEN] Login FAILED. Result: $result');
+      if (result != null) {
         setState(() => errorMessage = result.toString());
+      } else {
+        AgroSnackBar.success(context, 'Login successful');
       }
     } catch (e, st) {
       debugPrint('[LOGIN_SCREEN] Exception during login: $e');
       debugPrint(st.toString());
-      setState(() => errorMessage = 'An error occurred: $e');
+      if (mounted) {
+        setState(() => errorMessage = 'An error occurred: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
 
     if (mounted) {

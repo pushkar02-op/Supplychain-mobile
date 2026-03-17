@@ -1,42 +1,9 @@
 import 'package:dio/dio.dart';
 
 import '../core/dio_client.dart';
+import '../models/forecast_summary.dart';
 
-/// Response model for item forecast data
-class ItemForecast {
-  final int itemId;
-  final double currentLedgerQty;
-  final double? avgDailyOutflow;
-  final double? daysToZero;
-  final String? projectedStockoutDate;
-  final String signal;
-  final DateTime? lastRefreshed;
-
-  ItemForecast({
-    required this.itemId,
-    required this.currentLedgerQty,
-    this.avgDailyOutflow,
-    this.daysToZero,
-    this.projectedStockoutDate,
-    required this.signal,
-    this.lastRefreshed,
-  });
-
-  factory ItemForecast.fromJson(Map<String, dynamic> json) {
-    return ItemForecast(
-      itemId: json['item_id'] as int,
-      currentLedgerQty: (json['current_ledger_qty'] as num?)?.toDouble() ?? 0.0,
-      avgDailyOutflow: (json['avg_daily_outflow'] as num?)?.toDouble(),
-      daysToZero: (json['days_to_zero'] as num?)?.toDouble(),
-      projectedStockoutDate: json['projected_stockout_date'] as String?,
-      signal: json['signal'] as String? ?? 'STABLE',
-      lastRefreshed:
-          json['last_refreshed'] != null
-              ? DateTime.tryParse(json['last_refreshed'])
-              : null,
-    );
-  }
-}
+typedef ItemForecast = ForecastSummary;
 
 /// Service for fetching forecasting data (READ-ONLY)
 /// This service ONLY reads from the forecasting endpoint.
@@ -47,11 +14,11 @@ class ForecastingService {
     try {
       final resp = await DioClient.instance.get('/admin/forecasting/summary');
       final items = resp.data['items'] as List<dynamic>? ?? [];
-      return items.map((e) => ItemForecast.fromJson(e)).toList();
-    } on DioException catch (e) {
-      throw Exception(
-        'Failed to load forecasts: ${e.response?.statusMessage ?? e.message}',
-      );
+      return items
+          .map((e) => ForecastSummary.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException {
+      return [];
     }
   }
 

@@ -61,11 +61,11 @@ export async function loginAsManager(page: Page) {
   console.log(`[E2E] CURRENT_URL: ${page.url()}`);
 
   console.log('[E2E] Verifying Dashboard DOM...');
-  // Use Dashboard heading text as authoritative marker
+  // Use Overview heading text as authoritative marker (landing page)
   try {
-    const dashboardMarker = page.locator('text=Dashboard');
+    const dashboardMarker = page.locator('text=Overview');
     await expect(dashboardMarker).toBeVisible({ timeout: 15000 });
-    console.log('[E2E] Dashboard text is VISIBLE. Login Succeeded.');
+    console.log('[E2E] Overview text is VISIBLE. Login Succeeded.');
   } catch (e) {
     console.error('[E2E] Dashboard NOT visible.', e);
     if (page.url().includes('login')) {

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from app.db.enums.role import Role
 from pydantic import BaseModel
 
@@ -25,6 +27,7 @@ class Token(BaseModel):
     role: Role
     is_admin: bool = False
     refresh_token: str
+    user_id: Optional[int] = None
 
 
 class TokenRefresh(BaseModel):

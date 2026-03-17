@@ -19,7 +19,7 @@ from app.services.inventory_txn import create_inventory_txn
 from app.services.item_conversion_map import get_conversion_factor
 from app.services.warehouse_scope import resolve_system_warehouse_id
 from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +208,7 @@ def _create_stock_entry_impl(
             ref_id=stock_entry.id,
             remarks="Stock received",
         ),
+        actor_user_id=user_id,
     )
     db.flush()  # Ensure ID is generated before commit
 
@@ -285,8 +286,13 @@ def get_all_stock_entries(
     """
     resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug(f"Fetching stock entries date={date}, skip={skip}, limit={limit}")
-    q = db.query(StockEntry).filter(
-        StockEntry.is_active, StockEntry.warehouse_id == resolved_warehouse_id
+    q = (
+        db.query(StockEntry)
+        .options(
+            joinedload(StockEntry.batch),
+            joinedload(StockEntry.item),
+        )
+        .filter(StockEntry.is_active, StockEntry.warehouse_id == resolved_warehouse_id)
     )
     if date:
         q = q.filter(StockEntry.received_date == date)
@@ -405,6 +411,7 @@ def _create_stock_adjustment_impl(
             ref_id=batch.id,  # Link to batch as this is direct adjustment
             remarks=reason if reason else "Manual stock adjustment",
         ),
+        actor_user_id=user_id,
     )
 
     db.flush()
@@ -550,7 +557,7 @@ def _delete_stock_entry_impl(
     try:
         log_action(
             db=db,
-            actor_user_id=entry.created_by_id,
+            actor_user_id=entry.created_by_id or 0,
             action_type="stock_entry_voided",
             entity_type="stock_entry",
             entity_id=entry.id,

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../core/navigation/create_result.dart';
 import '../providers/dispatch_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/widgets/agro_error_state.dart';
@@ -51,6 +52,13 @@ class _CreateOrEditDispatchScreenState
   List<_BatchRow> _rows = [];
   bool _loading = true, _submitting = false;
   String? _error;
+
+  void _handleCancelPop(bool didPop, Object? result) {
+    if (didPop) {
+      return;
+    }
+    Navigator.of(context).pop(CreateResult.cancelled);
+  }
 
   @override
   void initState() {
@@ -203,7 +211,7 @@ class _CreateOrEditDispatchScreenState
       await ref.read(dispatchListProvider.notifier).createDispatch(payload);
       if (!mounted) return;
       AgroSnackBar.success(context, 'Dispatch saved successfully');
-      Navigator.pop(context);
+      Navigator.pop(context, CreateResult.created);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -228,16 +236,20 @@ class _CreateOrEditDispatchScreenState
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Dispatching...')),
-        body:
-            _error != null
-                ? AgroErrorState.loadFailed(
-                  customTitle: 'Failed to load batches',
-                  message: _error,
-                  onRetry: _loadBatches,
-                )
-                : const Center(child: CircularProgressIndicator()),
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: _handleCancelPop,
+        child: Scaffold(
+          appBar: AppBar(title: const Text('Dispatching...')),
+          body:
+              _error != null
+                  ? AgroErrorState.loadFailed(
+                    customTitle: 'Failed to load batches',
+                    message: _error,
+                    onRetry: _loadBatches,
+                  )
+                  : const Center(child: CircularProgressIndicator()),
+        ),
       );
     }
 
@@ -245,16 +257,19 @@ class _CreateOrEditDispatchScreenState
       'EEEE, MMM d, yyyy',
     ).format(DateTime.parse(_dispatchDate));
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50], // Light bg for better contrast
-      appBar: AppBar(
-        title: const Text('New Dispatch'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
-      ),
-      body: SafeArea(
-        child: Column(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleCancelPop,
+      child: Scaffold(
+        backgroundColor: Colors.grey[50], // Light bg for better contrast
+        appBar: AppBar(
+          title: const Text('New Dispatch'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 1,
+        ),
+        body: SafeArea(
+          child: Column(
           children: [
             // 1. Context Locking (Top Anchor)
             Container(
@@ -590,6 +605,7 @@ class _CreateOrEditDispatchScreenState
               ),
             ),
           ],
+          ),
         ),
       ),
     );

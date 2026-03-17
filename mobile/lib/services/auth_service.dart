@@ -1,81 +1,66 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../core/dio_client.dart';
+import '../core/models/user_role.dart';
+
+class AuthLoginResponse {
+  final String accessToken;
+  final String refreshToken;
+  final int? userId;
+  final UserRole? role;
+
+  const AuthLoginResponse({
+    required this.accessToken,
+    required this.refreshToken,
+    required this.userId,
+    required this.role,
+  });
+}
+
+class AuthRefreshResponse {
+  final String accessToken;
+  final String refreshToken;
+
+  const AuthRefreshResponse({
+    required this.accessToken,
+    required this.refreshToken,
+  });
+}
 
 class AuthService {
-  static const storage = FlutterSecureStorage();
+  static Future<AuthLoginResponse> login(String email, String password) async {
+    final response = await DioClient.instance.post(
+      '/login',
+      data: {'username': email, 'password': password},
+    );
+    final data = response.data as Map<String, dynamic>;
 
-  static Future<dynamic> login(String email, String password) async {
-    try {
-      final response = await DioClient.instance.post(
-        '/login',
-        data: {'username': email, 'password': password},
-      );
+    final roleValue = data['role']?.toString();
+    final role =
+        roleValue == null ? null : UserRole.fromString(roleValue.toUpperCase());
+    final userId =
+        data['user_id'] == null
+            ? null
+            : int.tryParse(data['user_id'].toString());
 
-      // Status 2xx success
-      final data = response.data;
-      await storage.write(key: 'access_token', value: data['access_token']);
-      await storage.write(key: 'refresh_token', value: data['refresh_token']);
-      // Delete legacy key if it exists
-      await storage.delete(key: 'is_admin');
-
-      // Store new role for UI logic
-      if (data.containsKey('role') && data['role'] != null) {
-        await storage.write(key: 'user_role', value: data['role'].toString());
-      }
-      // Store user ID for self-deactivation guard
-      if (data.containsKey('user_id') && data['user_id'] != null) {
-        await storage.write(key: 'user_id', value: data['user_id'].toString());
-      }
-      return true;
-    } on DioException catch (e) {
-      if (e.response != null) {
-        final data = e.response!.data;
-        if (data is Map && data.containsKey('detail')) {
-          return data['detail'];
-        }
-        return 'Login failed';
-      }
-      return 'Error: ${e.message}';
-    } catch (e) {
-      return 'Error: $e';
-    }
+    return AuthLoginResponse(
+      accessToken: data['access_token'].toString(),
+      refreshToken: data['refresh_token'].toString(),
+      userId: userId,
+      role: role,
+    );
   }
 
-  static Future<bool> refreshToken() async {
-    try {
-      final refreshToken = await storage.read(key: 'refresh_token');
-      if (refreshToken == null) return false;
-
-      // Use a new Dio instance to avoid interceptors
-      // We need ApiConfig.baseUrl here. Assuming it is accessible via DioClient or import.
-      // Since DioClient imports ApiConfig, we can import it here too or access it if it was static.
-      // But ApiConfig is in core/api_config.dart.
-      // Let's assume we can import it.
-      // Actually, to be safe and avoid circular imports or missing imports, I will rely on the fact that I can add the import.
-      final dio = Dio(BaseOptions(baseUrl: DioClient.instance.options.baseUrl));
-
-      final response = await dio.post(
-        '/refresh',
-        data: {'refresh_token': refreshToken},
-      );
-
-      if (response.statusCode == 200) {
-        await storage.write(
-          key: 'access_token',
-          value: response.data['access_token'],
-        );
-        await storage.write(
-          key: 'refresh_token',
-          value: response.data['refresh_token'],
-        );
-        // We do not have debugPrint here unless imported, but it's fine to skip or import 'package:flutter/foundation.dart'.
-        return true;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
+  static Future<AuthRefreshResponse> refreshToken(String refreshToken) async {
+    final dio = Dio(BaseOptions(baseUrl: DioClient.instance.options.baseUrl));
+    final response = await dio.post(
+      '/refresh',
+      data: {'refresh_token': refreshToken},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return AuthRefreshResponse(
+      accessToken: data['access_token'].toString(),
+      refreshToken: data['refresh_token'].toString(),
+    );
   }
 }

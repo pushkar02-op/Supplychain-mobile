@@ -26,7 +26,6 @@ class BatchCreate(BatchBase):
 
 # Schema for update
 class BatchUpdate(SchemaModel):
-    quantity: Optional[Decimal] = None
     unit: Optional[str] = None
     received_at: Optional[date] = None
     expiry_date: Optional[date] = None

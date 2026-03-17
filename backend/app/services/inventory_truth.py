@@ -23,7 +23,7 @@ def calculate_ledger_balance(db: Session, batch_id: int) -> Decimal:
     for txn in txns:
         if txn.txn_type == "IN":
             balance += txn.base_qty
-        elif txn.txn_type in ["OUT", "REJECT", "DISPATCH"]:
+        elif txn.txn_type == "OUT":
             balance -= txn.base_qty
         elif txn.txn_type == "ADJUST":
             balance += txn.base_qty

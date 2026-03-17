@@ -116,3 +116,12 @@ verify_*.txt
 verification_*.txt
 
 .ruff_cache/
+
+test_script/
+
+# Playwright and local database
+playwright-report/
+test-results/
+.cache/
+*.db
+token.json

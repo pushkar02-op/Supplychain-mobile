@@ -14,8 +14,8 @@ class InventoryTxnCreate(SchemaModel):
     raw_unit: str
     base_qty: Decimal
     base_unit: str
-    ref_type: Optional[str] = None
-    ref_id: Optional[int] = None
+    ref_type: str = "manual"
+    ref_id: int = 0
     remarks: Optional[str] = None
 
 

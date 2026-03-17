@@ -1,18 +1,23 @@
 """
 API endpoints for user management.
-Provides retrieval, update, role management, and warehouse assignment controls.
+Provides retrieval, update, role management, warehouse assignment controls,
+and self-profile access.
 """
 
 import logging
 from typing import List
 
-from app.core.auth import require_role
+from app.core.auth import get_current_user, require_role
 from app.core.exceptions import AppException
 from app.db.enums.role import Role
 from app.db.models.user import User
 from app.db.models.warehouse import Warehouse
 from app.db.schemas.user import (
+    ChangePasswordRequest,
+    StatusResponse,
+    UpdateProfileRequest,
     UserCreateGoverned,
+    UserProfileRead,
     UserRead,
     UserRoleUpdate,
     UserUpdate,
@@ -21,13 +26,16 @@ from app.db.schemas.user import (
 from app.db.session import get_db
 from app.services.user import (
     assign_warehouse_to_user,
+    change_password,
     create_user_governed,
     delete_user,
     get_all_users,
     get_user,
+    get_user_profile_with_warehouses,
     list_user_warehouses,
     remove_warehouse_from_user,
     update_user,
+    update_user_profile,
     update_user_role,
 )
 from fastapi import APIRouter, Depends, Query, status
@@ -35,6 +43,54 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+@router.get("/me", response_model=UserProfileRead, summary="Get current user profile")
+def read_current_user(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UserProfileRead:
+    logger.info(f"Fetching current user profile id={current_user.id}")
+    return get_user_profile_with_warehouses(db=db, user_id=current_user.id)
+
+
+@router.patch(
+    "/me", response_model=UserProfileRead, summary="Update current user profile"
+)
+def update_current_user_profile(
+    profile_update: UpdateProfileRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> UserProfileRead:
+    logger.info(f"Updating current user profile id={current_user.id}")
+    update_user_profile(
+        db=db,
+        user_id=current_user.id,
+        full_name=profile_update.full_name,
+        updated_by=current_user.username,
+    )
+    return get_user_profile_with_warehouses(db=db, user_id=current_user.id)
+
+
+@router.post(
+    "/change-password",
+    response_model=StatusResponse,
+    summary="Change current user password",
+)
+def change_current_user_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> StatusResponse:
+    logger.info(f"Changing password for user id={current_user.id}")
+    change_password(
+        db=db,
+        user_id=current_user.id,
+        old_password=payload.old_password,
+        new_password=payload.new_password,
+        updated_by=current_user.username,
+    )
+    return StatusResponse(status="password_updated")
 
 
 @router.get("/", response_model=List[UserRead], summary="List users")

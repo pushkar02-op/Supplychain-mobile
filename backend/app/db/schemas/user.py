@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from app.db.enums.role import Role
 from pydantic import BaseModel
@@ -42,3 +42,26 @@ class UserWarehouseAccessRead(BaseModel):
     warehouse_id: int
     warehouse_name: str
     warehouse_code: str
+
+
+class WarehouseProfileRead(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+
+
+class UserProfileRead(UserRead):
+    warehouses: List[WarehouseProfileRead] = []
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
+class StatusResponse(BaseModel):
+    status: str

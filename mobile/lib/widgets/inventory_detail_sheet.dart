@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/inventory_detail.dart';
+import '../models/inventory_item.dart';
+import '../models/inventory_signal.dart';
+import '../models/inventory_transaction.dart';
 import '../providers/inventory_provider.dart';
 import '../screens/admin_reconciliation_detail_screen.dart';
 import '../ui/semantics/agro_status.dart';
@@ -10,11 +14,8 @@ import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_card.dart';
 import '../ui/widgets/agro_status_badge.dart';
 
-/// Full-screen bottom sheet showing inventory item details.
-///
-/// Includes system health, current balance, batch breakdown, and recent transactions.
 class InventoryDetailSheet extends ConsumerWidget {
-  final Map<String, dynamic> item;
+  final InventoryItem item;
   final bool canManageUsers;
 
   const InventoryDetailSheet({
@@ -23,10 +24,9 @@ class InventoryDetailSheet extends ConsumerWidget {
     required this.canManageUsers,
   });
 
-  /// Convenience method to show this sheet as a modal bottom sheet.
   static void show(
     BuildContext context,
-    Map<String, dynamic> item, {
+    InventoryItem item, {
     required bool canManageUsers,
   }) {
     showModalBottomSheet(
@@ -36,24 +36,21 @@ class InventoryDetailSheet extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder:
-          (_) =>
-              InventoryDetailSheet(item: item, canManageUsers: canManageUsers),
+          (_) => InventoryDetailSheet(item: item, canManageUsers: canManageUsers),
     );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemId = item['item_id'] as int;
-    final unit = item['unit'] as String? ?? '';
-    final name = item['name'] as String? ?? 'Unknown';
-    final detailFuture = ref
-        .read(inventoryListProvider.notifier)
-        .fetchDetail(itemId);
+    final itemId = item.id;
+    final unit = item.unit;
+    final name = item.name;
+    final detailFuture = ref.read(inventoryListProvider.notifier).fetchDetail(itemId);
 
-    final ledgerStock = (item['ledger_qty'] as num?)?.toDouble() ?? 0.0;
-    final availableStock = (item['state_qty'] as num?)?.toDouble() ?? 0.0;
-    final status = (item['status'] as String? ?? 'HEALTHY').toUpperCase();
-    final severity = (item['severity'] as String? ?? 'NONE').toUpperCase();
+    final ledgerStock = item.ledgerQty;
+    final availableStock = item.quantity;
+    final status = item.status.toUpperCase();
+    final severity = item.severity.toUpperCase();
     final drift = availableStock - ledgerStock;
 
     final badgeStatus = AgroStatusParser.fromDriftSeverity(severity);
@@ -107,16 +104,12 @@ class InventoryDetailSheet extends ConsumerWidget {
                 controller: scrollController,
                 padding: const EdgeInsets.all(AgroSpacing.screenPadding),
                 children: [
-                  const Text(
-                    'System Health',
-                    style: AgroTypography.sectionTitle,
-                  ),
+                  const Text('System Health', style: AgroTypography.sectionTitle),
                   const SizedBox(height: AgroSpacing.sectionHeaderGap),
-                  FutureBuilder<Map<String, dynamic>>(
+                  FutureBuilder<InventoryDetail>(
                     future: detailFuture,
                     builder: (context, snapshot) {
-                      final signalData =
-                          snapshot.data?['signals'] as Map<String, dynamic>?;
+                      final signalData = snapshot.data?.signals;
                       return _InventoryHealthSection(
                         status: status,
                         severity: severity,
@@ -156,11 +149,7 @@ class InventoryDetailSheet extends ConsumerWidget {
                     ),
                   ],
                   const SizedBox(height: AgroSpacing.sectionGap),
-
-                  const Text(
-                    'Current Balance',
-                    style: AgroTypography.sectionTitle,
-                  ),
+                  const Text('Current Balance', style: AgroTypography.sectionTitle),
                   const SizedBox(height: AgroSpacing.sectionHeaderGap),
                   Row(
                     children: [
@@ -183,44 +172,21 @@ class InventoryDetailSheet extends ConsumerWidget {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: AgroSpacing.sectionGap),
-
-                  const Text(
-                    'Batch Breakdown',
-                    style: AgroTypography.sectionTitle,
-                  ),
+                  const Text('Batch Breakdown', style: AgroTypography.sectionTitle),
                   const SizedBox(height: AgroSpacing.sectionHeaderGap),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed:
-                          () => _showBatchBreakdown(
-                            context,
-                            ref,
-                            itemId,
-                            name,
-                            unit,
-                          ),
+                      onPressed: () => _showBatchBreakdown(context, ref, itemId, name, unit),
                       icon: const Icon(Icons.layers_outlined, size: 18),
                       label: const Text('View Batch Breakdown'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: AgroSpacing.md,
-                        ),
-                        side: const BorderSide(color: AgroColors.divider),
-                      ),
                     ),
                   ),
-
                   const SizedBox(height: AgroSpacing.sectionGap),
-
-                  const Text(
-                    'Recent Transactions',
-                    style: AgroTypography.sectionTitle,
-                  ),
+                  const Text('Recent Transactions', style: AgroTypography.sectionTitle),
                   const SizedBox(height: AgroSpacing.sectionHeaderGap),
-                  FutureBuilder<Map<String, dynamic>>(
+                  FutureBuilder<InventoryDetail>(
                     future: detailFuture,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -236,9 +202,9 @@ class InventoryDetailSheet extends ConsumerWidget {
                         );
                       }
 
-                      final txns = List<Map<String, dynamic>>.from(
-                        snapshot.data?['transactions'] as List? ?? const [],
-                      );
+                      final txns =
+                          snapshot.data?.transactions ??
+                          const <InventoryTransaction>[];
                       if (txns.isEmpty) {
                         return const AgroCard(
                           child: Center(child: Text('No transactions found')),
@@ -292,34 +258,8 @@ class InventoryDetailSheet extends ConsumerWidget {
     );
   }
 
-  Widget _buildTxnRow(Map<String, dynamic> txn) {
-    final isIn = txn['txn_type'] == 'IN';
-    final refType = txn['ref_type'] as String?;
-    final refId = txn['ref_id'] as int?;
-
-    String label = 'Transaction';
-    String subLabel = '';
-
-    switch (refType) {
-      case 'stock_entry':
-        label = 'Stock Received';
-        subLabel = 'Stock Entry #$refId';
-        break;
-      case 'dispatch_entry':
-        label = 'Dispatched';
-        subLabel = 'Order/Dispatch #$refId';
-        break;
-      case 'dispatch_reversal':
-        label = 'Dispatch Reversal';
-        subLabel = 'Ref #$refId';
-        break;
-      case 'manual_adjustment':
-        label = 'Manual Adjustment';
-        break;
-      default:
-        label = refType ?? 'Unknown';
-        subLabel = refId != null ? '#$refId' : '';
-    }
+  Widget _buildTxnRow(InventoryTransaction txn) {
+    final isIn = txn.txnType == 'IN';
 
     return ListTile(
       dense: true,
@@ -334,13 +274,16 @@ class InventoryDetailSheet extends ConsumerWidget {
           size: 20,
         ),
       ),
-      title: Text(label, style: AgroTypography.captionEmphasis),
+      title: const Text(
+        'Inventory Transaction',
+        style: AgroTypography.captionEmphasis,
+      ),
       subtitle: Text(
-        '$subLabel\n${txn['created_at']?.toString().split('.').first ?? ''}',
+        txn.createdAt?.toIso8601String().split('.').first ?? '',
         style: AgroTypography.caption,
       ),
       trailing: Text(
-        '${txn['raw_qty']} ${txn['raw_unit']}',
+        '${txn.rawQty} ${txn.rawUnit}',
         style: AgroTypography.emphasis,
       ),
     );
@@ -376,10 +319,7 @@ class InventoryDetailSheet extends ConsumerWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Batch Breakdown',
-                              style: AgroTypography.screenTitle,
-                            ),
+                            const Text('Batch Breakdown', style: AgroTypography.screenTitle),
                             Text(itemName, style: AgroTypography.caption),
                           ],
                         ),
@@ -392,36 +332,23 @@ class InventoryDetailSheet extends ConsumerWidget {
                   ),
                   const Divider(height: 1),
                   Expanded(
-                    child: FutureBuilder<Map<String, dynamic>>(
-                      future: ref
-                          .read(inventoryListProvider.notifier)
-                          .fetchDetail(itemId),
+                    child: FutureBuilder<InventoryDetail>(
+                      future: ref.read(inventoryListProvider.notifier).fetchDetail(itemId),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
                         }
                         if (snapshot.hasError) {
-                          return Center(
-                            child: Text('Error: ${snapshot.error}'),
-                          );
+                          return Center(child: Text('Error: ${snapshot.error}'));
                         }
-                        final batches = List<Map<String, dynamic>>.from(
-                          snapshot.data?['batches'] as List? ?? const [],
-                        );
+                        final batches = [...?snapshot.data?.batches];
                         if (batches.isEmpty) {
                           return const Center(child: Text('No batches found'));
                         }
 
                         batches.sort((a, b) {
-                          final dateA =
-                              DateTime.tryParse(a['received_at'] ?? '') ??
-                              DateTime.now();
-                          final dateB =
-                              DateTime.tryParse(b['received_at'] ?? '') ??
-                              DateTime.now();
+                          final dateA = a.receivedAt ?? DateTime(2100);
+                          final dateB = b.receivedAt ?? DateTime(2100);
                           return dateA.compareTo(dateB);
                         });
 
@@ -431,30 +358,26 @@ class InventoryDetailSheet extends ConsumerWidget {
                           separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (ctx, i) {
                             final batch = batches[i];
-                            final qty =
-                                (batch['quantity'] as num?)?.toDouble() ?? 0.0;
+                            final qty = batch.quantity;
                             final isZero = qty <= 0.001;
 
                             return ListTile(
                               dense: true,
-                              tileColor:
-                                  isZero ? AgroColors.surfaceVariant : null,
+                              tileColor: isZero ? AgroColors.surfaceVariant : null,
                               title: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    'Batch #${batch['id']}',
-                                    style: AgroTypography.captionEmphasis
-                                        .copyWith(
-                                          color:
-                                              isZero
-                                                  ? AgroColors.textDisabled
-                                                  : AgroColors.textPrimary,
-                                        ),
+                                    'Batch #${batch.id}',
+                                    style: AgroTypography.captionEmphasis.copyWith(
+                                      color:
+                                          isZero
+                                              ? AgroColors.textDisabled
+                                              : AgroColors.textPrimary,
+                                    ),
                                   ),
                                   Text(
-                                    '$qty ${batch['unit'] ?? unit}',
+                                    '$qty ${batch.unit.isEmpty ? unit : batch.unit}',
                                     style: AgroTypography.emphasis.copyWith(
                                       color:
                                           isZero
@@ -465,7 +388,7 @@ class InventoryDetailSheet extends ConsumerWidget {
                                 ],
                               ),
                               subtitle: Text(
-                                'Received: ${batch['received_at']?.toString().split("T").first ?? "Unknown"}',
+                                'Received: ${batch.receivedAt?.toIso8601String().split('T').first ?? 'Unknown'}',
                                 style: AgroTypography.caption.copyWith(
                                   color:
                                       isZero
@@ -493,7 +416,7 @@ class _InventoryHealthSection extends StatelessWidget {
   final double drift;
   final String unit;
   final bool canManageUsers;
-  final Map<String, dynamic>? signalData;
+  final InventorySignal? signalData;
 
   const _InventoryHealthSection({
     required this.status,
@@ -513,8 +436,8 @@ class _InventoryHealthSection extends StatelessWidget {
             : AgroStatusParser.fromDriftSeverity(severity);
 
     final reconciliationAt = _resolveReconciliationTimestamp(signalData);
-    final l7 = (signalData?['out_last_7d'] as num?)?.toDouble();
-    final p7 = (signalData?['out_prev_7d'] as num?)?.toDouble();
+    final l7 = signalData?.outLast7d;
+    final p7 = signalData?.outPrev7d;
 
     return AgroCard.outlined(
       child: Column(
@@ -565,14 +488,8 @@ class _InventoryHealthSection extends StatelessWidget {
     );
   }
 
-  String? _resolveReconciliationTimestamp(Map<String, dynamic>? signalData) {
-    if (signalData == null) return null;
-    final raw =
-        signalData['last_reconciliation'] ??
-        signalData['last_reconciled_at'] ??
-        signalData['reconciled_at'] ??
-        signalData['reconciliation_at'] ??
-        signalData['updated_at'];
-    return raw?.toString();
+  String? _resolveReconciliationTimestamp(InventorySignal? signalData) {
+    if (signalData?.lastReconciliation == null) return null;
+    return signalData!.lastReconciliation!.toIso8601String();
   }
 }

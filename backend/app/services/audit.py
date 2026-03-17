@@ -6,16 +6,19 @@ from app.db.models.audit_log import AuditLog
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
+SYSTEM_USER_ID = 0
 
 
 def log_action(
     db: Session,
-    actor_user_id: int,
+    actor_user_id: int | None,
     action_type: str,
     entity_type: str,
     entity_id: int | None = None,
     metadata: dict | None = None,
 ) -> AuditLog | None:
+    actor_user_id = actor_user_id or SYSTEM_USER_ID
+
     payload = metadata or {}
     try:
         with db.begin_nested():
@@ -45,6 +48,9 @@ def get_audit_logs(
     end_date: Optional[date] = None,
     actor_user_id: Optional[int] = None,
     entity_type: Optional[str] = None,
+    warehouse_id: Optional[int] = None,
+    limit: Optional[int] = None,
+    offset: int = 0,
 ) -> List[AuditLog]:
     query = db.query(AuditLog)
     if start_date is not None:
@@ -59,4 +65,11 @@ def get_audit_logs(
         query = query.filter(AuditLog.actor_user_id == actor_user_id)
     if entity_type is not None:
         query = query.filter(AuditLog.entity_type == entity_type)
-    return query.order_by(AuditLog.created_at.desc()).all()
+    if warehouse_id is not None:
+        query = query.filter(AuditLog.warehouse_id == warehouse_id)
+    query = query.order_by(AuditLog.created_at.desc())
+    if offset:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    return query.all()

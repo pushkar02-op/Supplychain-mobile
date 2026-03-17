@@ -94,13 +94,13 @@ def get_mart_names(
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[dict]:
     """
-    Retrieve distinct mart names from orders.
+    Retrieve mart master records for order entry.
 
     Args:
         db (Session): Database session dependency.
 
     Returns:
-        List[dict]: List of mart names.
+        List[dict]: List of mart IDs and names.
     """
     logger.info("Fetching distinct mart names")
     resolved_warehouse_id = resolve_warehouse_for_request(
@@ -202,7 +202,12 @@ def delete(
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "delete"
     )
-    success = delete_order(db=db, order_id=order_id, warehouse_id=resolved_warehouse_id)
+    success = delete_order(
+        db=db,
+        order_id=order_id,
+        warehouse_id=resolved_warehouse_id,
+        current_user_id=current_user.id,
+    )
     if not success:
         logger.error(f"Order not found: id={order_id}")
         raise AppException("Order not found", status_code=404)

@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/warehouse_context.dart';
+import '../core/session/session_guard.dart';
 import '../models/mart_bill.dart';
+import '../models/mart_bill_page.dart';
 import '../repositories/mart_bill_repository.dart';
 import 'active_mart_provider.dart';
+import 'warehouse_context_provider.dart';
 
 final martBillRepositoryProvider = Provider((ref) => MartBillRepository());
 
@@ -12,7 +14,7 @@ final martBillProvider = AsyncNotifierProvider<MartBillNotifier, MartBillState>(
 );
 
 class MartBillState {
-  final List<Map<String, dynamic>> bills;
+  final List<MartBill> bills;
   final DateTime? selectedDate;
   final String search;
   final int skip;
@@ -37,7 +39,7 @@ class MartBillState {
   });
 
   MartBillState copyWith({
-    List<Map<String, dynamic>>? bills,
+    List<MartBill>? bills,
     DateTime? selectedDate,
     bool clearSelectedDate = false,
     String? search,
@@ -66,26 +68,40 @@ class MartBillState {
 }
 
 class MartBillNotifier extends AsyncNotifier<MartBillState> {
-  late final MartBillRepository _repo;
-
   @override
   Future<MartBillState> build() async {
-    requireWarehouse(ref);
-    _repo = ref.read(martBillRepositoryProvider);
+    final warehouseId = ref.watch(warehouseContextProvider);
+    if (warehouseId == null) {
+      return const MartBillState(
+        bills: [],
+        selectedDate: null,
+        search: '',
+        skip: 0,
+        limit: 20,
+        hasMore: false,
+        isLoadingMore: false,
+        isUploading: false,
+        pickedPaths: [],
+        uploadResults: [],
+      );
+    }
+
+    final repo = ref.read(martBillRepositoryProvider);
     // When active mart changes, refresh data automatically
     ref.listen<String?>(activeMartProvider, (_, __) => refresh());
-    final initial = await _repo.fetchMartBills(
+    final initial = await repo.fetchMartBills(
+      warehouseId: warehouseId,
       martName: ref.read(activeMartProvider),
       skip: 0,
       limit: 20,
     );
     return MartBillState(
-      bills: List<Map<String, dynamic>>.from(initial['items'] ?? const []),
+      bills: initial.items,
       selectedDate: null,
       search: '',
-      skip: initial['skip'] as int? ?? 0,
-      limit: initial['limit'] as int? ?? 20,
-      hasMore: initial['has_more'] as bool? ?? false,
+      skip: initial.skip,
+      limit: initial.limit,
+      hasMore: initial.hasMore,
       isLoadingMore: false,
       isUploading: false,
       pickedPaths: const [],
@@ -97,9 +113,12 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     final current = state.valueOrNull;
     if (current == null) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final result = await _repo.fetchMartBills(
+      final repo = ref.read(martBillRepositoryProvider);
+      final result = await repo.fetchMartBills(
+        warehouseId: warehouseId,
         date: date,
         martName: ref.read(activeMartProvider),
         search: current.search.isEmpty ? null : current.search,
@@ -109,9 +128,9 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
       return current.copyWith(
         selectedDate: date,
         clearSelectedDate: date == null,
-        bills: List<Map<String, dynamic>>.from(result['items'] ?? const []),
-        skip: result['skip'] as int? ?? 0,
-        hasMore: result['has_more'] as bool? ?? false,
+        bills: result.items,
+        skip: result.skip,
+        hasMore: result.hasMore,
         isLoadingMore: false,
       );
     });
@@ -121,10 +140,13 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     final current = state.valueOrNull;
     if (current == null) return;
 
+    final warehouseId = requireWarehouse(ref);
     final trimmed = search.trim();
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final result = await _repo.fetchMartBills(
+      final repo = ref.read(martBillRepositoryProvider);
+      final result = await repo.fetchMartBills(
+        warehouseId: warehouseId,
         date: current.selectedDate,
         martName: ref.read(activeMartProvider),
         search: trimmed.isEmpty ? null : trimmed,
@@ -133,9 +155,9 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
       );
       return current.copyWith(
         search: trimmed,
-        bills: List<Map<String, dynamic>>.from(result['items'] ?? const []),
-        skip: result['skip'] as int? ?? 0,
-        hasMore: result['has_more'] as bool? ?? false,
+        bills: result.items,
+        skip: result.skip,
+        hasMore: result.hasMore,
         isLoadingMore: false,
       );
     });
@@ -144,14 +166,16 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
   Future<void> refresh() async {
     final current = state.valueOrNull;
     if (current == null) {
-      state = const AsyncValue.loading();
-      state = await AsyncValue.guard(build);
+      ref.invalidateSelf();
       return;
     }
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final result = await _repo.fetchMartBills(
+      final repo = ref.read(martBillRepositoryProvider);
+      final result = await repo.fetchMartBills(
+        warehouseId: warehouseId,
         date: current.selectedDate,
         martName: ref.read(activeMartProvider),
         search: current.search.isEmpty ? null : current.search,
@@ -159,9 +183,9 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
         limit: current.limit,
       );
       return current.copyWith(
-        bills: List<Map<String, dynamic>>.from(result['items'] ?? const []),
-        skip: result['skip'] as int? ?? 0,
-        hasMore: result['has_more'] as bool? ?? false,
+        bills: result.items,
+        skip: result.skip,
+        hasMore: result.hasMore,
         isLoadingMore: false,
       );
     });
@@ -171,23 +195,23 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     final current = state.valueOrNull;
     if (current == null || current.isLoadingMore || !current.hasMore) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = AsyncValue.data(current.copyWith(isLoadingMore: true));
     final nextSkip = current.skip + current.limit;
     final result = await AsyncValue.guard(() async {
-      final response = await _repo.fetchMartBills(
+      final repo = ref.read(martBillRepositoryProvider);
+      final MartBillPage response = await repo.fetchMartBills(
+        warehouseId: warehouseId,
         date: current.selectedDate,
         martName: ref.read(activeMartProvider),
         search: current.search.isEmpty ? null : current.search,
         skip: nextSkip,
         limit: current.limit,
       );
-      final nextItems = List<Map<String, dynamic>>.from(
-        response['items'] ?? const [],
-      );
       return current.copyWith(
-        bills: [...current.bills, ...nextItems],
-        skip: response['skip'] as int? ?? nextSkip,
-        hasMore: response['has_more'] as bool? ?? false,
+        bills: [...current.bills, ...response.items],
+        skip: response.skip,
+        hasMore: response.hasMore,
         isLoadingMore: false,
       );
     });
@@ -213,10 +237,15 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     final current = state.valueOrNull;
     if (current == null || current.pickedPaths.isEmpty) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = AsyncValue.data(
       current.copyWith(isUploading: true, uploadResults: const []),
     );
-    final responses = await _repo.uploadMartBills(current.pickedPaths);
+    final repo = ref.read(martBillRepositoryProvider);
+    final responses = await repo.uploadMartBills(
+      warehouseId,
+      current.pickedPaths,
+    );
     final next = state.valueOrNull ?? current;
     state = AsyncValue.data(
       next.copyWith(
@@ -229,58 +258,82 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
   }
 
   Future<void> replacePdf(int billId, String path) async {
-    await _repo.replaceBillPdf(billId, path);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    await repo.replaceBillPdf(warehouseId, billId, path);
     await refresh();
   }
 
   Future<void> verifyBill(int billId) async {
-    await _repo.verifyMartBill(billId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    await repo.verifyMartBill(warehouseId, billId);
     await refresh();
   }
 
   Future<void> unverifyBill(int billId) async {
-    await _repo.unverifyMartBill(billId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    await repo.unverifyMartBill(warehouseId, billId);
     await refresh();
   }
 
   Future<void> deleteBill(int billId) async {
-    await _repo.deleteMartBill(billId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    await repo.deleteMartBill(warehouseId, billId);
     await refresh();
   }
 
   Future<void> updateBill(int billId, String remarks) async {
-    await _repo.updateMartBill(billId, remarks);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    await repo.updateMartBill(warehouseId, billId, remarks);
     await refresh();
   }
 
   Future<void> updateBillItem(int itemId, Map<String, dynamic> data) async {
-    await _repo.updateMartBillItem(itemId, data);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    await repo.updateMartBillItem(warehouseId, itemId, data);
     await refresh();
   }
 
   Future<void> deleteBillItem(int itemId) async {
-    await _repo.deleteMartBillItem(itemId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    await repo.deleteMartBillItem(warehouseId, itemId);
     await refresh();
   }
 
   Future<void> processStock(int billId) async {
-    await _repo.processStock(billId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    await repo.processStock(warehouseId, billId);
     await refresh();
   }
 
   Future<List<Map<String, dynamic>>> fetchBillItems(int billId) {
-    return _repo.fetchMartBillItems(billId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    return repo.fetchMartBillItems(warehouseId, billId);
   }
 
-  Future<List<String>> fetchMartNames() {
-    return _repo.fetchMartNames();
+  Future<List<Map<String, dynamic>>> fetchMartNames() {
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    return repo.fetchMartNames(warehouseId);
   }
 
   Future<String> downloadPdf(int billId) {
-    return _repo.downloadMartBillPdf(billId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    return repo.downloadMartBillPdf(warehouseId, billId);
   }
 
   Future<MartBill> getBillById(int id) {
-    return _repo.getMartBillById(id);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(martBillRepositoryProvider);
+    return repo.getMartBillById(warehouseId, id);
   }
 }

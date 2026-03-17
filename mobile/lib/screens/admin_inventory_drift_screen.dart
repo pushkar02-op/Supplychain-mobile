@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/drift_item.dart';
 import '../providers/admin_ledger_provider.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
@@ -12,6 +13,7 @@ import '../ui/widgets/agro_empty_state.dart';
 import '../ui/widgets/agro_error_state.dart';
 import '../ui/widgets/agro_key_value_row.dart';
 import '../ui/widgets/agro_status_badge.dart';
+import '../widgets/drift_resolution_dialog.dart';
 import 'admin_reconciliation_detail_screen.dart';
 
 class AdminInventoryDriftScreen extends ConsumerWidget {
@@ -63,20 +65,20 @@ class AdminInventoryDriftScreen extends ConsumerWidget {
 
 /// Card displaying drift information for a single item with severity-based styling.
 class _DriftItemCard extends StatelessWidget {
-  final Map<String, dynamic> item;
+  final DriftItem item;
 
   const _DriftItemCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    final delta = (item['drift'] as num?)?.toDouble() ?? 0.0;
-    final severity = item['severity'] as String? ?? 'NONE';
-    final itemName = item['item_name'] ?? 'Unknown';
-    final itemId = item['item_id'] as int;
-    final available = (item['state_qty'] as num?)?.toDouble() ?? 0.0;
-    final ledger = (item['ledger_qty'] as num?)?.toDouble() ?? 0.0;
+    final delta = item.drift;
+    final severity = _severityFromDrift(delta);
+    final itemName = item.itemName ?? 'Unknown';
+    final itemId = item.itemId;
+    final available = item.stateQty;
+    final ledger = item.ledgerQty;
+    final canResolve = delta != 0;
 
-    // Derive semantic status and severity styling
     final status = AgroStatusParser.fromDriftSeverity(severity);
     final severityStyle = AgroSeverity.fromStatus(status);
 
@@ -145,6 +147,21 @@ class _DriftItemCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: AgroSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: canResolve
+                          ? () async {
+                              await DriftResolutionDialog.show(context, item);
+                            }
+                          : null,
+                      icon: const Icon(Icons.build_circle_outlined),
+                      label: const Text('Resolve Drift'),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -152,6 +169,13 @@ class _DriftItemCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _severityFromDrift(double drift) {
+  final delta = drift.abs();
+  if (delta == 0) return 'NONE';
+  if (delta < 1) return 'MINOR';
+  return 'CRITICAL';
 }
 
 String _toTitleCase(String value) {

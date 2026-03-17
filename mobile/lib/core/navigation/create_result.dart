@@ -1,0 +1,4 @@
+enum CreateResult {
+  created,
+  cancelled,
+}

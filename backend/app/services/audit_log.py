@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 
-def get_all_audit_logs(db: Session) -> List[AuditLog]:
+def get_all_audit_logs(
+    db: Session, limit: int = 100, offset: int = 0
+) -> List[AuditLog]:
     """
     Fetch all audit log entries, ordered by timestamp descending.
 
@@ -25,7 +27,14 @@ def get_all_audit_logs(db: Session) -> List[AuditLog]:
     """
     logger.info("Retrieving all audit logs")
     try:
-        logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).all()
+        limit = min(limit, 500)
+        logs = (
+            db.query(AuditLog)
+            .order_by(AuditLog.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
         logger.debug(f"Retrieved {len(logs)} audit logs")
         return logs
     except Exception:

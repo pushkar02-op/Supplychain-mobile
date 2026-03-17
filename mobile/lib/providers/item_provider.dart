@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/warehouse_context.dart';
+import '../core/session/session_controller.dart';
+import '../core/session/session_guard.dart';
 import '../repositories/item_repository.dart';
 import '../services/forecasting_service.dart';
+import 'warehouse_context_provider.dart';
 
 final itemRepositoryProvider = Provider((ref) => ItemRepository());
 
@@ -51,13 +53,24 @@ final itemListProvider = AsyncNotifierProvider<ItemListNotifier, ItemListState>(
 );
 
 class ItemListNotifier extends AsyncNotifier<ItemListState> {
-  late final ItemRepository _repo;
   List<Map<String, dynamic>> _allFilteredItems = const [];
 
   @override
   Future<ItemListState> build() async {
-    requireWarehouse(ref);
-    _repo = ref.read(itemRepositoryProvider);
+    final warehouseId = ref.watch(warehouseContextProvider);
+    if (warehouseId == null) {
+      return const ItemListState(
+        items: [],
+        search: '',
+        statusFilter: 'active',
+        skip: 0,
+        limit: 5000,
+        hasMore: false,
+        isLoadingMore: false,
+      );
+    }
+
+    final repo = ref.read(itemRepositoryProvider);
     const defaultState = ItemListState(
       items: [],
       search: '',
@@ -67,49 +80,62 @@ class ItemListNotifier extends AsyncNotifier<ItemListState> {
       hasMore: false,
       isLoadingMore: false,
     );
-    return _fetchWithState(defaultState);
+    return _fetchWithState(warehouseId, defaultState, repo);
   }
 
   Future<void> setSearch(String search) async {
     final current = state.valueOrNull;
     if (current == null) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-      () => _fetchWithState(
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(itemRepositoryProvider);
+      return _fetchWithState(
+        warehouseId,
         current.copyWith(search: search.trim(), skip: 0, isLoadingMore: false),
-      ),
-    );
+        repo,
+      );
+    });
   }
 
   Future<void> setStatusFilter(String statusFilter) async {
     final current = state.valueOrNull;
     if (current == null) return;
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-      () => _fetchWithState(
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(itemRepositoryProvider);
+      return _fetchWithState(
+        warehouseId,
         current.copyWith(
           statusFilter: statusFilter,
           skip: 0,
           isLoadingMore: false,
         ),
-      ),
-    );
+        repo,
+      );
+    });
   }
 
   Future<void> refresh() async {
     final current = state.valueOrNull;
     if (current == null) {
-      state = const AsyncValue.loading();
-      state = await AsyncValue.guard(build);
+      ref.invalidateSelf();
       return;
     }
 
+    final warehouseId = requireWarehouse(ref);
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-      () => _fetchWithState(current.copyWith(skip: 0, isLoadingMore: false)),
-    );
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(itemRepositoryProvider);
+      return _fetchWithState(
+        warehouseId,
+        current.copyWith(skip: 0, isLoadingMore: false),
+        repo,
+      );
+    });
   }
 
   Future<void> loadMore() async {
@@ -131,9 +157,16 @@ class ItemListNotifier extends AsyncNotifier<ItemListState> {
     );
   }
 
-  Future<ItemListState> _fetchWithState(ItemListState base) async {
+  Future<ItemListState> _fetchWithState(
+    int warehouseId,
+    ItemListState base,
+    ItemRepository repo,
+  ) async {
     final includeInactive = base.statusFilter != 'active';
-    final allItems = await _repo.fetchItems(includeInactive: includeInactive);
+    final allItems = await repo.fetchItems(
+      warehouseId: warehouseId,
+      includeInactive: includeInactive,
+    );
     _allFilteredItems = _applyFilters(allItems, base.search, base.statusFilter);
     final paged = _slice(_allFilteredItems, 0, base.limit);
 
@@ -199,22 +232,24 @@ final itemDetailProvider =
     );
 
 class ItemDetailNotifier extends FamilyAsyncNotifier<ItemDetailState, int> {
-  late final ItemRepository _repo;
-
   @override
   Future<ItemDetailState> build(int itemId) async {
-    _repo = ref.read(itemRepositoryProvider);
-    final item = await _repo.fetchItemById(itemId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    final item = await repo.fetchItemById(warehouseId, itemId);
 
     ItemForecast? forecast;
     String? forecastError;
-    try {
-      final forecasts = await _repo.fetchForecastingSummary();
-      forecast = _repo.getItemForecast(forecasts, itemId);
-    } catch (e) {
-      forecastError = e.toString();
+    final session = ref.watch(sessionProvider);
+    if (session.canManageUsers) {
+      try {
+        final forecasts = await repo.fetchForecastingSummary(warehouseId);
+        forecast = repo.getItemForecast(forecasts, itemId);
+      } catch (e) {
+        forecastError = e.toString();
+      }
     }
-    final aliasMetrics = await _repo.fetchAliasMetrics();
+    final aliasMetrics = await repo.fetchAliasMetrics(warehouseId);
 
     return ItemDetailState(
       item: item,
@@ -236,22 +271,24 @@ final itemLifecycleProvider =
     );
 
 class ItemLifecycleNotifier extends AsyncNotifier<void> {
-  late final ItemRepository _repo;
-
   @override
   Future<void> build() async {
-    _repo = ref.read(itemRepositoryProvider);
+    // No-op
   }
 
   Future<Map<String, dynamic>?> deactivate(int id) async {
-    final result = await _repo.deactivateItem(id);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    final result = await repo.deactivateItem(warehouseId, id);
     ref.invalidate(itemListProvider);
     ref.invalidate(itemDetailProvider(id));
     return result;
   }
 
   Future<Map<String, dynamic>?> reactivate(int id) async {
-    final result = await _repo.reactivateItem(id);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    final result = await repo.reactivateItem(warehouseId, id);
     ref.invalidate(itemListProvider);
     ref.invalidate(itemDetailProvider(id));
     return result;
@@ -263,11 +300,9 @@ final itemAliasProvider = AsyncNotifierProvider<ItemAliasNotifier, void>(
 );
 
 class ItemAliasNotifier extends AsyncNotifier<void> {
-  late final ItemRepository _repo;
-
   @override
   Future<void> build() async {
-    _repo = ref.read(itemRepositoryProvider);
+    // No-op
   }
 
   Future<void> mapAlias({
@@ -275,7 +310,9 @@ class ItemAliasNotifier extends AsyncNotifier<void> {
     required int masterItemId,
     int? itemIdToRefresh,
   }) async {
-    await _repo.mapAlias(billItemId, masterItemId);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    await repo.mapAlias(warehouseId, billItemId, masterItemId);
     ref.invalidate(itemListProvider);
     if (itemIdToRefresh != null) {
       ref.invalidate(itemDetailProvider(itemIdToRefresh));
@@ -283,7 +320,7 @@ class ItemAliasNotifier extends AsyncNotifier<void> {
   }
 
   Future<void> removeAlias({required int aliasId, int? itemIdToRefresh}) async {
-    final _ = aliasId;
+    // Note: repo.removeAlias not implemented in repo, placeholder logic
     ref.invalidate(itemListProvider);
     if (itemIdToRefresh != null) {
       ref.invalidate(itemDetailProvider(itemIdToRefresh));
@@ -291,28 +328,38 @@ class ItemAliasNotifier extends AsyncNotifier<void> {
   }
 
   Future<List<Map<String, dynamic>>> fetchUnmappedMartBillItems() async {
-    return _repo.fetchUnmappedMartBillItems();
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    return repo.fetchUnmappedMartBillItems(warehouseId);
   }
 
   Future<List<Map<String, dynamic>>> fetchUOMs() async {
-    return _repo.fetchUOMs();
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    return repo.fetchUOMs(warehouseId);
   }
 
   Future<List<Map<String, dynamic>>> checkSimilarity(
     String name,
     String? uomCode,
   ) async {
-    return _repo.checkSimilarity(name, uomCode);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    return repo.checkSimilarity(warehouseId, name, uomCode ?? '');
   }
 
   Future<List<Map<String, dynamic>>> fetchAliasMetrics() async {
-    return _repo.fetchAliasMetrics();
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    return repo.fetchAliasMetrics(warehouseId);
   }
 
   Future<Map<String, dynamic>> createOrUpdateItem(
     Map<String, dynamic> payload,
   ) async {
-    final result = await _repo.createOrUpdateItem(payload);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    final result = await repo.createOrUpdateItem(warehouseId, payload);
     ref.invalidate(itemListProvider);
     final itemId = payload['id'] as int?;
     if (itemId != null) {
@@ -324,7 +371,12 @@ class ItemAliasNotifier extends AsyncNotifier<void> {
   Future<List<Map<String, dynamic>>> fetchItems({
     bool includeInactive = false,
   }) async {
-    return _repo.fetchItems(includeInactive: includeInactive);
+    final warehouseId = requireWarehouse(ref);
+    final repo = ref.read(itemRepositoryProvider);
+    return repo.fetchItems(
+      warehouseId: warehouseId,
+      includeInactive: includeInactive,
+    );
   }
 }
 
@@ -341,9 +393,10 @@ class AliasMappingData {
 }
 
 final aliasMappingDataProvider = FutureProvider<AliasMappingData>((ref) async {
-  final aliasNotifier = ref.read(itemAliasProvider.notifier);
-  final aliases = await aliasNotifier.fetchUnmappedMartBillItems();
-  final items = await aliasNotifier.fetchItems();
-  final metrics = await aliasNotifier.fetchAliasMetrics();
+  final warehouseId = requireWarehouse(ref);
+  final repo = ref.read(itemRepositoryProvider);
+  final aliases = await repo.fetchUnmappedMartBillItems(warehouseId);
+  final items = await repo.fetchItems(warehouseId: warehouseId);
+  final metrics = await repo.fetchAliasMetrics(warehouseId);
   return AliasMappingData(aliases: aliases, items: items, metrics: metrics);
 });

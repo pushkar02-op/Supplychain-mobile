@@ -18,9 +18,9 @@ from app.db.models.mart_bill import MartBill
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.uom import UOM
 from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
+from app.services.alias_resolver import resolve_alias
 from app.services.audit import log_action
 from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
-from app.services.item_alias import get_alias_by_code_or_name
 from app.services.warehouse_scope import resolve_system_warehouse_id
 from app.utils.invoice_parser import process_pdf
 from fastapi import UploadFile
@@ -132,12 +132,12 @@ async def save_and_process_mart_bill(
             item_name = row["Item"]
             item_uom = row["UOM"]
 
-            alias = get_alias_by_code_or_name(db, code=item_code, name=item_name)
-
-            if alias:
-                item_id = alias.master_item_id
-            else:
-                item_id = None  # Will stay unmapped, flagged later in UI
+            item_id = resolve_alias(
+                db=db,
+                mart_id=mart.id,
+                item_code=item_code,
+                item_name=item_name,
+            )
 
             if item_id is None:
                 # Example: suggest items with similar names or codes

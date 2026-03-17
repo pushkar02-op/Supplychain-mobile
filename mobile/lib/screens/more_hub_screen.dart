@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/auth_provider.dart';
-import '../providers/warehouse_provider.dart';
+import '../core/session/session_controller.dart';
+import '../providers/user_provider.dart';
 import '../ui/semantics/agro_severity.dart';
 import '../ui/semantics/agro_status.dart';
 import '../ui/theme/agro_colors.dart';
@@ -17,21 +17,15 @@ class MoreHubScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    final canManageUsers = authState.value?.canManageUsers ?? false;
+    final session = ref.watch(sessionProvider);
+    final canManageUsers = session.canManageUsers;
 
-    return Scaffold(
-      backgroundColor: AgroColors.background,
-      appBar: AppBar(
-        title: const Text('More'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
-        automaticallyImplyLeading: false,
-      ),
-      body: ListView(
+    return SafeArea(
+      child: ListView(
         padding: const EdgeInsets.all(AgroSpacing.screenPadding),
         children: [
+          const _IdentityHeader(),
+          const SizedBox(height: AgroSpacing.xl),
           const Padding(
             padding: EdgeInsets.only(
               bottom: AgroSpacing.sm,
@@ -49,6 +43,12 @@ class MoreHubScreen extends ConsumerWidget {
               top: AgroSpacing.sm,
             ),
             child: Text('Reference', style: AgroTypography.sectionTitle),
+          ),
+          const _NavTile(
+            icon: Icons.person_outline,
+            title: 'My Profile',
+            subtitle: 'View your account details',
+            route: '/profile',
           ),
           const _NavTile(
             icon: Icons.analytics_outlined,
@@ -121,6 +121,27 @@ class MoreHubScreen extends ConsumerWidget {
               canManageUsers: true,
             ),
             const _NavTile(
+              icon: Icons.store_outlined,
+              title: 'Mart Management',
+              subtitle: 'Create, edit, and deactivate marts',
+              route: '/admin/marts',
+              canManageUsers: true,
+            ),
+            const _NavTile(
+              icon: Icons.warehouse_outlined,
+              title: 'Warehouse Management',
+              subtitle: 'Maintain warehouses and financial locks',
+              route: '/admin/warehouses',
+              canManageUsers: true,
+            ),
+            const _NavTile(
+              icon: Icons.straighten_outlined,
+              title: 'Unit Management',
+              subtitle: 'Create, edit, and deactivate units',
+              route: '/admin/uoms',
+              canManageUsers: true,
+            ),
+            const _NavTile(
               icon: Icons.history_outlined,
               title: 'Audit Logs',
               subtitle: 'View system activity history',
@@ -139,17 +160,134 @@ class MoreHubScreen extends ConsumerWidget {
   }
 }
 
+class _IdentityHeader extends ConsumerWidget {
+  const _IdentityHeader();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(currentUserProfileProvider);
+    final session = ref.watch(sessionProvider);
+    final accessibleWarehouses = session.warehouses ?? const [];
+    String? activeWarehouseName;
+    for (final warehouse in accessibleWarehouses) {
+      if (warehouse.id == session.warehouseId) {
+        activeWarehouseName = warehouse.name;
+        break;
+      }
+    }
+
+    return InkWell(
+      borderRadius: AgroShapes.cardRadius,
+      onTap: () => context.push('/profile'),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: AgroShapes.cardRadius,
+          side: const BorderSide(color: AgroColors.dividerLight),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AgroSpacing.cardPadding),
+          child: profileAsync.when(
+          loading:
+              () => const Row(
+                children: [
+                  SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: AgroSpacing.md),
+                  Text('Loading profile...', style: AgroTypography.body),
+                ],
+              ),
+          error:
+              (error, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Signed In', style: AgroTypography.sectionTitle),
+                  const SizedBox(height: AgroSpacing.sm),
+                  Text(
+                    'Could not load profile details',
+                    style: AgroTypography.cardTitle.copyWith(
+                      color: AgroColors.critical.text,
+                    ),
+                  ),
+                  const SizedBox(height: AgroSpacing.xs),
+                  Text(
+                    error.toString(),
+                    style: AgroTypography.caption,
+                  ),
+                  const SizedBox(height: AgroSpacing.md),
+                  TextButton.icon(
+                    onPressed: () => ref.invalidate(currentUserProfileProvider),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+          data:
+              (user) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Signed In', style: AgroTypography.sectionTitle),
+                  const SizedBox(height: AgroSpacing.sm),
+                  Text(user.fullName, style: AgroTypography.cardTitle),
+                  const SizedBox(height: AgroSpacing.xs),
+                  Text(user.role, style: AgroTypography.cardSubtitle),
+                  const SizedBox(height: AgroSpacing.sm),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.warehouse_outlined,
+                        size: 16,
+                        color: AgroColors.textSecondary,
+                      ),
+                      const SizedBox(width: AgroSpacing.xs),
+                      Expanded(
+                        child: Text(
+                          activeWarehouseName == null ||
+                                  activeWarehouseName.isEmpty
+                              ? 'Warehouse: Not selected'
+                              : 'Warehouse: $activeWarehouseName',
+                          style: AgroTypography.captionEmphasis,
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: AgroColors.textDisabled,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _WarehouseTile extends ConsumerWidget {
   const _WarehouseTile();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeWarehouse = ref.watch(activeWarehouseAccessProvider);
-    final canSwitch = ref.watch(canSwitchWarehouseProvider);
-
+    final session = ref.watch(sessionProvider);
+    final warehouses = session.warehouses ?? const [];
+    final activeWarehouseId = session.warehouseId;
+    String? activeWarehouseName;
+    String? activeWarehouseCode;
+    for (final warehouse in warehouses) {
+      if (warehouse.id == activeWarehouseId) {
+        activeWarehouseName = warehouse.name;
+        activeWarehouseCode = warehouse.displayCode;
+        break;
+      }
+    }
     final subtitle =
-        activeWarehouse?.name ??
-        (canSwitch ? 'Select active warehouse' : 'Warehouse is auto-selected');
+        activeWarehouseName == null
+            ? 'No active warehouse selected'
+            : '$activeWarehouseName${activeWarehouseCode == null || activeWarehouseCode.isEmpty ? '' : ' ($activeWarehouseCode)'}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: AgroSpacing.sm),
@@ -164,12 +302,22 @@ class _WarehouseTile extends ConsumerWidget {
           color: AgroColors.primary,
         ),
         title: const Text('Warehouse', style: AgroTypography.cardTitle),
-        subtitle: Text(subtitle, style: AgroTypography.cardSubtitle),
-        trailing: Icon(
-          canSwitch ? Icons.chevron_right : Icons.lock_outline,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(subtitle, style: AgroTypography.cardSubtitle),
+            const SizedBox(height: 2),
+            Text(
+              '${warehouses.length} accessible workspace${warehouses.length == 1 ? '' : 's'}',
+              style: AgroTypography.caption,
+            ),
+          ],
+        ),
+        trailing: const Icon(
+          Icons.lock_outline,
           color: AgroColors.textDisabled,
         ),
-        onTap: canSwitch ? () => context.push('/warehouse/select') : null,
       ),
     );
   }
@@ -271,7 +419,7 @@ class _LogoutTile extends StatelessWidget {
           ),
     );
     if (confirmed == true) {
-      await ref.read(authProvider.notifier).logout();
+      await ref.read(sessionProvider.notifier).logout();
     }
   }
 }

@@ -58,12 +58,9 @@ def create_batch(
             .first()
         )
         if existing:
-            existing.quantity += batch.quantity
-            existing.updated_by = created_by
-            existing.updated_at = datetime.utcnow()
-            target_batch = existing
-            logger.debug(
-                f"Updated existing batch id={existing.id}, new qty={existing.quantity}"
+            raise AppException(
+                "Direct batch quantity modification is not allowed. "
+                "Use stock entry service."
             )
         else:
             from app.utils.audit import resolve_user_audit
@@ -203,7 +200,14 @@ def update_batch(
         logger.error(f"Batch not found id={batch_id}")
         raise AppException("Batch not found", status_code=404)
 
-    for field, value in entry_update.dict(exclude_unset=True).items():
+    update_data = entry_update.dict(exclude_unset=True)
+    if "quantity" in update_data:
+        raise AppException(
+            "Batch quantity cannot be modified directly. "
+            "Use stock entry or reconciliation services."
+        )
+
+    for field, value in update_data.items():
         setattr(batch, field, value)
     batch.updated_by = updated_by
     batch.updated_at = datetime.utcnow()
@@ -248,6 +252,6 @@ def delete_batch(
             entity_id=batch.id,
             metadata={"warehouse_id": batch.warehouse_id},
         )
-    db.delete(batch)
-    db.commit()
-    logger.debug(f"Batch id={batch_id} deleted")
+    raise AppException(
+        "Batch deletion is not allowed. Preserve batch records for ledger traceability."
+    )

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/navigation/create_result.dart';
 import '../providers/item_provider.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_spacing.dart';
@@ -39,6 +40,13 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
   String error = '';
   bool isSaving = false;
   Timer? _debounce;
+
+  void _handleCancelPop(bool didPop, Object? result) {
+    if (didPop) {
+      return;
+    }
+    Navigator.of(context).pop(CreateResult.cancelled);
+  }
 
   @override
   void initState() {
@@ -208,13 +216,11 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
         'conversions': conversions,
       };
 
-      final newItem = await ref
-          .read(itemAliasProvider.notifier)
-          .createOrUpdateItem(payload);
+      await ref.read(itemAliasProvider.notifier).createOrUpdateItem(payload);
 
       if (!mounted) return;
       AgroSnackBar.success(context, 'Item saved successfully');
-      context.pop(newItem);
+      context.pop(CreateResult.created);
     } catch (e) {
       setState(() {
         error = e.toString();
@@ -226,24 +232,35 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: _handleCancelPop,
+        child: const Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
     }
 
     // Phase 1 Guardrail: Intent Selection for NEW items
     if ((widget.data == null || widget.data?['id'] == null) &&
         creationIntent == null) {
-      return _IntentSelectionScreen(
-        onIntentSelected: (value) => setState(() => creationIntent = value),
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: _handleCancelPop,
+        child: _IntentSelectionScreen(
+          onIntentSelected: (value) => setState(() => creationIntent = value),
+        ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.data != null ? 'Edit Item' : 'New Item'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleCancelPop,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.data != null ? 'Edit Item' : 'New Item'),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Form(
           key: _formKey,
           child: ListView(
             children: [
@@ -722,6 +739,7 @@ class _ItemManagementScreenState extends ConsumerState<ItemManagementScreen> {
                         : const Text('Save Item'),
               ),
             ],
+          ),
           ),
         ),
       ),

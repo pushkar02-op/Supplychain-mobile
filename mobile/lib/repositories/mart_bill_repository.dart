@@ -7,11 +7,12 @@ import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
 import '../core/errors/error_mapper.dart';
 import '../models/mart_bill.dart';
-import '../services/auth_service.dart';
+import '../models/mart_bill_page.dart';
 
 class MartBillRepository {
   /// Fetch list of mart bills, with optional filters and pagination
-  Future<Map<String, dynamic>> fetchMartBills({
+  Future<MartBillPage> fetchMartBills({
+    required int warehouseId,
     DateTime? date,
     String? martName,
     String? search,
@@ -19,7 +20,11 @@ class MartBillRepository {
     int limit = 20,
   }) async {
     try {
-      final params = <String, dynamic>{'skip': skip, 'limit': limit};
+      final params = <String, dynamic>{
+        'skip': skip,
+        'limit': limit,
+        'warehouse_id': warehouseId,
+      };
       if (date != null) {
         params['invoice_date'] = date.toIso8601String().split('T').first;
       }
@@ -33,16 +38,18 @@ class MartBillRepository {
         queryParameters: params,
       );
       if (resp.statusCode == 200) {
-        final data = resp.data;
-        return {
-          'total': data['total'],
-          'skip': data['skip'],
-          'limit': data['limit'],
-          'has_more': data['has_more'] ?? false,
-          'items': List<Map<String, dynamic>>.from(
-            data['items'] ?? data['results'],
-          ),
-        };
+        final data = Map<String, dynamic>.from(resp.data as Map);
+        final items = (data['items'] ?? data['results'] ?? const []) as List<dynamic>;
+        return MartBillPage(
+          total: (data['total'] as num?)?.toInt() ?? items.length,
+          skip: (data['skip'] as num?)?.toInt() ?? 0,
+          limit: (data['limit'] as num?)?.toInt() ?? limit,
+          hasMore: data['has_more'] as bool? ?? false,
+          items:
+              items
+                  .map((entry) => MartBill.fromJson(entry as Map<String, dynamic>))
+                  .toList(),
+        );
       }
       throw AppError(detail: 'Failed to load mart bills');
     } catch (e) {
@@ -51,7 +58,10 @@ class MartBillRepository {
   }
 
   /// Upload one or more PDF files
-  Future<List<Map<String, dynamic>>> uploadMartBills(List<String> paths) async {
+  Future<List<Map<String, dynamic>>> uploadMartBills(
+    int warehouseId,
+    List<String> paths,
+  ) async {
     try {
       final formData = FormData();
       for (final p in paths) {
@@ -64,6 +74,7 @@ class MartBillRepository {
       }
       final resp = await DioClient.instance.post(
         '/mart-bills/upload',
+        queryParameters: {'warehouse_id': warehouseId},
         data: formData,
         options: Options(contentType: 'multipart/form-data'),
       );
@@ -81,7 +92,7 @@ class MartBillRepository {
   }
 
   /// Replace PDF for an existing bill
-  Future<void> replaceBillPdf(int billId, String path) async {
+  Future<void> replaceBillPdf(int warehouseId, int billId, String path) async {
     // Helper to build form data (must be rebuilt on retry)
     Future<FormData> buildFormData() async {
       return FormData.fromMap({
@@ -92,10 +103,12 @@ class MartBillRepository {
       });
     }
 
+    final queryParams = {'warehouse_id': warehouseId};
     try {
       final formData = await buildFormData();
       final resp = await DioClient.instance.post(
         '/mart-bills/$billId/replace-file',
+        queryParameters: queryParams,
         data: formData,
         options: Options(
           contentType: 'multipart/form-data',
@@ -112,11 +125,12 @@ class MartBillRepository {
     } on DioException catch (e) {
       // Handle 401 Manually for Multipart
       if (e.response?.statusCode == 401) {
-        final success = await AuthService.refreshToken();
+        final success = await DioClient.tryRefreshToken();
         if (success) {
           final formData = await buildFormData();
           final resp = await DioClient.instance.post(
             '/mart-bills/$billId/replace-file',
+            queryParameters: queryParams,
             data: formData,
             options: Options(
               contentType: 'multipart/form-data',
@@ -137,9 +151,15 @@ class MartBillRepository {
   }
 
   /// Fetch mart-bill-items for a given bill
-  Future<List<Map<String, dynamic>>> fetchMartBillItems(int billId) async {
+  Future<List<Map<String, dynamic>>> fetchMartBillItems(
+    int warehouseId,
+    int billId,
+  ) async {
     try {
-      final resp = await DioClient.instance.get('/mart-bill-items/$billId');
+      final resp = await DioClient.instance.get(
+        '/mart-bill-items/$billId',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       if (resp.statusCode == 200) {
         return List<Map<String, dynamic>>.from(resp.data);
       }
@@ -150,10 +170,15 @@ class MartBillRepository {
   }
 
   /// Update mart bill metadata (remarks)
-  Future<void> updateMartBill(int billId, String remarks) async {
+  Future<void> updateMartBill(
+    int warehouseId,
+    int billId,
+    String remarks,
+  ) async {
     try {
       final resp = await DioClient.instance.put(
         '/mart-bills/$billId',
+        queryParameters: {'warehouse_id': warehouseId},
         data: {'remarks': remarks},
       );
       if (resp.statusCode != 200) {
@@ -167,9 +192,12 @@ class MartBillRepository {
   }
 
   /// Verify and lock a mart bill
-  Future<void> verifyMartBill(int billId) async {
+  Future<void> verifyMartBill(int warehouseId, int billId) async {
     try {
-      final resp = await DioClient.instance.post('/mart-bills/$billId/verify');
+      final resp = await DioClient.instance.post(
+        '/mart-bills/$billId/verify',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       if (resp.statusCode != 200) {
         throw AppError(
           detail:
@@ -182,10 +210,11 @@ class MartBillRepository {
   }
 
   /// Unlock a mart bill
-  Future<void> unverifyMartBill(int billId) async {
+  Future<void> unverifyMartBill(int warehouseId, int billId) async {
     try {
       final resp = await DioClient.instance.post(
         '/mart-bills/$billId/unverify',
+        queryParameters: {'warehouse_id': warehouseId},
       );
       if (resp.statusCode != 200) {
         throw AppError(
@@ -199,10 +228,15 @@ class MartBillRepository {
   }
 
   /// Update a single mart-bill-item
-  Future<void> updateMartBillItem(int itemId, Map<String, dynamic> data) async {
+  Future<void> updateMartBillItem(
+    int warehouseId,
+    int itemId,
+    Map<String, dynamic> data,
+  ) async {
     try {
       final resp = await DioClient.instance.put(
         '/mart-bill-items/$itemId',
+        queryParameters: {'warehouse_id': warehouseId},
         data: data,
       );
       if (resp.statusCode != 200) {
@@ -217,9 +251,12 @@ class MartBillRepository {
   }
 
   /// Delete a mart bill
-  Future<void> deleteMartBill(int billId) async {
+  Future<void> deleteMartBill(int warehouseId, int billId) async {
     try {
-      final resp = await DioClient.instance.delete('/mart-bills/$billId');
+      final resp = await DioClient.instance.delete(
+        '/mart-bills/$billId',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       if (resp.statusCode != 204) {
         throw AppError(detail: 'Delete failed');
       }
@@ -229,9 +266,12 @@ class MartBillRepository {
   }
 
   /// Delete a single mart-bill-item
-  Future<void> deleteMartBillItem(int itemId) async {
+  Future<void> deleteMartBillItem(int warehouseId, int itemId) async {
     try {
-      final resp = await DioClient.instance.delete('/mart-bill-items/$itemId');
+      final resp = await DioClient.instance.delete(
+        '/mart-bill-items/$itemId',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       if (resp.statusCode != 204) {
         throw AppError(detail: 'Delete item failed');
       }
@@ -241,9 +281,12 @@ class MartBillRepository {
   }
 
   /// Process stock for a verified mart bill.
-  Future<void> processStock(int billId) async {
+  Future<void> processStock(int warehouseId, int billId) async {
     try {
-      final resp = await DioClient.instance.post('/mart-bills/$billId/process');
+      final resp = await DioClient.instance.post(
+        '/mart-bills/$billId/process',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       if (resp.statusCode != 200) {
         throw AppError(
           detail:
@@ -256,15 +299,37 @@ class MartBillRepository {
   }
 
   /// Fetch distinct mart names (reuse orders endpoint)
-  Future<List<String>> fetchMartNames() async {
+  Future<List<Map<String, dynamic>>> fetchMartNames(int warehouseId) async {
     try {
-      final resp = await DioClient.instance.get('/orders/mart-names');
+      final resp = await DioClient.instance.get(
+        '/orders/mart-names',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       final data = resp.data;
+      if (data is List) {
+        return data
+            .map(
+              (e) =>
+                  e is Map<String, dynamic>
+                      ? e
+                      : <String, dynamic>{'name': e.toString()},
+            )
+            .toList();
+      }
       if (data is Map && data['mart_names'] is List) {
-        return List<String>.from(data['mart_names']);
+        return data['mart_names']
+            .map((e) => <String, dynamic>{'name': e.toString()})
+            .toList();
       }
       if (data is List) {
-        return List<String>.from(data);
+        return data
+            .map(
+              (e) =>
+                  e is Map<String, dynamic>
+                      ? e
+                      : <String, dynamic>{'name': e.toString()},
+            )
+            .toList();
       }
       throw AppError(detail: 'Unexpected mart-names format');
     } catch (e) {
@@ -273,7 +338,7 @@ class MartBillRepository {
   }
 
   /// Downloads PDF for [billId] into a temp file and returns its path.
-  Future<String> downloadMartBillPdf(int billId) async {
+  Future<String> downloadMartBillPdf(int warehouseId, int billId) async {
     try {
       final dir = await getTemporaryDirectory();
       final filePath = '${dir.path}/mart_bill_$billId.pdf';
@@ -283,6 +348,7 @@ class MartBillRepository {
       final response = await DioClient.instance.download(
         '/mart-bills/$billId/download',
         filePath,
+        queryParameters: {'warehouse_id': warehouseId},
         options: Options(responseType: ResponseType.bytes),
       );
 
@@ -300,9 +366,12 @@ class MartBillRepository {
   }
 
   /// Get Single MartBill by ID
-  Future<MartBill> getMartBillById(int id) async {
+  Future<MartBill> getMartBillById(int warehouseId, int id) async {
     try {
-      final resp = await DioClient.instance.get('/mart-bills/$id');
+      final resp = await DioClient.instance.get(
+        '/mart-bills/$id',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       if (resp.statusCode == 200) {
         return MartBill.fromJson(resp.data);
       }

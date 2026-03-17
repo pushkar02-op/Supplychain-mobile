@@ -8,6 +8,10 @@ Admin-only authorization.
 from app.core.auth import require_role
 from app.core.exceptions import AppException
 from app.db.enums.role import Role
+from app.db.schemas.admin_read_models import (
+    ForecastSummaryRead,
+    ForecastSummaryResponse,
+)
 from app.db.session import get_db
 from app.services.forecasting import (
     get_all_forecast_summaries,
@@ -20,7 +24,11 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/admin/forecasting", tags=["Admin Forecasting"])
 
 
-@router.get("/summary", dependencies=[Depends(require_role(Role.OWNER))])
+@router.get(
+    "/summary",
+    response_model=ForecastSummaryResponse,
+    dependencies=[Depends(require_role(Role.OWNER))],
+)
 def get_forecasting_summary(db: Session = Depends(get_db)):
     """
     Get forecast summary for all items.
@@ -36,7 +44,11 @@ def get_forecasting_summary(db: Session = Depends(get_db)):
     return {"items": summaries, "count": len(summaries)}
 
 
-@router.get("/summary/{item_id}", dependencies=[Depends(require_role(Role.OWNER))])
+@router.get(
+    "/summary/{item_id}",
+    response_model=ForecastSummaryRead,
+    dependencies=[Depends(require_role(Role.OWNER))],
+)
 def get_item_forecast(item_id: int, db: Session = Depends(get_db)):
     """
     Get forecast summary for a specific item.

@@ -338,3 +338,47 @@ def test_admin_ledger_api_truth(client, admin_token_headers):
         assert "state_qty" in items[0]
         assert "drift" in items[0]
         assert "severity" in items[0]
+
+
+def test_admin_reconciliation_resolve_api_uses_batch_contract(
+    db_session: Session, client: TestClient, admin_token_headers
+):
+    uom = UOM(description="Unit", code="UNT")
+    db_session.add(uom)
+    db_session.commit()
+
+    item = Item(name="API Resolve Item", item_code="API-RES-1", default_uom_id=uom.id)
+    db_session.add(item)
+    db_session.commit()
+
+    batch = Batch(item_id=item.id, quantity=Decimal("100.0"), unit="UNT")
+    db_session.add(batch)
+    db_session.commit()
+
+    db_session.add(
+        InventoryTxn(
+            item_id=item.id,
+            batch_id=batch.id,
+            txn_type="IN",
+            raw_qty=Decimal("80.0"),
+            raw_unit="UNT",
+            base_qty=Decimal("80.0"),
+            base_unit="UNT",
+        )
+    )
+    db_session.commit()
+
+    response = client.post(
+        "/v1/admin/reconciliation/resolve",
+        headers=admin_token_headers,
+        json={
+            "batch_id": batch.id,
+            "resolution_type": "state_to_ledger",
+            "notes": "API resolution",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert isinstance(data["adjustment_txn_id"], int)

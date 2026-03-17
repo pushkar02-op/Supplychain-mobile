@@ -3,21 +3,12 @@ Application entrypoint for the AGRO FastAPI service.
 Configures logging, exception handlers, CORS, and database migrations on startup.
 """
 
+import asyncio
 import logging
 import os
 import subprocess
 
 from app.api import router as api_router
-from app.api.admin_diagnostics import router as admin_diagnostics_router
-from app.api.auth import router as auth_router
-from app.api.batch import router as batch_router
-from app.api.dispatch_entry import router as dispatch_router
-from app.api.inventory_txn import router as inventory_txn_router
-from app.api.item import router as item_router
-from app.api.rejection_entry import router as rejection_router
-from app.api.stock_entry import router as stock_router
-from app.api.stock_history import router as stock_history_router
-from app.api.uom import router as uom_router
 from app.core.config import settings as _settings
 from app.core.correlation import CorrelationIdMiddleware
 from app.core.exceptions import AppException, register_exception_handlers
@@ -27,6 +18,7 @@ from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.timing import TimingMiddleware
 from app.db.seed.seed_all import seed_all
 from app.db.session import SessionLocal
+from app.services.ledger_health_monitor import start_ledger_health_monitor
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -97,30 +89,11 @@ app.add_middleware(
 )
 
 # Include API routes
-app.include_router(api_router)
-app.include_router(auth_router, tags=["Auth"])
-app.include_router(item_router, prefix="/v1/item", tags=["Item"])
-app.include_router(uom_router, prefix="/v1/uom", tags=["UOM"])
-app.include_router(batch_router, prefix="/v1/batch", tags=["Batch"])
-app.include_router(stock_router, prefix="/v1/stock-entry", tags=["Stock Entry"])
-app.include_router(dispatch_router, prefix="/v1/dispatch", tags=["Dispatch Entry"])
-app.include_router(
-    rejection_router, prefix="/v1/rejection-entries", tags=["Rejection Entry"]
-)
-app.include_router(
-    inventory_txn_router, prefix="/v1/inventory-txn", tags=["Inventory Txn"]
-)
-app.include_router(
-    admin_diagnostics_router, prefix="/v1/admin", tags=["Admin Diagnostics"]
-)
-
-app.include_router(
-    stock_history_router, prefix="/v1/stock-entry", tags=["Stock Entry History"]
-)
+app.include_router(api_router, prefix="/v1")
 
 
 @app.on_event("startup")
-def startup() -> None:
+async def startup() -> None:
     """
     Startup event handler.
     Runs database migrations automatically.
@@ -162,3 +135,7 @@ def startup() -> None:
             logger.info("✅ Initial data seeded")
         except Exception:
             logger.exception("❌ Seeding initial data failed")
+
+    app.state.ledger_health_monitor_task = asyncio.create_task(
+        start_ledger_health_monitor()
+    )

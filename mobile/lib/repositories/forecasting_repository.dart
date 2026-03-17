@@ -3,13 +3,16 @@ import '../services/forecasting_service.dart';
 
 class ForecastingRepository {
   /// Fetch all item forecasts from backend
-  Future<List<ItemForecast>> fetchForecastingSummary() async {
+  Future<List<ItemForecast>> fetchForecastingSummary(int warehouseId) async {
     try {
-      final resp = await DioClient.instance.get('/admin/forecasting/summary');
+      final resp = await DioClient.instance.get(
+        '/admin/forecasting/summary',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
       final items = resp.data['items'] as List<dynamic>? ?? [];
       return items.map((e) => ItemForecast.fromJson(e)).toList();
-    } catch (e) {
-      rethrow;
+    } catch (_) {
+      return [];
     }
   }
 
