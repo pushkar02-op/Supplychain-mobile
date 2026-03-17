@@ -6,7 +6,7 @@ Provides upload, retrieval, update, deletion, and download of invoices.
 import logging
 import os
 from datetime import date
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from app.core.auth import require_role
 from app.core.exceptions import AppException
@@ -22,7 +22,8 @@ from app.services.mart_bill import (
     update_mart_bill,
 )
 from app.services.warehouse_scope import resolve_warehouse_for_request
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from app.utils.idempotency import check_idempotency, save_idempotency_record
+from fastapi import APIRouter, Depends, File, Header, Query, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
@@ -39,6 +40,7 @@ router = APIRouter(prefix="/invoices", tags=["Invoices"])
 async def upload_invoices(
     files: List[UploadFile] = File(..., description="One or more PDF files"),
     warehouse_id: Optional[int] = Query(None),
+    idempotency_key: Annotated[str | None, Header()] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ) -> List[dict]:
@@ -52,6 +54,9 @@ async def upload_invoices(
     Returns:
         List[dict]: Processing results for each file.
     """
+    if not idempotency_key:
+        raise AppException("Idempotency-Key header is required", status_code=400)
+
     logger.info(f"Uploading {len(files)} invoice file(s)")
     results = []
     resolved_warehouse_id = resolve_warehouse_for_request(
@@ -64,12 +69,29 @@ async def upload_invoices(
                 {"filename": file.filename, "success": False, "error": "Not a PDF"}
             )
             continue
+        file_key = f"{idempotency_key}:{file.filename}"
+        existing = check_idempotency(db, file_key, "upload_invoices", file.filename)
+        if existing:
+            logger.info(f"Idempotent replay for {file.filename}")
+            results.append(
+                {"filename": file.filename, "success": True, "idempotent": True}
+            )
+            continue
         result = await save_and_process_mart_bill(
             file,
             db=db,
-            created_by="system",
+            created_by=current_user.username,
             warehouse_id=resolved_warehouse_id,
         )
+        if result.get("success"):
+            save_idempotency_record(
+                db,
+                file_key,
+                "upload_invoices",
+                file.filename,
+                "mart_bill",
+                str(result.get("invoice_id", "")),
+            )
         results.append(result)
     return results
 

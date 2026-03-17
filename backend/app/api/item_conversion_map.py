@@ -49,7 +49,7 @@ def create_conv(
         ItemConversionRead: The created conversion mapping.
     """
     logger.info("Creating new item conversion mapping")
-    return create_conversion(db=db, data=entry, created_by="system")
+    return create_conversion(db=db, data=entry, created_by=current_user.username)
 
 
 @router.get("/", response_model=List[ItemConversionRead], summary="List conversions")
@@ -121,7 +121,7 @@ def update_conv(
         AppException: If mapping not found (404).
     """
     logger.info(f"Updating conversion id={conv_id}")
-    updated = update_conversion(db, conv_id, entry, updated_by="system")
+    updated = update_conversion(db, conv_id, entry, updated_by=current_user.username)
     if not updated:
         logger.error(f"Conversion not found: id={conv_id}")
         raise AppException("Conversion not found", status_code=404)

@@ -48,7 +48,7 @@ def create(
         ItemRead: The created item object.
     """
     logger.info(f"Creating item: {entry.name}")
-    return create_item(db=db, entry=entry, created_by=1)
+    return create_item(db=db, entry=entry, created_by=current_user.username)
 
 
 @router.get("/", response_model=List[ItemRead], summary="List items")
@@ -228,7 +228,10 @@ def update(
     """
     logger.info(f"Updating item id={item_id}")
     updated = update_item(
-        db=db, item_id=item_id, entry_update=entry_update, updated_by=1
+        db=db,
+        item_id=item_id,
+        entry_update=entry_update,
+        updated_by=current_user.username,
     )
     if not updated:
         logger.error(f"Item not found: id={item_id}")

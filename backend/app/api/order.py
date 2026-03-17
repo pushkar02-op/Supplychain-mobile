@@ -51,7 +51,10 @@ def create(
         current_user, warehouse_id, db, "create"
     )
     return create_order(
-        db=db, entry=entry, created_by="system", warehouse_id=resolved_warehouse_id
+        db=db,
+        entry=entry,
+        created_by=current_user.username,
+        warehouse_id=resolved_warehouse_id,
     )
 
 
@@ -177,7 +180,7 @@ def update(
         db=db,
         order_id=order_id,
         entry_update=entry_update,
-        updated_by="system",
+        updated_by=current_user.username,
         warehouse_id=resolved_warehouse_id,
     )
     if not updated:

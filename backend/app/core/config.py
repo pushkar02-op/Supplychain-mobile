@@ -1,29 +1,26 @@
-import os
-
-from dotenv import load_dotenv
-
-load_dotenv()
+from pydantic_settings import BaseSettings
 
 
-class Settings:
-    DATABASE_URL: str = os.getenv("DATABASE_URL")
-    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY")
+class Settings(BaseSettings):
+    DATABASE_URL: str
+    JWT_SECRET_KEY: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
-    POSTGRES_USER = os.getenv("POSTGRES_USER")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_DB = os.getenv("POSTGRES_DB")
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-    POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-    INVOICE_UPLOAD_DIR: str = "invoices"
-    STORAGE_ROOT: str = os.getenv("STORAGE_ROOT", "invoices")
+    ENVIRONMENT: str = "development"
     SEED_INITIAL_DATA: bool = True
-    FILE_UPLOAD_MAX_MB: int = int(os.getenv("FILE_UPLOAD_MAX_MB", "10"))
-    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    DRIFT_CRITICAL_RATIO: str = os.getenv("DRIFT_CRITICAL_RATIO", "0.05")
-    FORECAST_CRITICAL_DAYS: int = int(os.getenv("FORECAST_CRITICAL_DAYS", "3"))
-    FORECAST_REORDER_SOON_DAYS: int = int(os.getenv("FORECAST_REORDER_SOON_DAYS", "7"))
-    FORECAST_WATCH_DAYS: int = int(os.getenv("FORECAST_WATCH_DAYS", "14"))
+    POSTGRES_USER: str = ""
+    POSTGRES_PASSWORD: str = ""
+    POSTGRES_DB: str = ""
+    POSTGRES_PORT: str = ""
+    POSTGRES_HOST: str = ""
+    INVOICE_UPLOAD_DIR: str = "invoices"
+    STORAGE_ROOT: str = "invoices"
+    FILE_UPLOAD_MAX_MB: int = 10
+    CORS_ORIGINS: str = "*"
+    DRIFT_CRITICAL_RATIO: str = "0.05"
+    FORECAST_CRITICAL_DAYS: int = 3
+    FORECAST_REORDER_SOON_DAYS: int = 7
+    FORECAST_WATCH_DAYS: int = 14
 
     class Config:
         env_file = ".env"

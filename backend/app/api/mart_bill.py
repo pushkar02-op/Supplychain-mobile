@@ -76,7 +76,7 @@ async def upload_mart_bills(
         result = await save_and_process_mart_bill(
             file,
             db=db,
-            created_by="system",
+            created_by=current_user.username,
             warehouse_id=resolved_warehouse_id,
         )
         results.append(result)
