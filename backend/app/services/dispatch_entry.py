@@ -383,6 +383,7 @@ def _create_dispatch_entry_impl(
     from app.utils.audit import resolve_user_audit
 
     user_name, user_id = resolve_user_audit(db, created_by)
+    user_id = user_id or 0
 
     dispatch = db.scalar(
         select(DispatchEntry).where(
@@ -639,6 +640,7 @@ def _create_dispatch_from_order_impl(
             user_name, user_id = resolve_user_audit(
                 db, created_by
             )  # Treated as updated_by here
+            user_id = user_id or 0
             existing.updated_by = user_name
             existing.updated_at = datetime.utcnow()
             db.add(existing)
@@ -649,6 +651,7 @@ def _create_dispatch_from_order_impl(
             from app.utils.audit import resolve_user_audit
 
             user_name, user_id = resolve_user_audit(db, created_by)
+            user_id = user_id or 0
 
             dispatch_record = DispatchEntry(
                 item_id=entry.item_id,
@@ -730,6 +733,7 @@ def _create_dispatch_from_order_impl(
         from app.utils.audit import resolve_user_audit
 
         _, actor_id = resolve_user_audit(db, created_by)
+        actor_id = actor_id or 0
         for d in results:
             log_action(
                 db=db,

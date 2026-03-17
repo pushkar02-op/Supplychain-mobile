@@ -6,6 +6,7 @@ from app.db.models.audit_log import AuditLog
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
+SYSTEM_USER_ID = 0
 
 
 def log_action(
@@ -16,8 +17,7 @@ def log_action(
     entity_id: int | None = None,
     metadata: dict | None = None,
 ) -> AuditLog | None:
-    if actor_user_id is None:
-        return None
+    actor_user_id = actor_user_id or SYSTEM_USER_ID
 
     payload = metadata or {}
     try:

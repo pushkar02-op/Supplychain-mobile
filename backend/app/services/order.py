@@ -301,7 +301,10 @@ def update_order(
 
 
 def delete_order(
-    db: Session, order_id: int, warehouse_id: Optional[int] = None
+    db: Session,
+    order_id: int,
+    warehouse_id: Optional[int] = None,
+    current_user_id: Optional[int] = None,
 ) -> bool:
     """
     Delete an order by ID.
@@ -333,7 +336,7 @@ def delete_order(
     try:
         log_action(
             db=db,
-            actor_user_id=None,
+            actor_user_id=current_user_id or 0,
             action_type="order_deleted",
             entity_type="order",
             entity_id=order_pk,

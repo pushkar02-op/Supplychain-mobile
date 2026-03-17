@@ -557,7 +557,7 @@ def _delete_stock_entry_impl(
     try:
         log_action(
             db=db,
-            actor_user_id=entry.created_by_id,
+            actor_user_id=entry.created_by_id or 0,
             action_type="stock_entry_voided",
             entity_type="stock_entry",
             entity_id=entry.id,
