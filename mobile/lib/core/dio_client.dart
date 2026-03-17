@@ -3,7 +3,6 @@ import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:uuid/uuid.dart';
 
 import 'api_config.dart';
 import 'errors/app_error.dart';
@@ -56,17 +55,8 @@ class DioClient {
             options.headers['Authorization'] = 'Bearer $_accessToken';
           }
 
-          if (options.method == 'POST') {
-            final path = normalizedPath;
-            if (path.contains('/stock-entry') ||
-                path.contains('/dispatch-entries') ||
-                path.contains('/rejection-entries')) {
-              if (!options.headers.containsKey('Idempotency-Key')) {
-                options.headers['Idempotency-Key'] = const Uuid().v4();
-                debugPrint('Injected Idempotency-Key for $path');
-              }
-            }
-          }
+          // Do NOT auto-generate idempotency key here.
+          // Keys must be explicitly provided by the caller.
 
           return handler.next(options);
         },

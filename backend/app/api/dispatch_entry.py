@@ -5,7 +5,7 @@ Provides CRUD operations and batch dispatch creation from orders.
 
 import logging
 from datetime import date
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from app.core.auth import require_role
 from app.core.exceptions import AppException
@@ -29,7 +29,7 @@ from app.services.dispatch_entry import (
     get_dispatch_entry,
 )
 from app.services.warehouse_scope import resolve_warehouse_for_request
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,7 @@ def create_route(
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+    idempotency_key: Annotated[str, Header()] = None,
 ) -> DispatchEntryRead:
     """
     Create a new dispatch entry.
@@ -53,12 +54,18 @@ def create_route(
     Returns:
         DispatchEntryRead: The created dispatch entry.
     """
+    if not idempotency_key:
+        raise AppException("Idempotency-Key header is required", status_code=400)
     logger.info("Creating new dispatch entry")
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "create"
     )
     return create_dispatch_entry(
-        db, entry, created_by=current_user.username, warehouse_id=resolved_warehouse_id
+        db,
+        entry,
+        created_by=current_user.username,
+        warehouse_id=resolved_warehouse_id,
+        idempotency_key=idempotency_key,
     )
 
 
@@ -72,6 +79,7 @@ def dispatch_from_order(
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+    idempotency_key: Annotated[str, Header()] = None,
 ) -> List[DispatchEntryRead]:
     """
     Create multiple dispatch entries from an order.
@@ -86,6 +94,8 @@ def dispatch_from_order(
     Raises:
         AppException: If creation fails (400).
     """
+    if not idempotency_key:
+        raise AppException("Idempotency-Key header is required", status_code=400)
     logger.info("Creating dispatch entries from order")
     try:
         resolved_warehouse_id = resolve_warehouse_for_request(
@@ -96,6 +106,7 @@ def dispatch_from_order(
             entry,
             created_by=current_user.username,
             warehouse_id=resolved_warehouse_id,
+            idempotency_key=idempotency_key,
         )
     except Exception as e:
         logger.exception("Failed to create dispatch from order")

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../core/navigation/create_result.dart';
 import '../providers/dispatch_provider.dart';
@@ -52,6 +53,7 @@ class _CreateOrEditDispatchScreenState
   List<_BatchRow> _rows = [];
   bool _loading = true, _submitting = false;
   String? _error;
+  String? _currentIdempotencyKey;
 
   void _handleCancelPop(bool didPop, Object? result) {
     if (didPop) {
@@ -208,9 +210,13 @@ class _CreateOrEditDispatchScreenState
       if (widget.data!['id'] != null) {
         throw Exception('Editing dispatch entries is not allowed.');
       }
-      await ref.read(dispatchListProvider.notifier).createDispatch(payload);
+      _currentIdempotencyKey ??= const Uuid().v4();
+      await ref
+          .read(dispatchListProvider.notifier)
+          .createDispatch(payload, _currentIdempotencyKey!);
       if (!mounted) return;
       AgroSnackBar.success(context, 'Dispatch saved successfully');
+      _currentIdempotencyKey = null;
       Navigator.pop(context, CreateResult.created);
     } catch (e) {
       if (mounted) {

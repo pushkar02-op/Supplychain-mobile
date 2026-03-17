@@ -54,7 +54,7 @@ def create_rejection_entry(
             db, idempotency_key, "create_rejection_entry", entry.dict()
         )
         if existing_record:
-            return db.get(RejectionEntry, existing_record.result_entity_id)
+            return db.get(RejectionEntry, int(existing_record.result_entity_id))
 
     # Lock batch to prevent overselling during rejection
     # Lock batch to prevent overselling during rejection

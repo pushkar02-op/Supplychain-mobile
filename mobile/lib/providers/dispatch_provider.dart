@@ -184,10 +184,13 @@ class DispatchListNotifier extends AsyncNotifier<DispatchListState> {
     // Pagination logic placeholder if repository supports it
   }
 
-  Future<dynamic> createDispatch(Map<String, dynamic> data) async {
+  Future<dynamic> createDispatch(
+    Map<String, dynamic> data,
+    String idempotencyKey,
+  ) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(dispatchRepositoryProvider);
-    final result = await repo.createDispatch(warehouseId, data);
+    final result = await repo.createDispatch(warehouseId, data, idempotencyKey);
     await refresh();
     ref.invalidate(orderListProvider);
     ref.invalidate(overviewSummaryProvider);

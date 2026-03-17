@@ -267,6 +267,7 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
     required String reason,
     required String rejectionDate,
     String? rejectedBy,
+    required String idempotencyKey,
   }) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(rejectionRepositoryProvider);
@@ -279,6 +280,7 @@ class RejectionListNotifier extends AsyncNotifier<RejectionListState> {
       reason: reason,
       rejectionDate: rejectionDate,
       rejectedBy: rejectedBy,
+      idempotencyKey: idempotencyKey,
     );
     ref.invalidateSelf();
     ref.invalidate(overviewSummaryProvider);

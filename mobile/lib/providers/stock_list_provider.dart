@@ -68,6 +68,7 @@ class StockListController extends AsyncNotifier<List<StockTransaction>> {
     required double pricePerUnit,
     required String? source,
     required double totalCost,
+    required String idempotencyKey,
   }) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(stockRepositoryProvider);
@@ -80,7 +81,7 @@ class StockListController extends AsyncNotifier<List<StockTransaction>> {
       source: source,
       totalCost: totalCost,
     );
-    await repo.createStockEntry(payload, warehouseId);
+    await repo.createStockEntry(payload, warehouseId, idempotencyKey);
     ref.invalidateSelf();
     ref.invalidate(overviewSummaryProvider);
   }

@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
 
@@ -34,12 +36,14 @@ class DispatchRepository {
   Future<dynamic> createDispatch(
     int warehouseId,
     Map<String, dynamic> data,
+    String idempotencyKey,
   ) async {
     try {
       final resp = await DioClient.instance.post(
         '/dispatch-entries/from-order',
         queryParameters: {'warehouse_id': warehouseId},
         data: data,
+        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
       );
       if (resp.statusCode == 200 || resp.statusCode == 201) return resp.data;
       final detail = resp.data['detail'] ?? 'Unknown error';

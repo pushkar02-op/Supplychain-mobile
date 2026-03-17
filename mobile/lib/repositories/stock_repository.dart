@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:uuid/uuid.dart';
 
 import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
@@ -25,13 +24,14 @@ class StockRepository {
   Future<void> createStockEntry(
     StockEntryCreate payload,
     int warehouseId,
+    String idempotencyKey,
   ) async {
     try {
       final resp = await DioClient.instance.post(
         '/stock-entry/',
         queryParameters: {'warehouse_id': warehouseId},
         data: payload.toJson(),
-        options: Options(headers: {'Idempotency-Key': const Uuid().v4()}),
+        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
       );
       if (resp.statusCode != 201) {
         throw AppError(

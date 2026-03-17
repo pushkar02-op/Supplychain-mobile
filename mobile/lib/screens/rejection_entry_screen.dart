@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../core/navigation/create_result.dart';
 import '../providers/rejection_provider.dart';
@@ -36,6 +37,7 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
   bool _loadingBatches = false;
   bool _submitting = false;
   String? _error;
+  String? _currentIdempotencyKey;
 
   void _handleCancelPop(bool didPop, Object? result) {
     if (didPop) {
@@ -109,6 +111,7 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
 
     setState(() => _submitting = true);
     try {
+      _currentIdempotencyKey ??= const Uuid().v4();
       await ref
           .read(rejectionListProvider.notifier)
           .createRejection(
@@ -119,9 +122,11 @@ class _RejectionEntryScreenState extends ConsumerState<RejectionEntryScreen> {
             reason: _reason,
             rejectionDate: DateFormat('yyyy-MM-dd').format(_rejectionDate),
             rejectedBy: 'currentUser',
+            idempotencyKey: _currentIdempotencyKey!,
           );
       if (!mounted) return;
       AgroSnackBar.success(context, 'Rejection saved');
+      _currentIdempotencyKey = null;
       context.pop(CreateResult.created);
     } catch (e) {
       setState(() => _error = e.toString());
