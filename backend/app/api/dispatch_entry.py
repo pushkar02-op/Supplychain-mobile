@@ -116,8 +116,8 @@ def dispatch_from_order(
 @router.get("/", response_model=List[DispatchEntryNetRead])
 def get_dispatches(
     warehouse_id: Optional[int] = Query(None),
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     dispatch_date: Optional[date] = Query(None),
     mart_name: Optional[str] = Query(None),
     hide_fully_reversed: bool = Query(False),

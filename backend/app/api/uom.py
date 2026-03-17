@@ -26,9 +26,12 @@ def create(
 @router.get("/", response_model=List[UOMRead], summary="List UOMs")
 def read_all(
     include_inactive: bool = Query(False),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
 ) -> List[UOMRead]:
-    return list_uoms(db, include_inactive=include_inactive)
+    results = list_uoms(db, include_inactive=include_inactive)
+    return results[skip : skip + limit]
 
 
 @router.put("/{uom_id}", response_model=UOMRead)

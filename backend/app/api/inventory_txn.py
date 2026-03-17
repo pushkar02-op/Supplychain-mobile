@@ -23,7 +23,8 @@ def list_inventory_txns(
     item_id: int = Query(..., description="Filter by item ID"),
     warehouse_id: Optional[int] = Query(None, description="Warehouse scope"),
     unit: Optional[str] = Query(None, description="Filter by unit"),
-    limit: int = Query(10, ge=1, le=100, description="Number of transactions"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=200, description="Number of transactions"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[InventoryTxnRead]:
@@ -41,6 +42,7 @@ def list_inventory_txns(
         item_id=item_id,
         warehouse_id=resolved_warehouse_id,
         unit=unit,
+        skip=skip,
         limit=limit,
     )
     logger.debug(f"Found {len(txns)} transactions for item_id={item_id}")

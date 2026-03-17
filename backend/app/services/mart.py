@@ -31,11 +31,16 @@ def create_mart(db: Session, mart: MartCreate) -> Mart:
     return db_mart
 
 
-def list_marts(db: Session, include_inactive: bool = False) -> list[Mart]:
+def list_marts(
+    db: Session,
+    include_inactive: bool = False,
+    skip: int = 0,
+    limit: int = 100,
+) -> list[Mart]:
     query = db.query(Mart)
     if not include_inactive:
         query = query.filter(Mart.is_active.is_(True))
-    return query.order_by(Mart.name.asc()).all()
+    return query.order_by(Mart.name.asc()).offset(skip).limit(limit).all()
 
 
 def update_mart(db: Session, mart_id: int, mart_in: MartUpdate) -> Mart:
@@ -66,9 +71,13 @@ def set_mart_status(
 
 
 def get_marts_by_company(
-    db: Session, company_name: str, include_inactive: bool = False
+    db: Session,
+    company_name: str,
+    include_inactive: bool = False,
+    skip: int = 0,
+    limit: int = 100,
 ):
     query = db.query(Mart).filter(Mart.company_name == company_name)
     if not include_inactive:
         query = query.filter(Mart.is_active.is_(True))
-    return query.all()
+    return query.offset(skip).limit(limit).all()

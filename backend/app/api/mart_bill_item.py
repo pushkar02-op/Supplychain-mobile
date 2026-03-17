@@ -35,6 +35,8 @@ router = APIRouter(prefix="/mart-bill-items", tags=["Mart Bill Items"])
 def distinct_items_for_mart(
     mart_name: str = Query(..., description="Mart name"),
     warehouse_id: Optional[int] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ):
@@ -53,9 +55,10 @@ def distinct_items_for_mart(
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "read"
     )
-    return get_distinct_items_for_mart(
+    results = get_distinct_items_for_mart(
         db, mart_name, warehouse_id=resolved_warehouse_id
     )
+    return results[skip : skip + limit]
 
 
 @router.get(
@@ -64,6 +67,8 @@ def distinct_items_for_mart(
 def read_items(
     bill_id: int,
     warehouse_id: Optional[int] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[MartBillItemRead]:
@@ -81,7 +86,8 @@ def read_items(
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "read"
     )
-    return get_items_by_mart_bill(db, bill_id, warehouse_id=resolved_warehouse_id)
+    results = get_items_by_mart_bill(db, bill_id, warehouse_id=resolved_warehouse_id)
+    return results[skip : skip + limit]
 
 
 @router.put(

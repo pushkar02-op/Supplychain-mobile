@@ -113,6 +113,7 @@ def get_inventory_txns(
     item_id: int,
     warehouse_id: int,
     unit: Optional[str] = None,
+    skip: int = 0,
     limit: int = 10,
 ) -> List[InventoryTxn]:
     """
@@ -124,5 +125,5 @@ def get_inventory_txns(
     )
     if unit:
         q = q.filter(InventoryTxn.raw_unit == unit)
-    q = q.order_by(InventoryTxn.created_at.desc()).limit(limit)
+    q = q.order_by(InventoryTxn.created_at.desc()).offset(skip).limit(limit)
     return q.all()

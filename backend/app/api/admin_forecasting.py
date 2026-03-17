@@ -18,7 +18,7 @@ from app.services.forecasting import (
     get_forecast_summary,
     refresh_all_forecasts,
 )
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/admin/forecasting", tags=["Admin Forecasting"])
@@ -29,7 +29,11 @@ router = APIRouter(prefix="/admin/forecasting", tags=["Admin Forecasting"])
     response_model=ForecastSummaryResponse,
     dependencies=[Depends(require_role(Role.OWNER))],
 )
-def get_forecasting_summary(db: Session = Depends(get_db)):
+def get_forecasting_summary(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
     """
     Get forecast summary for all items.
 
@@ -41,7 +45,8 @@ def get_forecasting_summary(db: Session = Depends(get_db)):
     - signal (STABLE/WATCH/REORDER_SOON/CRITICAL)
     """
     summaries = get_all_forecast_summaries(db)
-    return {"items": summaries, "count": len(summaries)}
+    paged = summaries[skip : skip + limit]
+    return {"items": paged, "count": len(paged)}
 
 
 @router.get(

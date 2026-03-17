@@ -53,8 +53,8 @@ def create(
 
 @router.get("/", response_model=List[ItemRead], summary="List items")
 def read_all(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     include_inactive: bool = False,
     db: Session = Depends(get_db),
 ) -> List[ItemRead]:
@@ -82,6 +82,8 @@ def read_all(
 def read_operational_items(
     warehouse_id: Optional[int] = Query(None),
     in_stock: bool = Query(False),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[dict]:
@@ -101,11 +103,12 @@ def read_operational_items(
             db=db,
             operation_type="read",
         )
-    return get_operational_items(
+    results = get_operational_items(
         db=db,
         warehouse_id=resolved_warehouse_id,
         in_stock=in_stock,
     )
+    return results[skip : skip + limit]
 
 
 @router.get(
@@ -115,6 +118,8 @@ def read_operational_items(
 )
 def get_items_with_batches(
     warehouse_id: Optional[int] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List[ItemRead]:
@@ -134,7 +139,8 @@ def get_items_with_batches(
         db=db,
         operation_type="read",
     )
-    return get_items_with_available_batches(db, warehouse_id=resolved_warehouse_id)
+    results = get_items_with_available_batches(db, warehouse_id=resolved_warehouse_id)
+    return results[skip : skip + limit]
 
 
 @router.get("/check-similarity", summary="Check for similar items (Advisory)")

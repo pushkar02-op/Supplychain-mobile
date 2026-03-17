@@ -69,8 +69,8 @@ def create(
 def read_all(
     date: Optional[date] = Query(None, description="Filter by date"),
     warehouse_id: Optional[int] = Query(None),
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[StockEntryRead]:

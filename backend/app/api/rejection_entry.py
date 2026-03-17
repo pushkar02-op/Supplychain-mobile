@@ -68,6 +68,8 @@ def create_route(
 @router.get("/", response_model=List[RejectionEntryRead], summary="List rejections")
 def read_all(
     warehouse_id: Optional[int] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> List[RejectionEntryRead]:
@@ -84,7 +86,9 @@ def read_all(
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "read"
     )
-    return get_all_rejections(db, warehouse_id=resolved_warehouse_id)
+    return get_all_rejections(
+        db, warehouse_id=resolved_warehouse_id, skip=skip, limit=limit
+    )
 
 
 @router.get("/list", response_model=RejectionPagination, summary="Filter rejections")
@@ -93,7 +97,7 @@ def get_filtered_rejections(
     rejection_date: date = Query(..., description="Rejection date"),
     item_ids: Optional[List[int]] = Query(None, description="Filter by item IDs"),
     skip: int = Query(0, ge=0, description="Pagination offset"),
-    limit: int = Query(50, ge=1, le=100, description="Items per page"),
+    limit: int = Query(50, ge=1, le=200, description="Items per page"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
 ) -> RejectionPagination:

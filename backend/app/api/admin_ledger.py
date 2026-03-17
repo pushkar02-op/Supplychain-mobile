@@ -67,6 +67,8 @@ def get_health_summary(
 def get_reconciliation_report(
     response: Response,
     warehouse_id: int | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[Dict]:
@@ -78,4 +80,5 @@ def get_reconciliation_report(
     resolved_warehouse_id = resolve_warehouse_for_request(
         current_user, warehouse_id, db, "read"
     )
-    return get_ledger_health_report(db, warehouse_id=resolved_warehouse_id)
+    results = get_ledger_health_report(db, warehouse_id=resolved_warehouse_id)
+    return results[skip : skip + limit]

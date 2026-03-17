@@ -95,8 +95,8 @@ def change_current_user_password(
 
 @router.get("/", response_model=List[UserRead], summary="List users")
 def read_users(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.OWNER)),
 ) -> List[UserRead]:

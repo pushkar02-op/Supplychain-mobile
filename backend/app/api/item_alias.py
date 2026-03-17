@@ -7,7 +7,7 @@ from app.db.models.user import User
 from app.db.schemas.item_alias import ItemAliasCreate, ItemAliasRead
 from app.db.session import get_db
 from app.services.item_alias import create_alias, get_all_aliases
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/item-alias", tags=["Item Alias"])
@@ -23,19 +23,32 @@ def create(
 
 
 @router.get("/", response_model=List[ItemAliasRead])
-def read_all(db: Session = Depends(get_db)):
-    return get_all_aliases(db)
+def read_all(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    results = get_all_aliases(db)
+    return results[skip : skip + limit]
 
 
 @router.get("/distinct", response_model=List[ItemAliasRead])
-def get_distinct_aliases(db: Session = Depends(get_db)):
+def get_distinct_aliases(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
     # You can add more filtering if needed
     aliases = db.query(ItemAlias).distinct(ItemAlias.alias_name).all()
-    return aliases
+    return aliases[skip : skip + limit]
 
 
 @router.get("/metrics", summary="Alias Frequency Metrics (Read-Only)")
-def get_metrics(db: Session = Depends(get_db)):
+def get_metrics(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
     """
     Get alias frequency metrics for observational purposes.
 
@@ -51,7 +64,8 @@ def get_metrics(db: Session = Depends(get_db)):
     """
     from app.services.item_alias import get_alias_metrics
 
-    return get_alias_metrics(db)
+    results = get_alias_metrics(db)
+    return results[skip : skip + limit]
 
 
 @router.get("/item/{item_id}/aggregates", summary="Item Alias Aggregates (Read-Only)")

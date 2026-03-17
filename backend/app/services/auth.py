@@ -1,7 +1,7 @@
 import logging
 import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 from app.core.exceptions import AppException
@@ -110,7 +110,13 @@ def login_user(db: Session, user: UserLogin) -> Token:
             "role": db_user.role.value,
         }
     )
+    now = datetime.now(timezone.utc)
     try:
+        db.query(RefreshToken).filter(
+            RefreshToken.user_id == db_user.id,
+            RefreshToken.revoked_at.is_(None),
+            RefreshToken.expires_at > now,
+        ).update({"revoked_at": now}, synchronize_session=False)
         refresh_token = create_refresh_token(db, db_user.id, commit=False)
         db.commit()
     except Exception:
@@ -210,3 +216,11 @@ def refresh_token(db: Session, token_str: str) -> Token:
         refresh_token=new_refresh_token,
         user_id=db_token.user_id,
     )
+
+
+def prune_expired_tokens(db: Session) -> None:
+    now = datetime.now(timezone.utc)
+    db.query(RefreshToken).filter(
+        (RefreshToken.expires_at < now) | (RefreshToken.revoked_at.is_not(None))
+    ).delete(synchronize_session=False)
+    db.commit()

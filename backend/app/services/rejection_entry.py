@@ -313,7 +313,10 @@ def reverse_rejection_entry(
 
 
 def get_all_rejections(
-    db: Session, warehouse_id: Optional[int] = None
+    db: Session,
+    warehouse_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
 ) -> List[RejectionEntry]:
     """
     Retrieve all rejection entries ordered by date desc.
@@ -328,7 +331,9 @@ def get_all_rejections(
     q = db.query(RejectionEntry)
     if warehouse_id is not None:
         q = q.filter(RejectionEntry.warehouse_id == warehouse_id)
-    return q.order_by(RejectionEntry.rejection_date.desc()).all()
+    return (
+        q.order_by(RejectionEntry.rejection_date.desc()).offset(skip).limit(limit).all()
+    )
 
 
 def get_rejections_by_date_and_items(
