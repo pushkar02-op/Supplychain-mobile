@@ -50,7 +50,7 @@ class StockListScreen extends ConsumerWidget {
                   onRefresh: () async => ref.refresh(stockListProvider.future),
                   child:
                       stocks.isEmpty
-                          ? _buildEmptyState(context, ref)
+                          ? Center(child: _buildEmptyState(context, ref))
                           : ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
                             itemCount: stocks.length,
@@ -164,7 +164,7 @@ class StockListScreen extends ConsumerWidget {
                                           ref.invalidate(stockListProvider);
                                         }
                                       } else if (value == 'void') {
-                                        _confirmVoid(context, ref, stock);
+                                        await _confirmVoid(context, ref, stock);
                                       }
                                     },
                                     itemBuilder:

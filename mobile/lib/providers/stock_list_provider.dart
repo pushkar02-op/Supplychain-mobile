@@ -47,12 +47,16 @@ class StockListController extends AsyncNotifier<List<StockTransaction>> {
   Future<void> deleteStock(int id) async {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(stockRepositoryProvider);
-    await repo.deleteStockEntry(warehouseId, id);
     state = const AsyncValue.loading();
+    print('Deleting stock id=$id');
+    print('Warehouse=$warehouseId');
     state = await AsyncValue.guard(() async {
+      await repo.deleteStockEntry(warehouseId, id);
       final date = ref.read(selectedDateProvider);
       final dateString = date.toIso8601String().split('T')[0];
-      return _fetch(warehouseId, dateString);
+      final items = await _fetch(warehouseId, dateString);
+      print('Stock refreshed: count=${items.length}');
+      return items;
     });
   }
 
