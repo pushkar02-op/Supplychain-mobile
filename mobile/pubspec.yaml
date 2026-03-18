@@ -30,7 +30,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.2.1
   flutter_secure_storage: ^9.2.4
   dio: ^5.0.0
   cupertino_icons: ^1.0.8
