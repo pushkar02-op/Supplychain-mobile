@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 
-def register_user(db: Session, user: UserCreate) -> Token:
+def register_user(db: Session, user: UserCreate, created_by: str) -> Token:
     """
     Register a new user and return a JWT.
 
@@ -42,8 +42,8 @@ def register_user(db: Session, user: UserCreate) -> Token:
         username=user.username,
         full_name=user.full_name,
         hashed_password=hashed,
-        created_by=user.username,
-        updated_by=user.username,
+        created_by=created_by,
+        updated_by=created_by,
     )
     try:
         db.add(new_user)
@@ -142,7 +142,7 @@ def create_refresh_token(db: Session, user_id: int, commit: bool = True) -> str:
     refresh_token = RefreshToken(
         token=token_str,
         user_id=user_id,
-        expires_at=datetime.utcnow()
+        expires_at=datetime.now(timezone.utc)
         + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
     db.add(refresh_token)
@@ -179,14 +179,14 @@ def refresh_token(db: Session, token_str: str) -> Token:
         )
 
     # 3. Expiry check
-    if db_token.expires_at < datetime.utcnow():
+    if db_token.expires_at < datetime.now(timezone.utc):
         raise AppException(
             "Refresh token expired", status_code=status.HTTP_401_UNAUTHORIZED
         )
 
     try:
         # 4. Rotation: Revoke old, issue new
-        db_token.revoked_at = datetime.utcnow()
+        db_token.revoked_at = datetime.now(timezone.utc)
 
         user = db_token.user
         if not user.is_active:

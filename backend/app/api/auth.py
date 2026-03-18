@@ -39,7 +39,7 @@ def register(
         Token: JWT token for the new user.
     """
     logger.info("Registering new user")
-    return register_user(db, user)
+    return register_user(db, user, created_by=current_user.username)
 
 
 @router.post("/login", response_model=Token)

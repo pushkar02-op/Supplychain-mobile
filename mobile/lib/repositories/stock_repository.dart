@@ -31,7 +31,6 @@ class StockRepository {
         '/stock-entry/',
         queryParameters: {'warehouse_id': warehouseId},
         data: payload.toJson(),
-        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
       );
       if (resp.statusCode != 201) {
         throw AppError(
