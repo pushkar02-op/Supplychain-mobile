@@ -241,7 +241,6 @@ def update_order(
     """
     logger.info(f"Updating order id={order_id}")
     ord_ = get_order(db, order_id, warehouse_id=warehouse_id)
-    ord_ = get_order(db, order_id, warehouse_id=warehouse_id)
     if not ord_:
         logger.error(f"Order not found id={order_id}")
         return None

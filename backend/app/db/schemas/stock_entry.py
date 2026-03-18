@@ -36,6 +36,7 @@ class StockEntryRead(StockEntryBase):
 
     class Config:
         orm_mode = True
+        from_attributes = True
 
 
 class StockEntryUpdate(SchemaModel):
