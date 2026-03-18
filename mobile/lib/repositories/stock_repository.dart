@@ -27,10 +27,16 @@ class StockRepository {
     String idempotencyKey,
   ) async {
     try {
+      if (idempotencyKey.isEmpty) {
+        throw Exception('Idempotency key cannot be empty');
+      }
       final resp = await DioClient.instance.post(
         '/stock-entry/',
         queryParameters: {'warehouse_id': warehouseId},
         data: payload.toJson(),
+        options: Options(headers: {
+          'Idempotency-Key': idempotencyKey.toString(),
+        }),
       );
       if (resp.statusCode != 201) {
         throw AppError(
