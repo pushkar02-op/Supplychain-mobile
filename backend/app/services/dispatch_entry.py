@@ -815,13 +815,14 @@ def _create_dispatch_from_order_impl(
         )
 
     if idempotency_key:
+        dispatch_ids = [d.id for d in results]
         save_idempotency_record(
             db,
             idempotency_key,
             "dispatch_entry_from_order",
             payload,
             "dispatch_entry_bulk",
-            json.dumps([d.id for d in results]),
+            dispatch_ids[0] if dispatch_ids else None,
         )
 
     db.commit()
