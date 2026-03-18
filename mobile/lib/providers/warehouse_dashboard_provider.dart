@@ -8,10 +8,10 @@ import 'overview_provider.dart';
 
 final warehouseDashboardProvider =
     FutureProvider.autoDispose<WarehouseDashboard>((ref) async {
-      final summary = await ref.watch(overviewSummaryProvider.future);
-      final inventoryState = await ref.watch(inventoryListProvider.future);
-      final forecasts = await ref.watch(forecastingProvider.future);
-      final ledgerHealth = await ref.watch(ledgerHealthProvider.future);
+      final summary = await ref.read(overviewSummaryProvider.future);
+      final inventoryState = await ref.read(inventoryListProvider.future);
+      final forecasts = await ref.read(forecastingProvider.future);
+      final ledgerHealth = await ref.read(ledgerHealthProvider.future);
 
       return WarehouseDashboard.fromSources(
         summary,

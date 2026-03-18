@@ -226,7 +226,9 @@ class _IdentityHeader extends ConsumerWidget {
                 ],
               ),
           data:
-              (user) => Column(
+              (user) => user == null
+                  ? const CircularProgressIndicator()
+                  : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Signed In', style: AgroTypography.sectionTitle),

@@ -35,6 +35,9 @@ class MyProfileScreen extends ConsumerWidget {
               onRetry: () => ref.invalidate(currentUserProfileProvider),
             ),
         data: (user) {
+          if (user == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
           return ListView(
             padding: const EdgeInsets.all(AgroSpacing.screenPadding),

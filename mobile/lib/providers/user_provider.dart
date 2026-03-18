@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/session/session_controller.dart';
 import '../core/session/session_guard.dart';
+import '../core/session/session_state.dart';
 import '../models/user_read.dart';
 import '../repositories/user_repository.dart';
 
@@ -8,9 +10,13 @@ final userRepositoryProvider = Provider<UserRepository>(
   (ref) => UserRepository(),
 );
 
-final currentUserProfileProvider = FutureProvider.autoDispose<UserRead>((
+final currentUserProfileProvider = FutureProvider.autoDispose<UserRead?>((
   ref,
 ) async {
+  final session = ref.watch(sessionProvider);
+  if (session.state != SessionState.ready) {
+    return null;
+  }
   final repo = ref.read(userRepositoryProvider);
   return repo.fetchCurrentUser();
 });

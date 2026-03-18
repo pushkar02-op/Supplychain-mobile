@@ -7,12 +7,13 @@ import logging
 from decimal import Decimal
 from typing import List, Optional
 
-from app.core.exceptions import UOMConfigurationError
+from app.core.exceptions import AppException, UOMConfigurationError
 from app.db.models.item_conversion_map import ItemConversionMap
 from app.db.schemas.item_conversion_map import (
     ItemConversionCreate,
     ItemConversionUpdate,
 )
+from app.services.audit import log_action
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,14 @@ def create_conversion(
     db.add(conv)
     db.commit()
     db.refresh(conv)
+    log_action(
+        db=db,
+        actor_user_id=None,
+        action_type="item_conversion_created",
+        entity_type="item_conversion_map",
+        entity_id=conv.id,
+        metadata={"created_by": created_by},
+    )
     logger.debug(f"Created conversion id={conv.id}")
     return conv
 
@@ -132,12 +141,20 @@ def update_conversion(
     conv = get_conversion(db, conv_id)
     if not conv:
         logger.error(f"Conversion not found id={conv_id}")
-        return None
+        raise AppException("Conversion not found", status_code=404)
     for field, val in data.dict(exclude_unset=True).items():
         setattr(conv, field, val)
     conv.updated_by = updated_by
     db.commit()
     db.refresh(conv)
+    log_action(
+        db=db,
+        actor_user_id=None,
+        action_type="item_conversion_updated",
+        entity_type="item_conversion_map",
+        entity_id=conv.id,
+        metadata={"updated_by": updated_by},
+    )
     logger.debug(f"Conversion id={conv_id} updated")
     return conv
 

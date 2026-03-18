@@ -19,7 +19,7 @@ def create(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
 ):
-    return create_alias(db, entry, created_by="system")
+    return create_alias(db, entry, created_by=current_user.username)
 
 
 @router.get("/", response_model=List[ItemAliasRead])
