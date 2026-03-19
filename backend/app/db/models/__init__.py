@@ -20,6 +20,7 @@ from .labour_cost_daily import LabourCostDaily as LabourCostDaily
 from .mart import Mart as Mart
 from .mart_bill import MartBill as MartBill
 from .mart_bill_item import MartBillItem as MartBillItem
+from .mart_item_alias import MartItemAlias as MartItemAlias
 from .order import Order as Order
 from .reconciliation_record import ReconciliationRecord as ReconciliationRecord
 from .rejection_entry import RejectionEntry as RejectionEntry
@@ -42,6 +43,7 @@ __all__ = [
     "ReconciliationRecord",
     "RejectionEntry",
     "MartBillItem",
+    "MartItemAlias",
     "Order",
     "ItemConversionMap",
     "AuditLog",
