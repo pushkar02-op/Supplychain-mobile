@@ -170,6 +170,7 @@ async def save_and_process_mart_bill(
                         "suggested_items": suggested_items,
                     }
                 )
+                continue
 
             items.append(
                 MartBillItem(
@@ -224,10 +225,14 @@ async def save_and_process_mart_bill(
             "unmapped_items": unmapped_items,
         }
 
-    except Exception:
+    except AppException:
         db.rollback()
-        logger.exception("Failed to process invoice")
-        raise AppException("Invoice processing failed", status_code=500)
+        raise
+
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Unexpected error processing invoice: {e}")
+        raise AppException("Internal server error", status_code=500)
 
 
 def get_mart_bill_by_id(
