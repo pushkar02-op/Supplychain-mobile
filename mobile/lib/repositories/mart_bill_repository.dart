@@ -7,6 +7,7 @@ import '../core/dio_client.dart';
 import '../core/errors/app_error.dart';
 import '../core/errors/error_mapper.dart';
 import '../models/mart_bill.dart';
+import '../models/mart_bill_item.dart';
 import '../models/mart_bill_page.dart';
 
 class MartBillRepository {
@@ -151,7 +152,7 @@ class MartBillRepository {
   }
 
   /// Fetch mart-bill-items for a given bill
-  Future<List<Map<String, dynamic>>> fetchMartBillItems(
+  Future<List<MartBillItem>> fetchMartBillItems(
     int warehouseId,
     int billId,
   ) async {
@@ -161,7 +162,8 @@ class MartBillRepository {
         queryParameters: {'warehouse_id': warehouseId},
       );
       if (resp.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(resp.data);
+        final rawList = List<Map<String, dynamic>>.from(resp.data);
+        return rawList.map((e) => MartBillItem.fromJson(e)).toList();
       }
       throw AppError(detail: 'Failed to load items');
     } catch (e) {

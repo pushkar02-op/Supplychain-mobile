@@ -49,6 +49,7 @@ class _FakeItemRepository extends ItemRepository {
   Future<List<Map<String, dynamic>>> fetchItems({
     required int warehouseId,
     bool includeInactive = false,
+    String? search,
   }) async {
     return [];
   }

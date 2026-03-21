@@ -8,11 +8,14 @@ from datetime import datetime
 from typing import List, Optional
 
 from app.core.exceptions import AppException
+from app.db.models import UOM, Item
+from app.db.models.item import ItemStatus
 from app.db.models.mart_bill import MartBill
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.schemas.mart_bill_item import MartBillItemUpdate
 from app.services.audit import log_action
 from app.services.warehouse_scope import resolve_system_warehouse_id
+from app.utils.similarity import compute_match_score
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -100,6 +103,8 @@ def update_mart_bill_item(
 
     for field, value in update_data.dict(exclude_unset=True).items():
         setattr(item, field, value)
+    if item.item_id:
+        item.resolution_status = "MAPPED"
     db.flush()
     db.refresh(item)
     logger.debug(f"Item id={item_id} updated, recalculating invoice total")
@@ -199,3 +204,58 @@ def get_distinct_items_for_mart(
         }
         for r in rows
     ]
+
+
+def get_bill_item_suggestions(
+    db: Session, bill_id: int, warehouse_id: int
+) -> list[dict]:
+    """Get mapping suggestions for unresolved items in a bill."""
+    unresolved = (
+        db.query(MartBillItem)
+        .filter(
+            MartBillItem.invoice_id == bill_id,
+            MartBillItem.warehouse_id == warehouse_id,
+            MartBillItem.resolution_status == "UNRESOLVED",
+        )
+        .all()
+    )
+
+    if not unresolved:
+        return []
+
+    all_items = (
+        db.query(Item).filter(Item.status == ItemStatus.ACTIVE).limit(5000).all()
+    )
+    uom_map = {u.id: u.code for u in db.query(UOM).all()}
+
+    results = []
+    for it in unresolved:
+        scored = []
+        for s in all_items:
+            score = max(
+                compute_match_score(it.item_name or "", s.name or ""),
+                compute_match_score(it.item_code or "", s.item_code or ""),
+            )
+            if score >= 30:
+                scored.append((score, s))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        results.append(
+            {
+                "invoice_item_id": it.id,
+                "item_name": it.item_name,
+                "suggested_items": [
+                    {
+                        "id": s.id,
+                        "name": s.name,
+                        "item_code": s.item_code,
+                        "uom": uom_map.get(s.default_uom_id),
+                        "confidence": score,
+                    }
+                    for score, s in scored[:5]
+                ],
+            }
+        )
+
+    return results

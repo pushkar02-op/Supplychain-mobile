@@ -270,13 +270,6 @@ def unverify_mart_bill_endpoint(
         raise AppException(
             detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
         )
-    bill = unverify_mart_bill(
-        db, invoice_id=bill_id, warehouse_id=resolved_warehouse_id
-    )
-    if not bill:
-        raise AppException(
-            detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
-        )
     return bill
 
 

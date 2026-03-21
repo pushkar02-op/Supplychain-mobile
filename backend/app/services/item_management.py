@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_master_items_details(
-    db: Session, include_inactive: bool = False
+    db: Session, include_inactive: bool = False, search: str | None = None
 ) -> List[ItemManagementRead]:
     """
     Fetches all master items with their related aliases, conversions, and default UOM.
@@ -36,6 +36,9 @@ def get_master_items_details(
 
     if not include_inactive:
         query = query.filter(Item.status == ItemStatus.ACTIVE)
+
+    if search:
+        query = query.filter(Item.name.ilike(f"%{search}%"))
 
     items = query.order_by(Item.name).all()
 
@@ -56,7 +59,7 @@ def get_master_items_details(
     for conv in all_conversions:
         conversions_by_item_id[conv.item_id].append(conv)
 
-    return [
+    result_list = [
         ItemManagementRead(
             id=item.id,
             name=item.name,
@@ -66,6 +69,14 @@ def get_master_items_details(
         )
         for item in items
     ]
+
+    if search:
+        from app.utils.similarity import compute_match_score
+
+        for item_read in result_list:
+            item_read.confidence = compute_match_score(search, item_read.name)
+
+    return result_list
 
 
 def get_unmapped_invoice_items_with_suggestions(
@@ -166,6 +177,7 @@ def create_or_update_master_item(
                 if invoice_item:
                     # Link the original invoice item to the master item for consistency.
                     invoice_item.item_id = item.id
+                    invoice_item.resolution_status = "MAPPED"
 
                     # To prevent creating duplicate aliases, check if one with the same name/code already exists.
                     existing_alias_by_name = (
@@ -235,6 +247,30 @@ def map_alias_to_item(db: Session, alias_id: int, item_id: int) -> dict:
     return {"message": "Alias mapped successfully"}
 
 
+def _apply_item_mapping(
+    db: Session,
+    invoice_item: MartBillItem,
+    master_item: Item,
+    username: str,
+    existing_aliases: set,
+) -> None:
+    """Apply mapping to a single invoice item and create alias if needed."""
+    invoice_item.item_id = master_item.id
+    invoice_item.resolution_status = "MAPPED"
+
+    key = (invoice_item.item_code, invoice_item.item_name)
+    if key not in existing_aliases:
+        db.add(
+            ItemAlias(
+                master_item_id=master_item.id,
+                alias_code=invoice_item.item_code,
+                alias_name=invoice_item.item_name,
+                created_by=username,
+            )
+        )
+        existing_aliases.add(key)
+
+
 def map_invoice_item(
     db: Session,
     invoice_item_id: int,
@@ -267,23 +303,15 @@ def map_invoice_item(
             metadata={},
         )
 
-    # 1. Map the invoice item
-    invoice_item.item_id = master_item_id
+    # Preload existing aliases for this master item
+    existing_aliases = {
+        (a.alias_code, a.alias_name)
+        for a in db.query(ItemAlias)
+        .filter(ItemAlias.master_item_id == master_item_id)
+        .all()
+    }
 
-    # 2. Create an alias for future auto-mapping
-    existing_alias = (
-        db.query(ItemAlias)
-        .filter_by(alias_code=invoice_item.item_code, alias_name=invoice_item.item_name)
-        .first()
-    )
-    if not existing_alias:
-        new_alias = ItemAlias(
-            master_item_id=master_item_id,
-            alias_code=invoice_item.item_code,
-            alias_name=invoice_item.item_name,
-            created_by=username,
-        )
-        db.add(new_alias)
+    _apply_item_mapping(db, invoice_item, master_item, username, existing_aliases)
 
     try:
         log_action(
@@ -302,3 +330,144 @@ def map_invoice_item(
 
     db.commit()
     return {"message": "Invoice item mapped and alias created successfully"}
+
+
+def bulk_map_invoice_items(
+    db: Session,
+    invoice_item_ids: list[int],
+    master_item_id: int,
+    username: str,
+) -> dict:
+    """Bulk map multiple unmapped invoice items to a single master item."""
+    if not invoice_item_ids:
+        return {"mapped_count": 0, "updated_ids": []}
+
+    master_item = db.get(Item, master_item_id)
+    if not master_item:
+        raise AppException(
+            detail="Master item not found",
+            status_code=404,
+            rule_id=None,
+            metadata={},
+        )
+
+    items = (
+        db.query(MartBillItem)
+        .filter(
+            MartBillItem.id.in_(invoice_item_ids),
+            MartBillItem.resolution_status == "UNRESOLVED",
+        )
+        .all()
+    )
+
+    # Preload existing aliases to avoid duplicates
+    existing_aliases = {
+        (a.alias_code, a.alias_name)
+        for a in db.query(ItemAlias)
+        .filter(ItemAlias.master_item_id == master_item_id)
+        .all()
+    }
+
+    mapped_ids = []
+    for item in items:
+        _apply_item_mapping(db, item, master_item, username, existing_aliases)
+        mapped_ids.append(item.id)
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=None,
+            action_type="invoice_items_bulk_mapped",
+            entity_type="mart_bill_item",
+            entity_id=None,
+            metadata={
+                "master_item_id": master_item_id,
+                "mapped_count": len(mapped_ids),
+                "mapped_ids": mapped_ids,
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for invoice_items_bulk_mapped", exc_info=True)
+
+    db.commit()
+    return {"mapped_count": len(mapped_ids), "updated_ids": mapped_ids}
+
+
+def batch_map_invoice_items(
+    db: Session,
+    mappings: list[dict],
+    username: str,
+) -> dict:
+    """Batch map invoice items to different master items (per-item mapping)."""
+    if not mappings:
+        return {"mapped_count": 0, "skipped_count": 0, "mapped_ids": []}
+
+    # Deduplicate by invoice_item_id (keep first occurrence)
+    seen: set[int] = set()
+    unique_mappings: list[dict] = []
+    for m in mappings:
+        if m["invoice_item_id"] not in seen:
+            seen.add(m["invoice_item_id"])
+            unique_mappings.append(m)
+    mappings = unique_mappings
+
+    invoice_ids = {m["invoice_item_id"] for m in mappings}
+    master_ids = {m["master_item_id"] for m in mappings}
+
+    # Batch fetch (3 queries, no N+1)
+    items = {
+        i.id: i
+        for i in db.query(MartBillItem)
+        .filter(
+            MartBillItem.id.in_(invoice_ids),
+            MartBillItem.resolution_status == "UNRESOLVED",
+        )
+        .all()
+    }
+
+    masters = {m.id: m for m in db.query(Item).filter(Item.id.in_(master_ids)).all()}
+
+    aliases = db.query(ItemAlias).filter(ItemAlias.master_item_id.in_(master_ids)).all()
+    alias_map: dict[int, set] = {}
+    for a in aliases:
+        alias_map.setdefault(a.master_item_id, set()).add((a.alias_code, a.alias_name))
+
+    mapped_ids = []
+    for m in mappings:
+        item = items.get(m["invoice_item_id"])
+        master = masters.get(m["master_item_id"])
+
+        if not item or not master:
+            continue
+
+        _apply_item_mapping(
+            db=db,
+            invoice_item=item,
+            master_item=master,
+            username=username,
+            existing_aliases=alias_map.setdefault(master.id, set()),
+        )
+        mapped_ids.append(item.id)
+
+    try:
+        log_action(
+            db=db,
+            actor_user_id=None,
+            action_type="invoice_items_batch_mapped",
+            entity_type="mart_bill_item",
+            entity_id=None,
+            metadata={
+                "mapped_count": len(mapped_ids),
+                "mapped_ids": mapped_ids,
+            },
+        )
+    except Exception:
+        logger.warning("Audit log failed for invoice_items_batch_mapped", exc_info=True)
+
+    logger.info(f"Batch mapped {len(mapped_ids)}/{len(mappings)} items by {username}")
+    db.commit()
+    return {
+        "mapped_count": len(mapped_ids),
+        "skipped_count": len(mappings) - len(mapped_ids),
+        "mapped_ids": mapped_ids,
+    }

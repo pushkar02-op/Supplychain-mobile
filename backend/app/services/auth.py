@@ -179,7 +179,10 @@ def refresh_token(db: Session, token_str: str) -> Token:
         )
 
     # 3. Expiry check
-    if db_token.expires_at < datetime.now(timezone.utc):
+    expires_at = db_token.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
         raise AppException(
             "Refresh token expired", status_code=status.HTTP_401_UNAUTHORIZED
         )

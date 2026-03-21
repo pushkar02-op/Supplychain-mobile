@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/session/session_guard.dart';
 import '../models/mart_bill.dart';
+import '../models/mart_bill_item.dart';
 import '../models/mart_bill_page.dart';
 import '../repositories/mart_bill_repository.dart';
 import 'active_mart_provider.dart';
@@ -313,7 +314,7 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
     await refresh();
   }
 
-  Future<List<Map<String, dynamic>>> fetchBillItems(int billId) {
+  Future<List<MartBillItem>> fetchBillItems(int billId) {
     final warehouseId = requireWarehouse(ref);
     final repo = ref.read(martBillRepositoryProvider);
     return repo.fetchMartBillItems(warehouseId, billId);

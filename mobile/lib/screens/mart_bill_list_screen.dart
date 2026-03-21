@@ -6,8 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../models/mart_bill.dart';
+import '../models/mart_bill_item.dart';
 import '../providers/active_mart_provider.dart';
 import '../providers/mart_bill_provider.dart';
+import '../providers/warehouse_context_provider.dart';
+import '../repositories/item_repository.dart';
+import '../widgets/inline_item_mapping_sheet.dart';
 import '../ui/theme/agro_colors.dart';
 import '../ui/theme/agro_shapes.dart';
 import '../ui/theme/agro_spacing.dart';
@@ -95,13 +99,13 @@ class MartBillListScreen extends ConsumerWidget {
   Future<void> _showEditItemDialog(
     BuildContext context,
     WidgetRef ref,
-    Map<String, dynamic> item,
+    MartBillItem item,
   ) async {
     final qtyController = TextEditingController(
-      text: item['quantity'].toString(),
+      text: item.quantity.toString(),
     );
     final priceController = TextEditingController(
-      text: item['price'].toString(),
+      text: item.price.toString(),
     );
     final totalController = TextEditingController();
 
@@ -157,7 +161,7 @@ class MartBillListScreen extends ConsumerWidget {
                   }
 
                   await ref.read(martBillProvider.notifier).updateBillItem(
-                    item['id'],
+                    item.id,
                     {'quantity': qty, 'price': price, 'total': total},
                   );
                   if (!context.mounted) return;
@@ -374,6 +378,7 @@ class MartBillListScreen extends ConsumerWidget {
         final bill = state.bills[i];
         return _BillCard(
           bill: bill,
+          warehouseId: ref.watch(warehouseContextProvider),
           onDelete: (id) => _confirmDelete(context, ref, id),
           onEditItem: (item) => _showEditItemDialog(context, ref, item),
           onVerify: (id) => ref.read(martBillProvider.notifier).verifyBill(id),
@@ -383,6 +388,7 @@ class MartBillListScreen extends ConsumerWidget {
               (id) => ref.read(martBillProvider.notifier).fetchBillItems(id),
           onDeleteItem:
               (id) => ref.read(martBillProvider.notifier).deleteBillItem(id),
+          onRefresh: () => ref.read(martBillProvider.notifier).refresh(),
         );
       },
     );
@@ -465,6 +471,17 @@ class _UploadResultsCard extends StatelessWidget {
     required this.onAddMore,
   });
 
+  Widget? _buildUploadSubtitle(Map<String, dynamic> result) {
+    final unmapped = result['unmapped_items'];
+    if (unmapped is List && unmapped.isNotEmpty) {
+      return Text(
+        '${unmapped.length} unresolved item${unmapped.length == 1 ? '' : 's'}',
+        style: TextStyle(color: AgroColors.warning.text),
+      );
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -499,13 +516,12 @@ class _UploadResultsCard extends StatelessWidget {
                           : AgroColors.critical.text,
                 ),
                 title: Text(result['filename'] ?? 'Unnamed file'),
-                subtitle:
-                    result['success'] == true
-                        ? null
-                        : Text(
-                          result['error'] ?? 'Unknown error',
-                          style: TextStyle(color: AgroColors.critical.text),
-                        ),
+                subtitle: result['success'] == true
+                    ? _buildUploadSubtitle(result)
+                    : Text(
+                        result['error'] ?? 'Unknown error',
+                        style: TextStyle(color: AgroColors.critical.text),
+                      ),
               ),
             const SizedBox(height: AgroSpacing.md),
             Center(
@@ -522,32 +538,252 @@ class _UploadResultsCard extends StatelessWidget {
   }
 }
 
-class _BillCard extends StatelessWidget {
+class _BillCard extends StatefulWidget {
   final MartBill bill;
+  final int? warehouseId;
   final Future<void> Function(int) onDelete;
-  final Future<void> Function(Map<String, dynamic>) onEditItem;
+  final Future<void> Function(MartBillItem) onEditItem;
   final Future<void> Function(int) onVerify;
   final Future<void> Function(int) onUnverify;
-  final Future<List<Map<String, dynamic>>> Function(int) onFetchItems;
+  final Future<List<MartBillItem>> Function(int) onFetchItems;
   final Future<void> Function(int) onDeleteItem;
+  final VoidCallback onRefresh;
 
   const _BillCard({
     required this.bill,
+    required this.warehouseId,
     required this.onDelete,
     required this.onEditItem,
     required this.onVerify,
     required this.onUnverify,
     required this.onFetchItems,
     required this.onDeleteItem,
+    required this.onRefresh,
   });
 
   @override
+  State<_BillCard> createState() => _BillCardState();
+}
+
+class _BillCardState extends State<_BillCard> {
+  final _repo = ItemRepository();
+
+  Map<int, int?> _pendingMappings = {};
+  Map<int, List<Map<String, dynamic>>> _suggestions = {};
+  Map<int, String> _searchPickNames = {}; // billItemId -> name from search
+  Set<int> _autoFilledIds = {};
+  bool _suggestionsLoaded = false;
+  bool _isSaving = false;
+
+  void _showVerifyBlockedDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Cannot Verify'),
+        content: Text(
+          '${widget.bill.unresolvedCount} item${widget.bill.unresolvedCount == 1 ? '' : 's'} unresolved. Resolve them before verifying.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loadSuggestions() async {
+    if (_suggestionsLoaded || widget.warehouseId == null) return;
+
+    try {
+      final data = await _repo.fetchBillItemSuggestions(
+        warehouseId: widget.warehouseId!,
+        billId: widget.bill.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _suggestions = data;
+        _autoFilledIds = {};
+        for (final entry in data.entries) {
+          if (entry.value.isNotEmpty) {
+            final top = entry.value.first;
+            final confidence = (top['confidence'] as num?) ?? 0;
+            if (confidence >= 80) {
+              final itemId = (top['id'] as num).toInt();
+              _pendingMappings[entry.key] = itemId;
+              _autoFilledIds.add(entry.key);
+            }
+          }
+        }
+        _suggestionsLoaded = true;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _suggestionsLoaded = true);
+    }
+  }
+
+  void _clearState() {
+    setState(() {
+      _pendingMappings = {};
+      _suggestions = {};
+      _searchPickNames = {};
+      _autoFilledIds = {};
+      _suggestionsLoaded = false;
+    });
+  }
+
+  Future<void> _saveAllMappings() async {
+    if (_isSaving || widget.warehouseId == null) return;
+
+    final mappings = _pendingMappings.entries
+        .where((e) => e.value != null)
+        .map((e) => {
+              'invoice_item_id': e.key,
+              'master_item_id': e.value!,
+            })
+        .toList();
+
+    if (mappings.isEmpty) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final result = await _repo.batchMapInvoiceItems(
+        warehouseId: widget.warehouseId!,
+        mappings: mappings,
+      );
+      if (!mounted) return;
+      final count = (result['mapped_count'] as num?) ?? 0;
+      _clearState();
+      widget.onRefresh();
+      AgroSnackBar.success(
+        context,
+        '$count item${count == 1 ? '' : 's'} mapped successfully',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AgroSnackBar.error(context, e.toString());
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  String _suggestionLabel(Map<String, dynamic> s) {
+    final name = s['name'] ?? '';
+    final confidence = (s['confidence'] as num?)?.toInt();
+    return confidence != null ? '$name ($confidence%)' : name;
+  }
+
+  Widget _buildMappingDropdown(MartBillItem item) {
+    final itemSuggestions = _suggestions[item.id] ?? [];
+    final currentValue = _pendingMappings[item.id];
+
+    // Check if the selected value exists in suggestions
+    final suggestionIds =
+        itemSuggestions.map((s) => (s['id'] as num).toInt()).toSet();
+    final isSearchPick =
+        currentValue != null && !suggestionIds.contains(currentValue);
+
+    return DropdownButton<int>(
+      value: currentValue,
+      hint: const Text('Select', style: TextStyle(fontSize: 12)),
+      isExpanded: true,
+      isDense: true,
+      style: const TextStyle(fontSize: 12, color: Colors.black87),
+      items: [
+        if (itemSuggestions.isEmpty && !isSearchPick)
+          const DropdownMenuItem<int>(
+            enabled: false,
+            value: -2,
+            child: Text('No suggestions', style: TextStyle(fontSize: 11, color: Colors.grey)),
+          ),
+        // If the current value came from search and isn't in suggestions, add it
+        if (isSearchPick)
+          DropdownMenuItem<int>(
+            value: currentValue,
+            child: Text(
+              _searchPickNames[item.id] ?? 'Item #$currentValue',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontStyle: FontStyle.italic),
+            ),
+          ),
+        ...itemSuggestions.map((s) {
+          final id = (s['id'] as num).toInt();
+          return DropdownMenuItem<int>(
+            value: id,
+            child: Text(
+              _suggestionLabel(s),
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }),
+        const DropdownMenuItem<int>(
+          value: -1,
+          child: Text('Search...', style: TextStyle(fontStyle: FontStyle.italic)),
+        ),
+      ],
+      onChanged: (value) async {
+        if (value == -1) {
+          final result = await InlineItemMappingSheet.showForSelection(
+            context,
+            billId: widget.bill.id,
+          );
+          if (result != null && mounted) {
+            final selectedId = result['id'] as int;
+            setState(() {
+              _pendingMappings[item.id] = selectedId;
+              _searchPickNames[item.id] = result['name'] as String? ?? 'Item #$selectedId';
+            });
+          }
+        } else if (value != null) {
+          setState(() => _pendingMappings[item.id] = value);
+        }
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bill = widget.bill;
     final status = bill.status;
     final isVerified = status == 'VERIFIED';
     final isProcessing = status == 'PROCESSING';
+    final hasUnresolved = bill.unresolvedCount > 0;
+    final pendingCount =
+        _pendingMappings.values.where((v) => v != null).length;
 
     return ExpansionTile(
+      onExpansionChanged: (expanded) async {
+        if (expanded) {
+          _loadSuggestions();
+        } else {
+          final hasUnsaved =
+              _pendingMappings.values.any((v) => v != null);
+          if (hasUnsaved) {
+            final discard = await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: const Text('Unsaved Mappings'),
+                content: const Text(
+                  'You have unsaved mappings. Discard them?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Discard'),
+                  ),
+                ],
+              ),
+            );
+            if (discard != true) return;
+          }
+          _clearState();
+        }
+      },
       title: Row(
         children: [
           Expanded(
@@ -556,6 +792,25 @@ class _BillCard extends StatelessWidget {
               style: AgroTypography.cardTitle,
             ),
           ),
+          if (hasUnresolved && !isVerified)
+            Container(
+              margin: const EdgeInsets.only(right: AgroSpacing.xs),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AgroSpacing.sm,
+                vertical: 2,
+              ),
+              decoration: BoxDecoration(
+                color: AgroColors.warning.background,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${bill.unresolvedCount} unresolved',
+                style: AgroTypography.caption.copyWith(
+                  color: AgroColors.warning.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           AgroStatusBadge.fromBillStatus(status),
         ],
       ),
@@ -568,25 +823,37 @@ class _BillCard extends StatelessWidget {
         children: [
           if (!isProcessing)
             Tooltip(
-              message: isVerified ? 'Unlock Bill' : 'Verify Bill',
+              message: isVerified
+                  ? 'Unlock Bill'
+                  : hasUnresolved
+                      ? 'Resolve all items before verifying'
+                      : 'Verify Bill',
               child: IconButton(
                 icon: Icon(
                   isVerified ? Icons.lock : Icons.lock_open,
-                  color:
-                      isVerified
-                          ? AgroColors.success.text
+                  color: isVerified
+                      ? AgroColors.success.text
+                      : hasUnresolved
+                          ? AgroColors.divider
                           : AgroColors.textDisabled,
                 ),
                 onPressed: () async {
-                  try {
-                    if (isVerified) {
-                      await onUnverify(bill.id);
-                    } else {
-                      await onVerify(bill.id);
+                  if (isVerified) {
+                    try {
+                      await widget.onUnverify(bill.id);
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      AgroSnackBar.error(context, e.toString());
                     }
-                  } catch (e) {
-                    if (!context.mounted) return;
-                    AgroSnackBar.error(context, e.toString());
+                  } else if (hasUnresolved) {
+                    _showVerifyBlockedDialog(context);
+                  } else {
+                    try {
+                      await widget.onVerify(bill.id);
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      AgroSnackBar.error(context, e.toString());
+                    }
                   }
                 },
               ),
@@ -607,7 +874,7 @@ class _BillCard extends StatelessWidget {
                           'Cannot delete a verified bill. Unlock it first.',
                         );
                       }
-                      : () => onDelete(bill.id),
+                      : () => widget.onDelete(bill.id),
             ),
           ),
         ],
@@ -628,8 +895,38 @@ class _BillCard extends StatelessWidget {
             child: const Text('View'),
           ),
         ),
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: onFetchItems(bill.id),
+        if (pendingCount > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AgroSpacing.md,
+              vertical: AgroSpacing.xs,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '$pendingCount mapping${pendingCount == 1 ? '' : 's'} ready',
+                    style: AgroTypography.caption.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _saveAllMappings,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save, size: 16),
+                  label: Text('Save $pendingCount mapping${pendingCount == 1 ? '' : 's'}'),
+                ),
+              ],
+            ),
+          ),
+        FutureBuilder<List<MartBillItem>>(
+          future: widget.onFetchItems(bill.id),
           builder: (ctx, snap) {
             if (!snap.hasData) {
               return const LinearProgressIndicator();
@@ -644,20 +941,76 @@ class _BillCard extends StatelessWidget {
                   DataColumn(label: Text('UOM')),
                   DataColumn(label: Text('Price')),
                   DataColumn(label: Text('Total')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Map To')),
                   DataColumn(label: Text('Actions')),
                 ],
                 rows:
                     items.map((it) {
+                      final hasPending = _pendingMappings[it.id] != null;
+                      final isAuto = _autoFilledIds.contains(it.id) && hasPending;
+                      final isManual = !isAuto && hasPending;
+
                       return DataRow(
+                        color: isAuto
+                            ? WidgetStateProperty.all(
+                                Colors.green.withValues(alpha: 0.06),
+                              )
+                            : isManual
+                                ? WidgetStateProperty.all(
+                                    Colors.blue.withValues(alpha: 0.05),
+                                  )
+                                : it.isUnresolved
+                                    ? WidgetStateProperty.all(
+                                        Colors.orange.withValues(alpha: 0.05),
+                                      )
+                                    : null,
                         cells: [
-                          DataCell(Text(it['item_name'] ?? '')),
-                          DataCell(Text(it['quantity'].toString())),
-                          DataCell(Text(it['uom'] ?? '')),
+                          DataCell(Text(it.itemName)),
+                          DataCell(Text(it.quantity.toString())),
+                          DataCell(Text(it.uom)),
                           DataCell(
-                            Text((it['price'] as num).toStringAsFixed(2)),
+                            Text(it.price.toStringAsFixed(2)),
                           ),
                           DataCell(
-                            Text((it['total'] as num).toStringAsFixed(2)),
+                            Text(it.total.toStringAsFixed(2)),
+                          ),
+                          DataCell(
+                            Icon(
+                              it.isUnresolved
+                                  ? Icons.error_outline
+                                  : Icons.check_circle_outline,
+                              size: 18,
+                              color: it.isUnresolved
+                                  ? AgroColors.warning.text
+                                  : AgroColors.success.text,
+                            ),
+                          ),
+                          DataCell(
+                            it.isUnresolved && !isVerified
+                                ? _suggestionsLoaded
+                                    ? SizedBox(
+                                        width: 180,
+                                        child: _buildMappingDropdown(it),
+                                      )
+                                    : const SizedBox(
+                                        width: 180,
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                : Text(
+                                    'Mapped',
+                                    style: AgroTypography.caption.copyWith(
+                                      color: AgroColors.success.text,
+                                    ),
+                                  ),
                           ),
                           DataCell(
                             isVerified
@@ -670,7 +1023,7 @@ class _BillCard extends StatelessWidget {
                                   icon: const Icon(Icons.more_vert, size: 18),
                                   onSelected: (value) async {
                                     if (value == 'edit') {
-                                      await onEditItem(it);
+                                      await widget.onEditItem(it);
                                     } else if (value == 'delete') {
                                       final confirmed = await showDialog<bool>(
                                         context: context,
@@ -701,17 +1054,28 @@ class _BillCard extends StatelessWidget {
                                             ),
                                       );
                                       if (confirmed == true) {
-                                        await onDeleteItem(it['id']);
+                                        await widget.onDeleteItem(it.id);
                                       }
+                                    } else if (value == 'map') {
+                                      await InlineItemMappingSheet.show(
+                                        context,
+                                        billItem: it,
+                                        billId: bill.id,
+                                      );
                                     }
                                   },
                                   itemBuilder:
-                                      (context) => const [
-                                        PopupMenuItem(
+                                      (context) => [
+                                        const PopupMenuItem(
                                           value: 'edit',
                                           child: Text('Edit'),
                                         ),
-                                        PopupMenuItem(
+                                        if (it.isUnresolved)
+                                          const PopupMenuItem(
+                                            value: 'map',
+                                            child: Text('Map'),
+                                          ),
+                                        const PopupMenuItem(
                                           value: 'delete',
                                           child: Text('Delete'),
                                         ),

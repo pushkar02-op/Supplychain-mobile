@@ -23,6 +23,7 @@ class MartBill(Base, AuditMixin):
     locked_by = Column(String, nullable=True)
     locked_by = Column(String, nullable=True)
     remarks = Column(String, nullable=True)
+    format_type = Column(String, nullable=True)
 
     mart = relationship("Mart")
     warehouse = relationship("Warehouse")

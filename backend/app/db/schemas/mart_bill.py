@@ -14,6 +14,8 @@ class MartBillRead(SchemaModel):
     total_amount: Decimal
     file_path: str
     status: str
+    format_type: Optional[str] = None
+    unresolved_count: int = 0
     locked_at: Optional[datetime]
     locked_by: Optional[str]
     remarks: Optional[str]

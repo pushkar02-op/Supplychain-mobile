@@ -33,6 +33,9 @@ class MartBillItemUpdate(SchemaModel):
 
 class MartBillItemRead(MartBillItemBase):
     id: int
+    invoice_id: int
+    item_id: Optional[int] = None
+    resolution_status: str
     warehouse_id: int
     created_at: datetime
     updated_at: datetime

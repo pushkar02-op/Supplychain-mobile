@@ -60,6 +60,7 @@ class ItemManagementRead(SchemaModel):
     default_uom_code: Optional[str]
     aliases: List[ItemAliasRead]
     conversions: List[ItemConversionMapRead]
+    confidence: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -68,3 +69,17 @@ class ItemManagementRead(SchemaModel):
 class AliasMapInput(SchemaModel):
     alias_id: int
     item_id: int
+
+
+class BulkMapInvoiceItemsRequest(SchemaModel):
+    invoice_item_ids: List[int]
+    master_item_id: int
+
+
+class ItemMappingEntry(SchemaModel):
+    invoice_item_id: int
+    master_item_id: int
+
+
+class BatchMapInvoiceItemsRequest(SchemaModel):
+    mappings: List[ItemMappingEntry]
