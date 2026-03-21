@@ -49,10 +49,12 @@ class ItemRepository {
   Future<List<Map<String, dynamic>>> fetchItems({
     required int warehouseId,
     bool includeInactive = false,
+    String? search,
   }) async {
     try {
       final queryParams = <String, dynamic>{'warehouse_id': warehouseId};
       if (includeInactive) queryParams['include_inactive'] = 'true';
+      if (search != null && search.isNotEmpty) queryParams['search'] = search;
       final res = await DioClient.instance.get(
         '/item-management/',
         queryParameters: queryParams,
@@ -157,6 +159,45 @@ class ItemRepository {
         queryParameters: {'warehouse_id': warehouseId},
         data: {'invoice_item_id': billItemId, 'master_item_id': masterItemId},
       );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> batchMapInvoiceItems({
+    required int warehouseId,
+    required List<Map<String, int>> mappings,
+  }) async {
+    try {
+      final resp = await DioClient.instance.post(
+        '/item-management/batch-map-invoice-items',
+        queryParameters: {'warehouse_id': warehouseId},
+        data: {'mappings': mappings},
+      );
+      return Map<String, dynamic>.from(resp.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<int, List<Map<String, dynamic>>>> fetchBillItemSuggestions({
+    required int warehouseId,
+    required int billId,
+  }) async {
+    try {
+      final resp = await DioClient.instance.get(
+        '/mart-bill-items/$billId/suggestions',
+        queryParameters: {'warehouse_id': warehouseId},
+      );
+      final list = List<Map<String, dynamic>>.from(resp.data);
+      final map = <int, List<Map<String, dynamic>>>{};
+      for (final entry in list) {
+        final id = (entry['invoice_item_id'] as num).toInt();
+        map[id] = List<Map<String, dynamic>>.from(
+          entry['suggested_items'] ?? [],
+        );
+      }
+      return map;
     } catch (e) {
       rethrow;
     }

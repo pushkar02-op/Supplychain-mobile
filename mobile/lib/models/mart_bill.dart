@@ -9,6 +9,8 @@ class MartBill {
   final String? filePath;
   final String status;
   final String? remarks;
+  final String? formatType;
+  final int unresolvedCount;
   final String? lockedAt;
   final String? lockedBy;
 
@@ -21,6 +23,8 @@ class MartBill {
     this.filePath,
     required this.status,
     this.remarks,
+    this.formatType,
+    this.unresolvedCount = 0,
     this.lockedAt,
     this.lockedBy,
   });
@@ -35,6 +39,8 @@ class MartBill {
       filePath: json['file_path']?.toString(),
       status: JsonParsers.parseString(json['status'], fallback: 'PROCESSING'),
       remarks: json['remarks']?.toString(),
+      formatType: json['format_type']?.toString(),
+      unresolvedCount: JsonParsers.parseInt(json['unresolved_count']),
       lockedAt: json['locked_at']?.toString(),
       lockedBy: json['locked_by']?.toString(),
     );
@@ -49,6 +55,8 @@ class MartBill {
     'file_path': filePath,
     'status': status,
     'remarks': remarks,
+    'format_type': formatType,
+    'unresolved_count': unresolvedCount,
     'locked_at': lockedAt,
     'locked_by': lockedBy,
   };

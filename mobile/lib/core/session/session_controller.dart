@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -25,6 +26,29 @@ class SessionController extends Notifier<Session> {
   static const _roleKey = 'user_role';
   static const _userIdKey = 'user_id';
   static const _activeMartKeyPrefix = 'active_mart_user_';
+
+  /// Reads a value from secure storage, handling corrupted keystore data.
+  /// On Android, a BadPaddingException can occur if the encryption key was
+  /// rotated (app reinstall, OS update) and the stored ciphertext can no
+  /// longer be decrypted.  When that happens we wipe storage and return null
+  /// so the caller treats the session as unauthenticated.
+  static Future<String?> _safeRead(String key) async {
+    try {
+      return await _storage.read(key: key);
+    } on PlatformException catch (e) {
+      final details = e.details?.toString() ?? '';
+      final message = e.message ?? '';
+      if (details.contains('BadPaddingException') ||
+          details.contains('BAD_DECRYPT') ||
+          message.contains('BadPaddingException') ||
+          message.contains('BAD_DECRYPT')) {
+        // Keystore corrupted — wipe everything so the user can re-login.
+        await _storage.deleteAll();
+        return null;
+      }
+      rethrow;
+    }
+  }
 
   bool _initialized = false;
 
@@ -72,8 +96,11 @@ class SessionController extends Notifier<Session> {
 
   Future<bool> refreshAccessToken() async {
     try {
-      final refreshToken =
-          state.refreshToken ?? await _storage.read(key: _refreshTokenKey);
+      // Always read from secure storage — it is the single source of truth.
+      // In-memory state.refreshToken can be stale after a rotation that was
+      // persisted but not reflected in state (app killed mid-refresh, or
+      // state rebuilt after provider invalidation).
+      final refreshToken = await _safeRead(_refreshTokenKey);
       if (refreshToken == null) {
         return false;
       }
@@ -141,7 +168,7 @@ class SessionController extends Notifier<Session> {
 
   Future<void> logout() async {
     final refreshToken =
-        state.refreshToken ?? await _storage.read(key: _refreshTokenKey);
+        state.refreshToken ?? await _safeRead(_refreshTokenKey);
     try {
       if (refreshToken != null) {
         try {
@@ -166,7 +193,7 @@ class SessionController extends Notifier<Session> {
   }
 
   Future<void> _hydrateSessionFromStorage() async {
-    final token = await _storage.read(key: _accessTokenKey);
+    final token = await _safeRead(_accessTokenKey);
     if (token == null) {
       DioClient.setAccessToken(null);
       state = const Session(state: SessionState.unauthenticated);
@@ -174,10 +201,10 @@ class SessionController extends Notifier<Session> {
     }
     DioClient.setAccessToken(token);
 
-    final refreshToken = await _storage.read(key: _refreshTokenKey);
-    final roleStr = await _storage.read(key: _roleKey);
+    final refreshToken = await _safeRead(_refreshTokenKey);
+    final roleStr = await _safeRead(_roleKey);
     final role = _parseRole(roleStr);
-    final userIdStr = await _storage.read(key: _userIdKey);
+    final userIdStr = await _safeRead(_userIdKey);
     final userId = userIdStr == null ? null : int.tryParse(userIdStr);
 
     await _resolveWarehouseState(
