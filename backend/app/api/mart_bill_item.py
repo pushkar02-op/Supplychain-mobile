@@ -19,6 +19,7 @@ from app.db.schemas.mart_bill_item import (
 from app.db.session import get_db
 from app.services.mart_bill_item import (
     delete_mart_bill_item,
+    get_bill_item_suggestions,
     get_distinct_items_for_mart,
     get_items_by_mart_bill,
     update_mart_bill_item,
@@ -59,6 +60,22 @@ def distinct_items_for_mart(
         db, mart_name, warehouse_id=resolved_warehouse_id
     )
     return results[skip : skip + limit]
+
+
+@router.get(
+    "/{bill_id}/suggestions",
+    summary="Get mapping suggestions for unresolved items",
+)
+def bill_item_suggestions(
+    bill_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> list[dict]:
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_bill_item_suggestions(db, bill_id, warehouse_id=resolved_warehouse_id)
 
 
 @router.get(

@@ -7,6 +7,8 @@ from app.db.enums.role import Role
 from app.db.models import UOM, User
 from app.db.schemas.item_management import (
     AliasMapInput,
+    BatchMapInvoiceItemsRequest,
+    BulkMapInvoiceItemsRequest,
     ItemManagementCreateUpdate,
     ItemManagementRead,
     UOMRead,
@@ -28,12 +30,15 @@ class InvoiceItemMapInput(BaseModel):
 
 @router.get("/", response_model=List[ItemManagementRead])
 def get_items(
+    search: str | None = Query(None, description="Filter items by name"),
     include_inactive: bool = False,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    results = svc.get_master_items_details(db, include_inactive=include_inactive)
+    results = svc.get_master_items_details(
+        db, include_inactive=include_inactive, search=search
+    )
     return results[skip : skip + limit]
 
 
@@ -89,6 +94,39 @@ def map_alias_to_item(
         db=db,
         alias_id=payload.alias_id,
         item_id=payload.item_id,
+    )
+
+
+@router.post(
+    "/bulk-map-invoice-items",
+    summary="Bulk map invoice items to a master item",
+)
+def bulk_map_invoice_items(
+    payload: BulkMapInvoiceItemsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+):
+    return svc.bulk_map_invoice_items(
+        db=db,
+        invoice_item_ids=payload.invoice_item_ids,
+        master_item_id=payload.master_item_id,
+        username=current_user.username,
+    )
+
+
+@router.post(
+    "/batch-map-invoice-items",
+    summary="Batch map invoice items to different master items",
+)
+def batch_map_invoice_items(
+    payload: BatchMapInvoiceItemsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+):
+    return svc.batch_map_invoice_items(
+        db=db,
+        mappings=[m.dict() for m in payload.mappings],
+        username=current_user.username,
     )
 
 
