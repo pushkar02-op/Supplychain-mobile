@@ -10,8 +10,8 @@ from typing import Tuple
 import pandas as pd
 import pdfplumber
 from app.core.exceptions import AppException
-from app.utils.invoice_parser_blinkit import process_pdf_blinkit
 from app.utils.invoice_parser_reliance import process_pdf_reliance
+from app.utils.invoice_parser_zomato import process_pdf_zomato
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,6 @@ def process_pdf(input_file: str) -> Tuple[pd.DataFrame, datetime, str]:
     if fmt == "Reliance":
         return process_pdf_reliance(input_file)
     elif fmt == "Zomato":
-        return process_pdf_blinkit(input_file)
+        return process_pdf_zomato(input_file)
     else:
         raise AppException("Unsupported invoice format", status_code=400)

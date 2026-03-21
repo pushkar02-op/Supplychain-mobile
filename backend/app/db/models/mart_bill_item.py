@@ -11,6 +11,7 @@ class MartBillItem(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     invoice_id = Column(Integer, ForeignKey("invoice.id"), nullable=False)
     item_id = Column(Integer, ForeignKey("item.id"), nullable=True)
+    resolution_status = Column(String, nullable=False, default="UNRESOLVED")
     warehouse_id = Column(
         Integer, ForeignKey("warehouse.id"), nullable=False, index=True
     )

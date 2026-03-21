@@ -13,18 +13,21 @@ from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.storage.local import LocalDiskStorage
 from app.db.models.item import Item
+from app.db.models.item_alias import ItemAlias
 from app.db.models.mart import Mart
 from app.db.models.mart_bill import MartBill
 from app.db.models.mart_bill_item import MartBillItem
+from app.db.models.mart_item_alias import MartItemAlias
 from app.db.models.uom import UOM
 from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
-from app.services.alias_resolver import resolve_alias
 from app.services.audit import log_action
 from app.services.financial_lock import enforce_financial_lock, enforce_lock_for_entity
 from app.services.warehouse_scope import resolve_system_warehouse_id
 from app.utils.invoice_parser import process_pdf
+from app.utils.invoice_validator import validate_invoice_structure
+from app.utils.similarity import compute_match_score
 from fastapi import UploadFile
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -87,14 +90,32 @@ async def save_and_process_mart_bill(
     storage_key = os.path.join(settings.INVOICE_UPLOAD_DIR, filename)
 
     # Save using storage service
+    file_saved = False
+    commit_success = False
     await storage.save(file_bytes, storage_key)
+    file_saved = True
 
     # Get absolute path for parser (Parser requires path string)
     upload_path = storage.get_path(storage_key)
     logger.debug(f"Saved file to {upload_path}")
 
     try:
+        # Validate PDF structure before parsing
+        validation = validate_invoice_structure(upload_path)
+        if not validation["is_valid"]:
+            raise AppException(
+                detail=f"Invalid invoice structure: {', '.join(validation['errors'])}",
+                status_code=400,
+            )
+
         df, invoice_date, mart_name = process_pdf(upload_path)
+
+        if not validation["format"]:
+            raise AppException(
+                detail="Invoice format not supported after parsing",
+                status_code=400,
+            )
+        detected_format = validation["format"]
         from decimal import Decimal as _D
 
         total_amount = _D(str(df["Total"].sum()))
@@ -119,11 +140,41 @@ async def save_and_process_mart_bill(
             updated_by=user_name,
             status="NEEDS_REVIEW",
             remarks="Uploaded from mobile",
+            format_type=detected_format,
         )
         db.add(inv)
         db.flush()
         db.refresh(inv)
         logger.debug(f"Created invoice id={inv.id}")
+
+        # --- Preload alias data for in-memory resolution ---
+        mart_aliases = (
+            db.query(MartItemAlias).filter(MartItemAlias.mart_id == mart.id).all()
+        )
+        mart_alias_code_map = {}
+        mart_alias_name_map = {}
+        for a in mart_aliases:
+            if a.alias_code:
+                mart_alias_code_map.setdefault(a.alias_code.strip(), a.item_id)
+            if a.alias_name:
+                mart_alias_name_map.setdefault(a.alias_name.strip().lower(), a.item_id)
+
+        global_aliases = db.query(ItemAlias).all()
+        global_code_map = {}
+        global_name_map = {}
+        for a in global_aliases:
+            if a.alias_code:
+                global_code_map.setdefault(a.alias_code.strip(), a.master_item_id)
+            if a.alias_name:
+                global_name_map.setdefault(
+                    a.alias_name.strip().lower(), a.master_item_id
+                )
+
+        # Preload UOM once (was queried per unmapped item)
+        uom_map = {u.id: u.code for u in db.query(UOM).all()}
+
+        # Preload items for suggestion matching (capped to prevent table scan explosion)
+        all_items = db.query(Item).limit(5000).all()
 
         items = []
         unmapped_items = []
@@ -132,35 +183,43 @@ async def save_and_process_mart_bill(
             item_name = row["Item"]
             item_uom = row["UOM"]
 
-            item_id = resolve_alias(
-                db=db,
-                mart_id=mart.id,
-                item_code=item_code,
-                item_name=item_name,
-            )
+            # In-memory alias resolution (same priority as resolve_alias)
+            item_id = None
+            code_key = (item_code or "").strip()
+            name_key = (item_name or "").strip().lower()
+
+            # Priority 1: Mart alias by code (exact match)
+            if code_key and code_key in mart_alias_code_map:
+                item_id = mart_alias_code_map[code_key]
+            # Priority 2: Mart alias by name (case-insensitive)
+            elif name_key and name_key in mart_alias_name_map:
+                item_id = mart_alias_name_map[name_key]
+            # Priority 3: Global alias by code (exact match)
+            elif code_key and code_key in global_code_map:
+                item_id = global_code_map[code_key]
+            # Priority 4: Global alias by name (case-insensitive)
+            elif name_key and name_key in global_name_map:
+                item_id = global_name_map[name_key]
 
             if item_id is None:
-                # Example: suggest items with similar names or codes
-                suggestions = (
-                    db.query(Item)
-                    .filter(
-                        or_(
-                            Item.name.ilike(f"%{item_name}%"),
-                            Item.item_code.ilike(f"%{item_code}%"),
-                        )
-                    )
-                    .limit(10)
-                    .all()
-                )
-                uoms = {u.id: u.code for u in db.query(UOM).all()}
+                # Fuzzy suggestion matching with confidence scoring
+                scored = []
+                for s in all_items:
+                    name_score = compute_match_score(item_name or "", s.name or "")
+                    code_score = compute_match_score(item_code or "", s.item_code or "")
+                    score = max(name_score, code_score)
+                    if score >= 40:
+                        scored.append((score, s))
+                scored.sort(key=lambda x: x[0], reverse=True)
                 suggested_items = [
                     {
                         "id": s.id,
                         "name": s.name,
                         "item_code": s.item_code,
-                        "uom": uoms.get(s.default_uom_id),
+                        "uom": uom_map.get(s.default_uom_id),
+                        "confidence": score,
                     }
-                    for s in suggestions
+                    for score, s in scored[:5]
                 ]
                 unmapped_items.append(
                     {
@@ -170,15 +229,17 @@ async def save_and_process_mart_bill(
                         "suggested_items": suggested_items,
                     }
                 )
-                continue
+
+            resolution_status = "MAPPED" if item_id else "UNRESOLVED"
 
             items.append(
                 MartBillItem(
                     invoice_id=inv.id,
                     item_id=item_id,
+                    resolution_status=resolution_status,
                     warehouse_id=resolved_warehouse_id,
-                    hsn_code=row["HSN_CODE"],
-                    item_code=row["ITEM_CODE"],
+                    hsn_code=row.get("HSN_CODE"),
+                    item_code=row.get("ITEM_CODE"),
                     item_name=item_name,
                     quantity=row["Quantity"],
                     uom=row["UOM"],
@@ -211,6 +272,7 @@ async def save_and_process_mart_bill(
 
         try:
             db.commit()
+            commit_success = True
         except IntegrityError:
             db.rollback()
             raise AppException(
@@ -227,12 +289,25 @@ async def save_and_process_mart_bill(
 
     except AppException:
         db.rollback()
+        if file_saved and not commit_success:
+            try:
+                storage.delete(storage_key)
+            except Exception:
+                logger.warning(f"Failed to cleanup orphan file: {storage_key}")
         raise
 
     except Exception as e:
         db.rollback()
+        if file_saved and not commit_success:
+            try:
+                storage.delete(storage_key)
+            except Exception:
+                logger.warning(f"Failed to cleanup orphan file: {storage_key}")
         logger.exception(f"Unexpected error processing invoice: {e}")
-        raise AppException("Internal server error", status_code=500)
+        raise AppException(
+            "Invoice format not supported or structure has changed",
+            status_code=400,
+        )
 
 
 def get_mart_bill_by_id(
@@ -340,11 +415,30 @@ def get_mart_bills_paginated(
     total = query.count()
     invoices = query.offset(skip).limit(limit).all()
 
+    # Batch-fetch unresolved counts for all invoices in one query
+    invoice_ids = [inv.id for inv in invoices]
+    unresolved_counts = {}
+    if invoice_ids:
+        count_rows = (
+            db.query(
+                MartBillItem.invoice_id,
+                func.count(MartBillItem.id),
+            )
+            .filter(
+                MartBillItem.invoice_id.in_(invoice_ids),
+                MartBillItem.resolution_status == "UNRESOLVED",
+            )
+            .group_by(MartBillItem.invoice_id)
+            .all()
+        )
+        unresolved_counts = {row[0]: row[1] for row in count_rows}
+
     results = []
     for inv in invoices:
         # Use Pydantic conversion but manually inject mart_name to preserve frontend contract
         inv_dict = MartBillRead.from_orm(inv).dict()
         inv_dict["mart_name"] = inv.mart.name if inv.mart else None
+        inv_dict["unresolved_count"] = unresolved_counts.get(inv.id, 0)
         results.append(inv_dict)
 
     # Calculate has_more
@@ -451,6 +545,29 @@ def _verify_mart_bill_impl(
     if inv.status == "VERIFIED":
         return inv
 
+    # Block verification if unresolved items exist
+    unresolved = (
+        db.query(MartBillItem.id)
+        .filter(
+            MartBillItem.invoice_id == inv.id,
+            MartBillItem.resolution_status == "UNRESOLVED",
+        )
+        .first()
+    )
+    if unresolved:
+        unresolved_count = (
+            db.query(MartBillItem)
+            .filter(
+                MartBillItem.invoice_id == inv.id,
+                MartBillItem.resolution_status == "UNRESOLVED",
+            )
+            .count()
+        )
+        raise AppException(
+            detail=f"{unresolved_count} items are still unresolved. Resolve all items before verification.",
+            status_code=400,
+        )
+
     from datetime import datetime
 
     inv.status = "VERIFIED"
@@ -554,9 +671,7 @@ def _delete_mart_bill_impl(
         logger.warning(f"Attempt to delete verified bill {invoice_id}")
         return False
 
-    # Delete physical file using storage service
-    if inv.file_path:
-        storage.delete(inv.file_path)
+    old_file_path = inv.file_path
 
     inv_wh = inv.warehouse_id
     inv_pk = inv.id
@@ -576,6 +691,12 @@ def _delete_mart_bill_impl(
 
     db.delete(inv)
     db.commit()
+
+    # Delete physical file AFTER successful commit
+    if old_file_path:
+        if not storage.delete(old_file_path):
+            logger.warning(f"File cleanup failed after delete: {old_file_path}")
+
     logger.debug(f"Invoice id={invoice_id} deleted")
     return True
 
@@ -613,21 +734,12 @@ async def _replace_mart_bill_file_impl(
         return None
     enforce_lock_for_entity(db, inv, inv.invoice_date)
 
-    # Delete old file if it exists
-    if inv.file_path and storage.exists(inv.file_path):
-        try:
-            storage.delete(inv.file_path)
-        except Exception:
-            logger.warning(
-                f"Failed to delete old file {inv.file_path}, proceeding with replacement"
-            )
+    old_file_path = inv.file_path
 
-    # Save new file
+    # Save new file FIRST (before any destructive operations)
     filename = file.filename
     file_bytes = await file.read()
     file_hash = hashlib.sha256(file_bytes).hexdigest()
-
-    # Use same logic as save_and_process for key generation
     storage_key = os.path.join(settings.INVOICE_UPLOAD_DIR, filename)
     await storage.save(file_bytes, storage_key)
 
@@ -653,8 +765,24 @@ async def _replace_mart_bill_file_impl(
     except Exception:
         logger.warning("Audit log failed for mart_bill_file_replaced", exc_info=True)
 
-    db.commit()
-    db.refresh(inv)
+    try:
+        db.commit()
+        db.refresh(inv)
+    except Exception:
+        db.rollback()
+        try:
+            storage.delete(storage_key)
+        except Exception:
+            logger.warning(
+                f"Failed to cleanup new file after commit failure: {storage_key}"
+            )
+        raise
+
+    # Delete old file AFTER successful commit
+    if old_file_path and old_file_path != storage_key:
+        if not storage.delete(old_file_path):
+            logger.warning(f"Failed to delete old file after replace: {old_file_path}")
+
     logger.info(
         f"Replaced file for mart bill {invoice_id}, status reset to NEEDS_REVIEW"
     )

@@ -27,6 +27,9 @@ venv/
 # MacOS
 .DS_Store
 
+# Claude Code
+.claude/
+
 # VSCode
 .vscode/
 
@@ -125,3 +128,5 @@ test-results/
 .cache/
 *.db
 token.json
+
+bills/
