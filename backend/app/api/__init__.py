@@ -5,6 +5,7 @@ from app.api.audit_log import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.batch import router as batch_router
 from app.api.cost_control import router as cost_control_router
+from app.api.debug import router as debug_router
 from app.api.dispatch_entry import router as dispatch_router
 from app.api.health import router as health_router
 from app.api.inventory_txn import router as inventory_txn_router
@@ -54,3 +55,4 @@ router.include_router(mart_bill_router)
 router.include_router(mart_bill_item_router)
 router.include_router(admin_forecasting_router)
 router.include_router(health_router)
+router.include_router(debug_router)

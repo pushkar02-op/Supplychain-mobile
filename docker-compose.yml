@@ -23,6 +23,7 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     working_dir: /app
     volumes:
       - ./backend/app:/app/app
@@ -30,6 +31,7 @@ services:
       - ./backend/alembic:/app/alembic
       - ./backend/invoices:/app/invoices
       - ./backend/tests:/app/tests
+      - ./logs:/app/logs
     depends_on:
       - db
     ports:
