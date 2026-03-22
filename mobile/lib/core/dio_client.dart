@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'api_config.dart';
 import 'errors/app_error.dart';
 import 'errors/error_mapper.dart';
+import 'logging/http_log_interceptor.dart';
 
 typedef RefreshHandler = Future<bool> Function();
 typedef LogoutHandler = Future<void> Function();
@@ -44,9 +45,7 @@ class DioClient {
     }
 
     instance.interceptors.clear();
-    instance.interceptors.add(
-      LogInterceptor(request: true, requestBody: true, responseBody: false),
-    );
+    instance.interceptors.add(HttpLogInterceptor());
     instance.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
