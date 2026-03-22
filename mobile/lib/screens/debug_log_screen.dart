@@ -42,6 +42,23 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
         title: const Text('Debug Logs'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.cloud_upload),
+            tooltip: 'Flush to backend',
+            onPressed: () async {
+              final success = await AppLogger.instance.flushNow();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    success
+                        ? 'Logs sent to backend'
+                        : 'Flush failed — will retry',
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.share),
             tooltip: 'Export logs',
             onPressed: () async {

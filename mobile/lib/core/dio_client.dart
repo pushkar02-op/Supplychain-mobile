@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'api_config.dart';
 import 'errors/app_error.dart';
 import 'errors/error_mapper.dart';
+import 'logging/app_logger.dart';
 import 'logging/http_log_interceptor.dart';
 
 typedef RefreshHandler = Future<bool> Function();
@@ -206,6 +207,10 @@ class DioClient {
 
     debugPrint('Dio baseUrl: ${ApiConfig.baseUrl}');
     debugPrint('Dio instance baseUrl: ${instance.options.baseUrl}');
+
+    AppLogger.instance.setFlushCallback((entries) async {
+      await instance.post('/debug/mobile-logs', data: entries);
+    });
   }
 
   static void setAccessToken(String? token) {

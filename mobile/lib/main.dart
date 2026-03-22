@@ -27,6 +27,7 @@ void main() {
     registerRouteRefreshRules();
 
     await AppLogger.instance.init();
+    AppLogger.instance.startAutoFlush();
 
     FlutterError.onError = (details) {
       AppLogger.instance.error(

@@ -7,6 +7,11 @@ class HttpLogInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    // Skip logging our own log-flush requests to prevent recursion
+    if (options.path.contains('/debug/mobile-logs')) {
+      handler.next(options);
+      return;
+    }
     options.extra['_startTime'] = DateTime.now().millisecondsSinceEpoch;
     _logger.info(
       'http',
@@ -22,6 +27,10 @@ class HttpLogInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
+    if (response.requestOptions.path.contains('/debug/mobile-logs')) {
+      handler.next(response);
+      return;
+    }
     final startTime =
         response.requestOptions.extra['_startTime'] as int?;
     final duration =
@@ -44,6 +53,10 @@ class HttpLogInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (err.requestOptions.path.contains('/debug/mobile-logs')) {
+      handler.next(err);
+      return;
+    }
     final startTime = err.requestOptions.extra['_startTime'] as int?;
     final duration =
         startTime != null

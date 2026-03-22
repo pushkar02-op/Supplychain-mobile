@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
@@ -39,6 +40,10 @@ class AppLogger {
 
   static const int _maxBufferSize = 500;
   final Queue<LogEntry> _buffer = Queue<LogEntry>();
+  final List<LogEntry> _unflushed = [];
+  Future<void> Function(List<Map<String, dynamic>>)? _flushCallback;
+  Timer? _flushTimer;
+  bool _isFlushing = false;
   bool _initialized = false;
 
   /// Call once during app startup.
@@ -50,6 +55,7 @@ class AppLogger {
 
   void _add(LogEntry entry) {
     _buffer.addLast(entry);
+    _unflushed.add(entry);
     while (_buffer.length > _maxBufferSize) {
       _buffer.removeFirst();
     }
@@ -138,6 +144,58 @@ class AppLogger {
     return file.path;
   }
 
-  /// Clear the buffer.
+  /// Clear the display buffer.
   void clear() => _buffer.clear();
+
+  /// Register the HTTP flush callback. Called by DioClient after setup.
+  void setFlushCallback(
+    Future<void> Function(List<Map<String, dynamic>>) callback,
+  ) {
+    _flushCallback = callback;
+  }
+
+  /// Start periodic auto-flush. Silent no-ops until callback is registered.
+  void startAutoFlush({Duration interval = const Duration(seconds: 30)}) {
+    _flushTimer?.cancel();
+    _flushTimer = Timer.periodic(interval, (_) => flush());
+    info('lifecycle', 'Auto-flush started (${interval.inSeconds}s interval)');
+  }
+
+  /// Stop auto-flush.
+  void stopAutoFlush() {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+  }
+
+  /// Flush pending entries to backend. Silent failure — retried on next interval.
+  Future<void> flush() async {
+    if (_isFlushing || _unflushed.isEmpty || _flushCallback == null) return;
+    _isFlushing = true;
+    final count = _unflushed.length;
+    try {
+      final payload = _unflushed.map((e) => e.toJson()).toList();
+      await _flushCallback!(payload);
+      _unflushed.removeRange(0, count);
+      if (kDebugMode) {
+        debugPrint('[LOG_FLUSH] Sent $count entries to backend');
+      }
+    } catch (_) {
+      // Keep entries in _unflushed for next attempt
+      if (kDebugMode) {
+        debugPrint('[LOG_FLUSH] Failed — will retry');
+      }
+    } finally {
+      _isFlushing = false;
+    }
+  }
+
+  /// Flush immediately and return success status.
+  Future<bool> flushNow() async {
+    try {
+      await flush();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
