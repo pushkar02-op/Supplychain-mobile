@@ -362,6 +362,24 @@ class MartBillRepository {
               'Failed to download mart bill: ${response.statusCode} ${response.statusMessage}',
         );
       }
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      // For streaming/download requests, the response body may be a raw
+      // ResponseBody stream, not parsed JSON. Extract a readable message.
+      String detail;
+      if (statusCode == 404) {
+        // Try to get the backend's error detail from response data if available.
+        final data = e.response?.data;
+        if (data is Map && data['detail'] != null) {
+          detail = data['detail'].toString();
+        } else {
+          detail = 'Mart bill file not found on server';
+        }
+      } else {
+        detail =
+            'Failed to download PDF (HTTP $statusCode)';
+      }
+      throw AppError(detail: detail);
     } catch (e) {
       rethrow;
     }

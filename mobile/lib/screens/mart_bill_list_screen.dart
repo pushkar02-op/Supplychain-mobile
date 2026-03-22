@@ -245,7 +245,14 @@ class _MartBillListScreenState extends ConsumerState<MartBillListScreen> {
                         Expanded(
                           child: DropdownButtonFormField2<String>(
                             isExpanded: true,
-                            value: selectedMart,
+                            // Guard: only use selectedMart if it's in the list.
+                            // A persisted mart from a previous session may not
+                            // be present in the current order-based mart list,
+                            // which would crash the dropdown assertion.
+                            value: (selectedMart != null &&
+                                    marts.contains(selectedMart))
+                                ? selectedMart
+                                : null,
                             decoration: InputDecoration(
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
