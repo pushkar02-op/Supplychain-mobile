@@ -353,37 +353,6 @@ def get_mart_bill_by_id(
     return q.first()
 
 
-def get_all_mart_bills(
-    db: Session,
-    warehouse_id: int,
-    invoice_date: Optional[str] = None,
-    mart_name: Optional[str] = None,
-    search: Optional[str] = None,
-) -> List[MartBill]:
-    """
-    Retrieve all invoices with optional filters.
-
-    Args:
-        db (Session): Database session.
-        invoice_date (Optional[str]): Filter by date.
-        mart_name (Optional[str]): Filter by mart name.
-        search (Optional[str]): Search term.
-
-    Returns:
-        List[Invoice]: List of invoices.
-    """
-    logger.debug("Fetching invoices with filters")
-    query = db.query(MartBill).filter(MartBill.warehouse_id == warehouse_id)
-    if invoice_date:
-        query = query.filter(MartBill.invoice_date == invoice_date)
-    if mart_name:
-        query = query.filter(MartBill.mart_name == mart_name)
-    if search:
-        term = f"%{search}%"
-        query = query.filter(or_(MartBill.mart_name.ilike(term)))
-    return query.order_by(MartBill.invoice_date.desc()).all()
-
-
 def get_mart_bills_paginated(
     db: Session,
     warehouse_id: int,

@@ -332,67 +332,6 @@ def map_invoice_item(
     return {"message": "Invoice item mapped and alias created successfully"}
 
 
-def bulk_map_invoice_items(
-    db: Session,
-    invoice_item_ids: list[int],
-    master_item_id: int,
-    username: str,
-) -> dict:
-    """Bulk map multiple unmapped invoice items to a single master item."""
-    if not invoice_item_ids:
-        return {"mapped_count": 0, "updated_ids": []}
-
-    master_item = db.get(Item, master_item_id)
-    if not master_item:
-        raise AppException(
-            detail="Master item not found",
-            status_code=404,
-            rule_id=None,
-            metadata={},
-        )
-
-    items = (
-        db.query(MartBillItem)
-        .filter(
-            MartBillItem.id.in_(invoice_item_ids),
-            MartBillItem.resolution_status == "UNRESOLVED",
-        )
-        .all()
-    )
-
-    # Preload existing aliases to avoid duplicates
-    existing_aliases = {
-        (a.alias_code, a.alias_name)
-        for a in db.query(ItemAlias)
-        .filter(ItemAlias.master_item_id == master_item_id)
-        .all()
-    }
-
-    mapped_ids = []
-    for item in items:
-        _apply_item_mapping(db, item, master_item, username, existing_aliases)
-        mapped_ids.append(item.id)
-
-    try:
-        log_action(
-            db=db,
-            actor_user_id=None,
-            action_type="invoice_items_bulk_mapped",
-            entity_type="mart_bill_item",
-            entity_id=None,
-            metadata={
-                "master_item_id": master_item_id,
-                "mapped_count": len(mapped_ids),
-                "mapped_ids": mapped_ids,
-            },
-        )
-    except Exception:
-        logger.warning("Audit log failed for invoice_items_bulk_mapped", exc_info=True)
-
-    db.commit()
-    return {"mapped_count": len(mapped_ids), "updated_ids": mapped_ids}
-
-
 def batch_map_invoice_items(
     db: Session,
     mappings: list[dict],
