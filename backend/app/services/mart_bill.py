@@ -27,7 +27,7 @@ from app.utils.invoice_parser import process_pdf
 from app.utils.invoice_validator import validate_invoice_structure
 from app.utils.similarity import compute_match_score
 from fastapi import UploadFile
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -85,6 +85,21 @@ async def save_and_process_mart_bill(
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
 
+    # Duplicate check — must run before we touch the filesystem
+    existing = (
+        db.query(MartBill.id)
+        .filter(
+            MartBill.file_hash == file_hash,
+            MartBill.warehouse_id == resolved_warehouse_id,
+        )
+        .first()
+    )
+    if existing:
+        raise AppException(
+            detail=f"Duplicate invoice: this file was already uploaded (Bill #{existing[0]})",
+            status_code=409,
+        )
+
     # Construct Key (Legacy behavior: keep using 'invoices/' prefix)
     # We use settings.INVOICE_UPLOAD_DIR to maintain directory structure.
     storage_key = os.path.join(settings.INVOICE_UPLOAD_DIR, filename)
@@ -123,7 +138,10 @@ async def save_and_process_mart_bill(
 
         mart = db.query(Mart).filter(Mart.name == mart_name).first()
         if not mart:
-            raise AppException("Mart not found", status_code=404)
+            raise AppException(
+                detail=f'Mart not found: "{mart_name}". Create this mart first, then re-upload.',
+                status_code=404,
+            )
         from app.utils.audit import resolve_user_audit
 
         user_name, user_id = resolve_user_audit(db, created_by)
@@ -325,8 +343,12 @@ def get_mart_bill_by_id(
     """
     resolved_warehouse_id = resolve_system_warehouse_id(db, warehouse_id)
     logger.debug(f"Retrieving invoice id={invoice_id}")
-    q = db.query(MartBill).filter(
-        MartBill.id == invoice_id, MartBill.warehouse_id == resolved_warehouse_id
+    q = (
+        db.query(MartBill)
+        .options(joinedload(MartBill.mart))
+        .filter(
+            MartBill.id == invoice_id, MartBill.warehouse_id == resolved_warehouse_id
+        )
     )
     return q.first()
 
@@ -366,8 +388,11 @@ def get_mart_bills_paginated(
     db: Session,
     warehouse_id: int,
     invoice_date: Optional[date] = None,
+    invoice_date_from: Optional[date] = None,
+    invoice_date_to: Optional[date] = None,
     mart_id: Optional[int] = None,
     search: Optional[str] = None,
+    status: Optional[str] = None,
     skip: int = 0,
     limit: int = 20,
 ) -> Dict[str, Union[int, List[Dict], bool]]:
@@ -398,6 +423,13 @@ def get_mart_bills_paginated(
     if invoice_date:
         query = query.filter(MartBill.invoice_date == invoice_date)
 
+    if invoice_date_from:
+        query = query.filter(MartBill.invoice_date >= invoice_date_from)
+    if invoice_date_to:
+        query = query.filter(MartBill.invoice_date <= invoice_date_to)
+    if status:
+        query = query.filter(MartBill.status == status)
+
     if mart_id:
         query = query.filter(MartBill.mart_id == mart_id)
 
@@ -409,8 +441,16 @@ def get_mart_bills_paginated(
             )
         )
 
-    # Order by date desc, then ID desc
-    query = query.order_by(MartBill.invoice_date.desc(), MartBill.id.desc())
+    # Order by status priority, then date desc, then ID desc
+    status_priority = case(
+        (MartBill.status == "NEEDS_REVIEW", 1),
+        (MartBill.status == "PROCESSING", 2),
+        (MartBill.status == "VERIFIED", 3),
+        else_=4,
+    )
+    query = query.order_by(
+        status_priority, MartBill.invoice_date.desc(), MartBill.id.desc()
+    )
 
     total = query.count()
     invoices = query.offset(skip).limit(limit).all()
@@ -433,6 +473,58 @@ def get_mart_bills_paginated(
         )
         unresolved_counts = {row[0]: row[1] for row in count_rows}
 
+    # Summary counts — same filters MINUS status filter, so all status buckets are visible
+    summary_query = db.query(MartBill.status, func.count(MartBill.id)).filter(
+        MartBill.warehouse_id == warehouse_id
+    )
+    if invoice_date:
+        summary_query = summary_query.filter(MartBill.invoice_date == invoice_date)
+    if invoice_date_from:
+        summary_query = summary_query.filter(MartBill.invoice_date >= invoice_date_from)
+    if invoice_date_to:
+        summary_query = summary_query.filter(MartBill.invoice_date <= invoice_date_to)
+    if mart_id:
+        summary_query = summary_query.filter(MartBill.mart_id == mart_id)
+    if search:
+        summary_query = summary_query.join(MartBill.mart).filter(
+            or_(
+                MartBill.mart.has(name=search),
+                MartBill.remarks.ilike(f"%{search}%"),
+            )
+        )
+    status_counts_raw = summary_query.group_by(MartBill.status).all()
+    status_counts = {row[0]: row[1] for row in status_counts_raw}
+
+    # Total unresolved items across all matching bills (ignoring status filter)
+    matching_bill_ids_query = db.query(MartBill.id).filter(
+        MartBill.warehouse_id == warehouse_id
+    )
+    if invoice_date:
+        matching_bill_ids_query = matching_bill_ids_query.filter(
+            MartBill.invoice_date == invoice_date
+        )
+    if invoice_date_from:
+        matching_bill_ids_query = matching_bill_ids_query.filter(
+            MartBill.invoice_date >= invoice_date_from
+        )
+    if invoice_date_to:
+        matching_bill_ids_query = matching_bill_ids_query.filter(
+            MartBill.invoice_date <= invoice_date_to
+        )
+    if mart_id:
+        matching_bill_ids_query = matching_bill_ids_query.filter(
+            MartBill.mart_id == mart_id
+        )
+    total_unresolved = (
+        db.query(func.count(MartBillItem.id))
+        .filter(
+            MartBillItem.invoice_id.in_(matching_bill_ids_query.subquery()),
+            MartBillItem.resolution_status == "UNRESOLVED",
+        )
+        .scalar()
+        or 0
+    )
+
     results = []
     for inv in invoices:
         # Use Pydantic conversion but manually inject mart_name to preserve frontend contract
@@ -452,6 +544,13 @@ def get_mart_bills_paginated(
         "next_skip": skip + limit,
         "limit": limit,
         "has_more": has_more,
+        "summary": {
+            "total_bills": sum(status_counts.values()),
+            "needs_review": status_counts.get("NEEDS_REVIEW", 0),
+            "processing": status_counts.get("PROCESSING", 0),
+            "verified": status_counts.get("VERIFIED", 0),
+            "total_unresolved_items": total_unresolved,
+        },
     }
 
 
