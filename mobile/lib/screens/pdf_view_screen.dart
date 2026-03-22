@@ -13,8 +13,8 @@ import '../ui/widgets/agro_snack_bar.dart';
 import '../ui/widgets/agro_status_badge.dart';
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
-  final int invoiceId;
-  const PdfViewerScreen({super.key, required this.invoiceId});
+  final int billId;
+  const PdfViewerScreen({super.key, required this.billId});
 
   @override
   ConsumerState<PdfViewerScreen> createState() => _PdfViewerScreenState();
@@ -42,9 +42,9 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
 
     try {
       final notifier = ref.read(martBillProvider.notifier);
-      final bill = await notifier.getBillById(widget.invoiceId);
+      final bill = await notifier.getBillById(widget.billId);
 
-      final path = await notifier.downloadPdf(widget.invoiceId);
+      final path = await notifier.downloadPdf(widget.billId);
 
       if (!mounted) return;
       setState(() {
@@ -78,7 +78,7 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
         setState(() => _loading = true);
         await ref
             .read(martBillProvider.notifier)
-            .replacePdf(widget.invoiceId, result.files.single.path!);
+            .replacePdf(widget.billId, result.files.single.path!);
 
         if (!mounted) return;
         AgroSnackBar.success(context, 'File re-uploaded successfully!');
@@ -96,7 +96,7 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Mart Bill #${widget.invoiceId}'),
+        title: Text('Mart Bill #${widget.billId}'),
         actions: [
           if (_bill != null)
             Padding(

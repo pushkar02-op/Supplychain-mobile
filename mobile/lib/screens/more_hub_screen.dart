@@ -59,7 +59,7 @@ class MoreHubScreen extends ConsumerWidget {
           const _NavTile(
             icon: Icons.receipt_outlined,
             title: 'Mart Bills',
-            subtitle: 'Upload and manage invoices',
+            subtitle: 'Upload and manage mart bills',
             route: '/mart-bills',
           ),
           const _NavTile(
@@ -67,12 +67,6 @@ class MoreHubScreen extends ConsumerWidget {
             title: 'Items',
             subtitle: 'Manage item catalog',
             route: '/items',
-          ),
-          const _NavTile(
-            icon: Icons.link_outlined,
-            title: 'Alias Mapping',
-            subtitle: 'Map invoice items to master items',
-            route: '/alias-mapping',
           ),
           const _NavTile(
             icon: Icons.cancel_outlined,

@@ -8,8 +8,6 @@ from app.api.cost_control import router as cost_control_router
 from app.api.dispatch_entry import router as dispatch_router
 from app.api.health import router as health_router
 from app.api.inventory_txn import router as inventory_txn_router
-from app.api.invoice import router as invoice_router
-from app.api.invoice_item import router as invoice_item_router
 from app.api.item import operational_router as operational_item_router
 from app.api.item import router as item_router
 from app.api.item_alias import router as item_alias_router
@@ -42,8 +40,6 @@ router.include_router(rejection_router)
 router.include_router(audit_router)
 router.include_router(user_router)
 router.include_router(warehouse_router)
-router.include_router(invoice_router)
-router.include_router(invoice_item_router)
 router.include_router(order_router)
 router.include_router(conversion_router)
 router.include_router(reports_router)

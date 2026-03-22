@@ -338,9 +338,11 @@ class MartBillNotifier extends AsyncNotifier<MartBillState> {
       );
       await refresh();
     } catch (e) {
-      // Reset isUploading so user can retry or cancel
+      // Reset isUploading AND pickedPaths so the UI is fully unstuck.
       final next = state.valueOrNull ?? current;
-      state = AsyncValue.data(next.copyWith(isUploading: false));
+      state = AsyncValue.data(
+        next.copyWith(isUploading: false, pickedPaths: const []),
+      );
       rethrow;
     }
   }

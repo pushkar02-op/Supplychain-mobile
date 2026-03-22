@@ -26,7 +26,6 @@ import '../core/models/user_role.dart';
 import '../core/session/session_controller.dart';
 import '../core/session/session_state.dart';
 import '../screens/admin_diagnostics_screen.dart';
-import '../screens/alias_mapping_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/inventory_screen.dart';
 import '../screens/item_detail_screen.dart';
@@ -184,8 +183,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/pdf-viewer',
         builder: (context, state) {
-          final invoiceId = state.extra as int;
-          return PdfViewerScreen(invoiceId: invoiceId);
+          final billId = state.extra as int;
+          return PdfViewerScreen(billId: billId);
         },
       ),
       GoRoute(
@@ -217,10 +216,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => ItemManagementScreen(
           data: state.extra as Map<String, dynamic>?,
         ),
-      ),
-      GoRoute(
-        path: '/alias-mapping',
-        builder: (context, state) => const AliasMappingScreen(),
       ),
       GoRoute(
         path: '/admin/ledger/health',

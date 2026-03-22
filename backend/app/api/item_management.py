@@ -8,7 +8,6 @@ from app.db.models import UOM, User
 from app.db.schemas.item_management import (
     AliasMapInput,
     BatchMapInvoiceItemsRequest,
-    BulkMapInvoiceItemsRequest,
     ItemManagementCreateUpdate,
     ItemManagementRead,
     UOMRead,
@@ -94,23 +93,6 @@ def map_alias_to_item(
         db=db,
         alias_id=payload.alias_id,
         item_id=payload.item_id,
-    )
-
-
-@router.post(
-    "/bulk-map-invoice-items",
-    summary="Bulk map invoice items to a master item",
-)
-def bulk_map_invoice_items(
-    payload: BulkMapInvoiceItemsRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
-):
-    return svc.bulk_map_invoice_items(
-        db=db,
-        invoice_item_ids=payload.invoice_item_ids,
-        master_item_id=payload.master_item_id,
-        username=current_user.username,
     )
 
 
