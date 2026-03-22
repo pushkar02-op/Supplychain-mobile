@@ -15,8 +15,11 @@ class MartBillRepository {
   Future<MartBillPage> fetchMartBills({
     required int warehouseId,
     DateTime? date,
+    DateTime? dateFrom,
+    DateTime? dateTo,
     String? martName,
     String? search,
+    String? status,
     int skip = 0,
     int limit = 20,
   }) async {
@@ -29,10 +32,17 @@ class MartBillRepository {
       if (date != null) {
         params['invoice_date'] = date.toIso8601String().split('T').first;
       }
+      if (dateFrom != null) {
+        params['invoice_date_from'] = dateFrom.toIso8601String().split('T').first;
+      }
+      if (dateTo != null) {
+        params['invoice_date_to'] = dateTo.toIso8601String().split('T').first;
+      }
       if (martName != null && martName.isNotEmpty) {
         params['mart_name'] = martName;
       }
       if (search != null && search.isNotEmpty) params['search'] = search;
+      if (status != null && status.isNotEmpty) params['status'] = status;
 
       final resp = await DioClient.instance.get(
         '/mart-bills/',
@@ -40,17 +50,7 @@ class MartBillRepository {
       );
       if (resp.statusCode == 200) {
         final data = Map<String, dynamic>.from(resp.data as Map);
-        final items = (data['items'] ?? data['results'] ?? const []) as List<dynamic>;
-        return MartBillPage(
-          total: (data['total'] as num?)?.toInt() ?? items.length,
-          skip: (data['skip'] as num?)?.toInt() ?? 0,
-          limit: (data['limit'] as num?)?.toInt() ?? limit,
-          hasMore: data['has_more'] as bool? ?? false,
-          items:
-              items
-                  .map((entry) => MartBill.fromJson(entry as Map<String, dynamic>))
-                  .toList(),
-        );
+        return MartBillPage.fromJson(data, limit);
       }
       throw AppError(detail: 'Failed to load mart bills');
     } catch (e) {
