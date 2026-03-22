@@ -9,6 +9,7 @@ import '../providers/mart_bill_provider.dart';
 import '../providers/warehouse_context_provider.dart';
 import '../repositories/item_repository.dart';
 import '../ui/theme/agro_colors.dart';
+import '../ui/theme/agro_shapes.dart';
 import '../ui/theme/agro_spacing.dart';
 import '../ui/theme/agro_typography.dart';
 import '../ui/widgets/agro_snack_bar.dart';
@@ -85,6 +86,54 @@ class _InlineItemMappingSheetState
   bool _isMapping = false;
   int? _selectedItemId;
   String? _selectedItemName;
+
+  List<Map<String, dynamic>> _suggestions = [];
+  bool _isSuggestionsLoading = false;
+  List<Map<String, dynamic>> _allItems = [];
+  bool _isAllItemsLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadInitialData());
+  }
+
+  Future<void> _loadInitialData() async {
+    final warehouseId = ref.read(warehouseContextProvider);
+    if (warehouseId == null) return;
+
+    setState(() => _isAllItemsLoading = true);
+    try {
+      final items = await _repo.fetchItems(warehouseId: warehouseId);
+      if (mounted) {
+        setState(() {
+          _allItems = items;
+          _isAllItemsLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isAllItemsLoading = false);
+    }
+
+    if (widget.billItem != null) {
+      setState(() => _isSuggestionsLoading = true);
+      try {
+        final allSugs = await _repo.fetchBillItemSuggestions(
+          warehouseId: warehouseId,
+          billId: widget.billId,
+        );
+        final itemSugs = allSugs[widget.billItem!.id] ?? [];
+        if (mounted) {
+          setState(() {
+            _suggestions = itemSugs;
+            _isSuggestionsLoading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _isSuggestionsLoading = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -165,9 +214,10 @@ class _InlineItemMappingSheetState
     }
   }
 
-  void _quickMap(int itemId) {
+  void _quickMap(int itemId, {String? name}) {
     setState(() {
       _selectedItemId = itemId;
+      _selectedItemName = name;
     });
     _mapItem();
   }
@@ -259,131 +309,50 @@ class _InlineItemMappingSheetState
           ),
           const SizedBox(height: AgroSpacing.sm),
 
-          // Best match highlight
-          if (_searchResults.isNotEmpty &&
-              ((_searchResults.first['confidence'] as num?) ?? 0) >= 70)
-            Container(
-              padding: const EdgeInsets.all(AgroSpacing.sm),
-              margin: const EdgeInsets.only(bottom: AgroSpacing.sm),
-              decoration: BoxDecoration(
-                color: AgroColors.success.background,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Best Match',
-                          style: AgroTypography.caption.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '${_searchResults.first['name']} (${_searchResults.first['confidence']}%)',
-                          style: AgroTypography.body,
-                        ),
-                      ],
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _isMapping
-                        ? null
-                        : () => _quickMap(_searchResults.first['id'] as int),
-                    child: Text(widget.selectionOnly ? 'Quick Select' : 'Quick Map'),
-                  ),
-                ],
-              ),
-            ),
+          // ── Suggestions / All Items (when not searching) ──
+          if (_searchController.text.trim().length < 2) ...[
+            if (_suggestions.isNotEmpty || _isSuggestionsLoading)
+              _buildSuggestionsSection(),
+            _buildAllItemsSection(),
+          ],
 
-          // Search results
-          if (_searchResults.isNotEmpty)
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: _searchResults.length,
-                itemBuilder: (ctx, i) {
-                  final item = _searchResults[i];
-                  final itemId = item['id'] as int;
-                  final isSelected = _selectedItemId == itemId;
-                  final confidence = (item['confidence'] as num?)?.toInt();
-                  return ListTile(
-                    dense: true,
-                    selected: isSelected,
-                    selectedTileColor: AgroColors.info.background,
-                    title: Text(item['name'] ?? ''),
-                    subtitle: Text(
-                      '${item['default_uom_code'] ?? ''}${confidence != null ? '  \u2022  $confidence% match' : ''}',
-                      style: AgroTypography.caption,
-                    ),
-                    trailing: isSelected
-                        ? Icon(Icons.check_circle, color: AgroColors.success.text)
-                        : null,
-                    onTap: () {
-                      setState(() {
-                        _selectedItemId = itemId;
-                        _selectedItemName = item['name'];
-                      });
-                    },
-                  );
-                },
-              ),
-            ),
-
-          if (_searchResults.isEmpty &&
-              _searchController.text.trim().length >= 2 &&
-              !_isSearching)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AgroSpacing.md),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'No matching items found',
-                      style: AgroTypography.caption,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AgroSpacing.sm),
-                    TextButton.icon(
-                      onPressed: () => context.push('/item-edit'),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Create New Item'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          // ── Search Results (when search active) ──
+          if (_searchController.text.trim().length >= 2)
+            _buildSearchResultsSection(),
 
           const SizedBox(height: AgroSpacing.md),
 
-          // Selected item display + action button
+          // Selected item display
           if (_selectedItemName != null)
             Padding(
               padding: const EdgeInsets.only(bottom: AgroSpacing.sm),
               child: Text(
                 'Selected: $_selectedItemName',
-                style: AgroTypography.body.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: AgroTypography.body.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
 
+          // Action bar
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              OutlinedButton.icon(
+                onPressed: () => context.push('/item-edit'),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('New Item'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AgroSpacing.sm, vertical: 8),
+                ),
+              ),
+              const Spacer(),
               TextButton(
                 onPressed: _isMapping ? null : () => Navigator.pop(context),
                 child: const Text('Cancel'),
               ),
               const SizedBox(width: AgroSpacing.sm),
               ElevatedButton(
-                onPressed: (_selectedItemId != null && !_isMapping)
-                    ? _mapItem
-                    : null,
+                onPressed:
+                    (_selectedItemId != null && !_isMapping) ? _mapItem : null,
                 child: _isMapping
                     ? const SizedBox(
                         width: 16,
@@ -399,6 +368,204 @@ class _InlineItemMappingSheetState
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSuggestionsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: AgroSpacing.sm),
+          child: Text(
+            'Best matches',
+            style: AgroTypography.caption.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+        if (_isSuggestionsLoading)
+          const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ..._suggestions.map((s) {
+          final id = (s['id'] as num?)?.toInt() ??
+              (s['master_item_id'] as num?)?.toInt();
+          if (id == null) return const SizedBox.shrink();
+          final name = s['name'] as String? ?? '';
+          final uom = s['default_uom_code'] as String? ?? '';
+          final conf = (s['confidence'] as num?)?.toInt() ?? 0;
+          final isTop = s == _suggestions.first;
+
+          final Color badgeColor;
+          if (conf >= 80) {
+            badgeColor = AgroColors.success.text;
+          } else if (conf >= 30) {
+            badgeColor = AgroColors.warning.text;
+          } else {
+            badgeColor = AgroColors.textSecondary;
+          }
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: AgroSpacing.xs),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AgroSpacing.sm, vertical: AgroSpacing.xs),
+            decoration: BoxDecoration(
+              color: isTop
+                  ? AgroColors.success.background
+                  : AgroColors.surface,
+              borderRadius: AgroShapes.bannerRadius,
+              border: Border.all(
+                color:
+                    isTop ? AgroColors.success.border : AgroColors.divider,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: AgroTypography.body
+                            .copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        '$uom  •  $conf%',
+                        style: AgroTypography.caption
+                            .copyWith(color: badgeColor),
+                      ),
+                    ],
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed:
+                      _isMapping ? null : () => _quickMap(id, name: name),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AgroSpacing.sm, vertical: 4),
+                  ),
+                  child: const Text('Map'),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildAllItemsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: AgroSpacing.sm),
+          child: Text(
+            'All items',
+            style: AgroTypography.caption.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+        if (_isAllItemsLoading)
+          const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        if (!_isAllItemsLoading && _allItems.isNotEmpty)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 220),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _allItems.length,
+              itemBuilder: (ctx, i) {
+                final item = _allItems[i];
+                final id = item['id'] as int;
+                final name = item['name'] as String? ?? '';
+                final uom = item['default_uom_code'] as String? ?? '';
+                final isSelected = _selectedItemId == id;
+                return ListTile(
+                  dense: true,
+                  selected: isSelected,
+                  selectedTileColor: AgroColors.info.background,
+                  title: Text(name),
+                  subtitle: Text(uom, style: AgroTypography.caption),
+                  trailing: OutlinedButton(
+                    onPressed:
+                        _isMapping ? null : () => _quickMap(id, name: name),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AgroSpacing.sm, vertical: 4),
+                    ),
+                    child: const Text('Map'),
+                  ),
+                  onTap: () => setState(() {
+                    _selectedItemId = id;
+                    _selectedItemName = name;
+                  }),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSearchResultsSection() {
+    return Column(
+      children: [
+        if (_searchResults.isNotEmpty)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 260),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _searchResults.length,
+              itemBuilder: (ctx, i) {
+                final item = _searchResults[i];
+                final itemId = item['id'] as int;
+                final isSelected = _selectedItemId == itemId;
+                final confidence = (item['confidence'] as num?)?.toInt();
+                return ListTile(
+                  dense: true,
+                  selected: isSelected,
+                  selectedTileColor: AgroColors.info.background,
+                  title: Text(item['name'] ?? ''),
+                  subtitle: Text(
+                    '${item['default_uom_code'] ?? ''}${confidence != null ? '  •  $confidence% match' : ''}',
+                    style: AgroTypography.caption,
+                  ),
+                  trailing: isSelected
+                      ? Icon(Icons.check_circle, color: AgroColors.success.text)
+                      : null,
+                  onTap: () => setState(() {
+                    _selectedItemId = itemId;
+                    _selectedItemName = item['name'];
+                  }),
+                );
+              },
+            ),
+          ),
+        if (_searchResults.isEmpty && !_isSearching)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: AgroSpacing.md),
+              child: Text(
+                'No matching items found',
+                style: AgroTypography.caption,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

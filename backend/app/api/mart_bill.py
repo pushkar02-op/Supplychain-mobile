@@ -13,6 +13,7 @@ from app.core.auth import require_role
 from app.core.exceptions import AppException
 from app.core.rate_limit import limiter
 from app.db.enums.role import Role
+from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.user import User
 from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
 from app.db.session import get_db
@@ -29,7 +30,9 @@ from app.services.mart_bill import (
 from app.services.warehouse_scope import resolve_warehouse_for_request
 from app.utils.file_validation import validate_upload_size
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, JSONResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -93,6 +96,15 @@ def read_mart_bills(
     invoice_date: Optional[date] = Query(
         None, description="Filter by bill date (YYYY-MM-DD)"
     ),
+    invoice_date_from: Optional[date] = Query(
+        None, description="Filter bills from this date (inclusive)"
+    ),
+    invoice_date_to: Optional[date] = Query(
+        None, description="Filter bills up to this date (inclusive)"
+    ),
+    status: Optional[str] = Query(
+        None, description="Filter by status: NEEDS_REVIEW, PROCESSING, VERIFIED"
+    ),
     mart_id: Optional[int] = Query(None, description="Filter by mart id"),
     search: Optional[str] = Query(None, description="Search term"),
     skip: int = Query(0, ge=0, description="Items to skip"),
@@ -151,20 +163,23 @@ def read_mart_bills(
         db=db,
         warehouse_id=resolved_warehouse_id,
         invoice_date=invoice_date,
+        invoice_date_from=invoice_date_from,
+        invoice_date_to=invoice_date_to,
         mart_id=mart_id,
         search=search,
+        status=status,
         skip=effective_skip,
         limit=effective_limit,
     )
 
 
-@router.get("/{bill_id}", response_model=MartBillRead, summary="Get Mart Bill by ID")
+@router.get("/{bill_id}", summary="Get Mart Bill by ID")
 def read_mart_bill(
     bill_id: int,
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
-) -> MartBillRead:
+) -> JSONResponse:
     """
     Retrieve a single mart bill by ID.
 
@@ -186,7 +201,18 @@ def read_mart_bill(
     if not bill:
         logger.error(f"Mart bill not found: id={bill_id}")
         raise AppException("Mart bill not found", status_code=404)
-    return bill
+    bill_dict = MartBillRead.from_orm(bill).dict()
+    bill_dict["mart_name"] = bill.mart.name if bill.mart else None
+    bill_dict["unresolved_count"] = (
+        db.query(func.count(MartBillItem.id))
+        .filter(
+            MartBillItem.invoice_id == bill.id,
+            MartBillItem.resolution_status == "UNRESOLVED",
+        )
+        .scalar()
+        or 0
+    )
+    return JSONResponse(content=jsonable_encoder(bill_dict))
 
 
 @router.put("/{bill_id}", response_model=MartBillRead, summary="Update Mart Bill")
