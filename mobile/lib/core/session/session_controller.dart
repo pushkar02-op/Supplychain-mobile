@@ -63,7 +63,18 @@ class SessionController extends Notifier<Session> {
     }
     _initialized = true;
     _setupActiveMartPersistence();
-    await _hydrateSessionFromStorage();
+    try {
+      await _hydrateSessionFromStorage();
+    } catch (e) {
+      // Any unhandled error during hydration → clean unauthenticated state.
+      // This prevents app crashes from corrupted storage, expired tokens,
+      // or network errors during startup.
+      try {
+        await _storage.deleteAll();
+      } catch (_) {}
+      DioClient.setAccessToken(null);
+      state = const Session(state: SessionState.unauthenticated);
+    }
   }
 
   Future<String?> login(String email, String password) async {
@@ -207,12 +218,20 @@ class SessionController extends Notifier<Session> {
     final userIdStr = await _safeRead(_userIdKey);
     final userId = userIdStr == null ? null : int.tryParse(userIdStr);
 
-    await _resolveWarehouseState(
-      accessToken: token,
-      refreshToken: refreshToken,
-      userId: userId,
-      role: role,
-    );
+    try {
+      await _resolveWarehouseState(
+        accessToken: token,
+        refreshToken: refreshToken,
+        userId: userId,
+        role: role,
+      );
+    } catch (_) {
+      // If warehouse resolution fails (e.g. 401 during fetchMyAccess),
+      // ensure we land on unauthenticated rather than crashing.
+      if (state.state != SessionState.unauthenticated) {
+        await logout();
+      }
+    }
   }
 
   Future<void> _resolveWarehouseState({
@@ -226,7 +245,14 @@ class SessionController extends Notifier<Session> {
       final repo = ref.read(warehouseRepositoryProvider);
       warehouses = await repo.fetchMyAccess();
     } catch (_) {
-      await logout();
+      try {
+        await logout();
+      } catch (_) {
+        // Ensure we always land on unauthenticated even if logout fails.
+        await _storage.deleteAll();
+        DioClient.setAccessToken(null);
+        state = const Session(state: SessionState.unauthenticated);
+      }
       return;
     }
 
