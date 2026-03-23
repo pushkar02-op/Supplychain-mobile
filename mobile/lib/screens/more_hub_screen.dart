@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -74,6 +75,13 @@ class MoreHubScreen extends ConsumerWidget {
             subtitle: 'Track rejected items',
             route: '/rejection-list',
           ),
+          if (kDebugMode)
+            const _NavTile(
+              icon: Icons.bug_report_outlined,
+              title: 'Debug Logs',
+              subtitle: 'View and export app logs',
+              route: '/debug-logs',
+            ),
 
           const SizedBox(height: AgroSpacing.xl),
 

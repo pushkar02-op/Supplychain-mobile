@@ -1,29 +1,73 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/logging/app_logger.dart';
+import 'core/logging/provider_observer.dart';
 import 'core/navigation/route_refresh_registry.dart';
 import 'core/dio_client.dart';
 import 'core/session/session_controller.dart';
 import 'routes/app_router.dart';
 
 void main() {
-  debugPrint('[BOOT] main() started');
-  WidgetsFlutterBinding.ensureInitialized();
-  debugPrint('[BOOT] WidgetsFlutterBinding initialized');
+  runZonedGuarded(() async {
+    debugPrint('[BOOT] main() started');
+    WidgetsFlutterBinding.ensureInitialized();
+    debugPrint('[BOOT] WidgetsFlutterBinding initialized');
 
-  if (kIsWeb) {
-    debugPrint('[BOOT] Forcing SemanticsBinding');
-    SemanticsBinding.instance.ensureSemantics();
-  }
+    if (kIsWeb) {
+      debugPrint('[BOOT] Forcing SemanticsBinding');
+      SemanticsBinding.instance.ensureSemantics();
+    }
 
-  registerRouteRefreshRules();
+    registerRouteRefreshRules();
 
-  debugPrint('[BOOT] Running runApp');
-  runApp(const ProviderScope(child: MyApp()));
-  debugPrint('[BOOT] runApp called');
+    await AppLogger.instance.init();
+    AppLogger.instance.startAutoFlush();
+
+    FlutterError.onError = (details) {
+      AppLogger.instance.error(
+        'flutter',
+        'FlutterError: ${details.exceptionAsString()}',
+        data: {
+          'library': details.library,
+          'context': details.context?.toString(),
+        },
+        stackTrace: details.stack,
+      );
+      if (kDebugMode) {
+        FlutterError.presentError(details);
+      }
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      AppLogger.instance.error(
+        'platform',
+        'PlatformError: $error',
+        stackTrace: stack,
+      );
+      return true;
+    };
+
+    debugPrint('[BOOT] Running runApp');
+    runApp(
+      ProviderScope(
+        observers: [AppProviderObserver()],
+        child: const MyApp(),
+      ),
+    );
+    debugPrint('[BOOT] runApp called');
+  }, (error, stackTrace) {
+    AppLogger.instance.error(
+      'unhandled',
+      'Unhandled: $error',
+      stackTrace: stackTrace,
+    );
+  });
 }
 
 class MyApp extends ConsumerStatefulWidget {

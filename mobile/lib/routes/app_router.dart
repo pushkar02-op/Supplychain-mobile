@@ -31,6 +31,7 @@ import '../screens/inventory_screen.dart';
 import '../screens/item_detail_screen.dart';
 import '../screens/item_list_screen.dart';
 import '../screens/item_management_screen.dart';
+import '../screens/debug_log_screen.dart';
 import '../screens/mart_bill_detail_screen.dart';
 import '../screens/mart_bill_list_screen.dart';
 import '../screens/more_hub_screen.dart';
@@ -179,6 +180,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final billId = int.parse(state.pathParameters['id']!);
           return MartBillDetailScreen(billId: billId);
         },
+      ),
+      GoRoute(
+        path: '/debug-logs',
+        builder: (context, state) => const DebugLogScreen(),
       ),
       GoRoute(
         path: '/pdf-viewer',
