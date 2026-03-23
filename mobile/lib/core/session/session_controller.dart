@@ -197,8 +197,13 @@ class SessionController extends Notifier<Session> {
     } finally {
       await _storage.deleteAll();
       DioClient.setAccessToken(null);
-      ref.invalidate(currentUserProfileProvider);
-      ref.read(activeMartProvider.notifier).state = null;
+      // Defer cross-provider side-effects to the next microtask.
+      // Calling ref.invalidate / notifier.state from within the Riverpod
+      // provider frame itself triggers _debugAssertCanDependOn in debug mode.
+      Future.microtask(() {
+        ref.invalidate(currentUserProfileProvider);
+        ref.read(activeMartProvider.notifier).state = null;
+      });
       state = const Session(state: SessionState.unauthenticated);
     }
   }
