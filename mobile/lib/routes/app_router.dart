@@ -15,6 +15,7 @@ import 'package:mobile/models/user_read.dart';
 import 'package:mobile/screens/pdf_view_screen.dart';
 import 'package:mobile/screens/rejection_entry_screen.dart';
 import 'package:mobile/screens/rejection_list_screen.dart';
+import 'package:mobile/screens/bill_stock_preview_screen.dart';
 import 'package:mobile/screens/splash_screen.dart';
 import 'package:mobile/screens/mart_management_screen.dart';
 import 'package:mobile/screens/uom_management_screen.dart';
@@ -179,6 +180,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final billId = int.parse(state.pathParameters['id']!);
           return MartBillDetailScreen(billId: billId);
+        },
+      ),
+      GoRoute(
+        path: '/bill-stock-preview/:id',
+        builder: (context, state) {
+          final billId = int.parse(state.pathParameters['id']!);
+          return BillStockPreviewScreen(billId: billId);
         },
       ),
       GoRoute(

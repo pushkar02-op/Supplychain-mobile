@@ -14,6 +14,9 @@ class StockEntry(Base, AuditMixin):
     warehouse_id = Column(
         Integer, ForeignKey("warehouse.id"), nullable=False, index=True
     )
+    source_bill_item_id = Column(
+        Integer, ForeignKey("invoice_item.id"), nullable=True, index=True
+    )
     received_date = Column(Date, nullable=False)
     source = Column(String, nullable=True)
     price_per_unit = Column(Numeric(18, 6), nullable=False)

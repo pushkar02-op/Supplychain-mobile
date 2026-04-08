@@ -16,6 +16,7 @@ from app.db.enums.role import Role
 from app.db.models.mart_bill_item import MartBillItem
 from app.db.models.user import User
 from app.db.schemas.mart_bill import MartBillRead, MartBillUpdate
+from app.db.schemas.supplier_norm_rule import GenerateStockResponse
 from app.db.session import get_db
 from app.services.mart_bill import (
     delete_mart_bill,
@@ -297,6 +298,38 @@ def unverify_mart_bill_endpoint(
             detail="Mart bill not found", status_code=404, rule_id=None, metadata={}
         )
     return bill
+
+
+@router.post(
+    "/{bill_id}/generate-stock",
+    response_model=GenerateStockResponse,
+    summary="Generate stock entries from a verified bill",
+)
+def generate_stock_from_bill_endpoint(
+    bill_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> GenerateStockResponse:
+    """
+    Generate stock entries for all MAPPED items in a verified bill.
+
+    Requires the bill to be VERIFIED and all items to be MAPPED.
+    Items with confirmed normalization rules are auto-processed.
+    Items without rules or with AMBIGUOUS rules are skipped.
+    """
+    from app.services.supplier_norm_rule import generate_stock_from_bill
+
+    logger.info(f"API: Generating stock entries from bill_id={bill_id}")
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    return generate_stock_from_bill(
+        db,
+        bill_id=bill_id,
+        user_id=current_user.id,
+        warehouse_id=resolved_warehouse_id,
+    )
 
 
 @router.post("/{bill_id}/replace-file", response_model=MartBillRead)

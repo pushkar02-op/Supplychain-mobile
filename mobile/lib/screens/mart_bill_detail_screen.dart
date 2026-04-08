@@ -504,35 +504,57 @@ class _MartBillDetailScreenState
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AgroSpacing.md),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: _ActionTile(
-                    icon: isVerified
-                        ? Icons.verified_outlined
-                        : Icons.check_circle_outline,
-                    label: isVerified ? 'Verified' : 'Verify',
-                    subtitle: !isVerified && unresolved.isNotEmpty
-                        ? '${unresolved.length} unresolved'
-                        : null,
-                    color: AgroColors.success.text,
-                    background: AgroColors.success.background,
-                    enabled: canVerify || isVerified,
-                    onTap:
-                        isVerified ? null : canVerify ? _confirmVerify : null,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ActionTile(
+                        icon: isVerified
+                            ? Icons.verified_outlined
+                            : Icons.check_circle_outline,
+                        label: isVerified ? 'Verified' : 'Verify',
+                        subtitle: !isVerified && unresolved.isNotEmpty
+                            ? '${unresolved.length} unresolved'
+                            : null,
+                        color: AgroColors.success.text,
+                        background: AgroColors.success.background,
+                        enabled: canVerify || isVerified,
+                        onTap:
+                            isVerified ? null : canVerify ? _confirmVerify : null,
+                      ),
+                    ),
+                    const SizedBox(width: AgroSpacing.sm),
+                    Expanded(
+                      child: _ActionTile(
+                        icon: Icons.delete_outline,
+                        label: 'Delete',
+                        color: AgroColors.critical.text,
+                        background: AgroColors.critical.background,
+                        enabled: !isVerified,
+                        onTap: isVerified ? null : _confirmDelete,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: AgroSpacing.sm),
-                Expanded(
-                  child: _ActionTile(
-                    icon: Icons.delete_outline,
-                    label: 'Delete',
-                    color: AgroColors.critical.text,
-                    background: AgroColors.critical.background,
-                    enabled: !isVerified,
-                    onTap: isVerified ? null : _confirmDelete,
+                if (isVerified) ...[
+                  const SizedBox(height: AgroSpacing.sm),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _ActionTile(
+                      icon: Icons.inventory_2_outlined,
+                      label: 'Generate Stock',
+                      subtitle: '${mapped.length} items ready',
+                      color: AgroColors.info.text,
+                      background: AgroColors.info.background,
+                      enabled: mapped.isNotEmpty,
+                      onTap: mapped.isNotEmpty
+                          ? () => context.push(
+                              '/bill-stock-preview/${widget.billId}')
+                          : null,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

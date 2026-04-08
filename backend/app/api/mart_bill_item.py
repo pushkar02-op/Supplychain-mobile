@@ -16,6 +16,11 @@ from app.db.schemas.mart_bill_item import (
     MartBillItemSummary,
     MartBillItemUpdate,
 )
+from app.db.schemas.supplier_norm_rule import (
+    NormSuggestionsResponse,
+    RuleConfirmationRequest,
+    RuleConfirmationResponse,
+)
 from app.db.session import get_db
 from app.services.mart_bill_item import (
     delete_mart_bill_item,
@@ -24,6 +29,7 @@ from app.services.mart_bill_item import (
     get_items_by_mart_bill,
     update_mart_bill_item,
 )
+from app.services.supplier_norm_rule import confirm_rules, get_norm_suggestions
 from app.services.warehouse_scope import resolve_warehouse_for_request
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
@@ -173,3 +179,62 @@ def delete_item(
         logger.error(f"Mart bill item not found: id={item_id}")
         raise AppException("Item not found", status_code=404)
     return None
+
+
+# ── Normalization Suggestions ─────────────────────────────────────────
+
+
+@router.get(
+    "/{bill_id}/norm-suggestions",
+    response_model=NormSuggestionsResponse,
+    summary="Get normalization suggestions for mapped bill items",
+)
+def norm_suggestions(
+    bill_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.WORKER, Role.MANAGER, Role.OWNER)),
+) -> NormSuggestionsResponse:
+    """
+    Get normalization suggestions for all MAPPED items in a bill.
+
+    Returns conversion suggestions (bill unit → stock unit) for each item,
+    categorized as auto (confirmed rule), confirm (first-time), review (range),
+    or manual (ambiguous).
+    """
+    logger.info(f"API: Getting norm suggestions for bill_id={bill_id}")
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "read"
+    )
+    return get_norm_suggestions(db, bill_id, warehouse_id=resolved_warehouse_id)
+
+
+@router.post(
+    "/{bill_id}/confirm-rules",
+    response_model=RuleConfirmationResponse,
+    summary="Confirm normalization rules for bill items",
+)
+def confirm_norm_rules(
+    bill_id: int,
+    request: RuleConfirmationRequest,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.MANAGER, Role.OWNER)),
+) -> RuleConfirmationResponse:
+    """
+    Confirm normalization rules for bill items.
+
+    Creates or updates supplier_item_norm_rule entries so that
+    future bills with the same item_code + UOM auto-apply.
+    """
+    logger.info(f"API: Confirming norm rules for bill_id={bill_id}")
+    resolved_warehouse_id = resolve_warehouse_for_request(
+        current_user, warehouse_id, db, "update"
+    )
+    return confirm_rules(
+        db,
+        bill_id=bill_id,
+        confirmations=request.rules,
+        user_id=current_user.id,
+        warehouse_id=resolved_warehouse_id,
+    )

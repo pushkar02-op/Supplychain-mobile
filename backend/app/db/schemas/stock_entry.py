@@ -9,6 +9,7 @@ from app.db.schemas.item import ItemRead
 class StockEntryBase(SchemaModel):
     item_id: int
     warehouse_id: Optional[int] = None
+    source_bill_item_id: Optional[int] = None
     received_date: date
     price_per_unit: Decimal
     total_cost: Decimal

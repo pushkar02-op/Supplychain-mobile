@@ -22,9 +22,11 @@ from .mart_bill import MartBill as MartBill
 from .mart_bill_item import MartBillItem as MartBillItem
 from .mart_item_alias import MartItemAlias as MartItemAlias
 from .order import Order as Order
+from .raw_uom_map import RawUomMap as RawUomMap
 from .reconciliation_record import ReconciliationRecord as ReconciliationRecord
 from .rejection_entry import RejectionEntry as RejectionEntry
 from .stock_entry import StockEntry as StockEntry
+from .supplier_item_norm_rule import SupplierItemNormRule as SupplierItemNormRule
 from .transport_cost_daily import TransportCostDaily as TransportCostDaily
 from .uom import UOM as UOM
 from .user import User as User
@@ -58,4 +60,6 @@ __all__ = [
     "DomainEvent",
     "Warehouse",
     "UserWarehouseAccess",
+    "SupplierItemNormRule",
+    "RawUomMap",
 ]
