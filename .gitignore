@@ -27,8 +27,9 @@ venv/
 # MacOS
 .DS_Store
 
-# Claude Code
-.claude/
+# Claude Code local cache (NOT settings.json — that's committed)
+.claude/cache/
+.claude/local-history/
 
 # VSCode
 .vscode/
@@ -108,8 +109,17 @@ terraform.rc
 *_debug_*.txt
 
 # --- Local agent & E2E scratch ---
-.agent/
-e2e/
+# Agent governance system — directory tracked, only local-only artifacts ignored
+.agent/SESSIONS/*.tmp
+.agent/SESSIONS/*.draft
+.agent/STATE/state.lock
+!.agent/SESSIONS/
+!.agent/SESSIONS/phase-a-tracked-ignored-report.txt
+# E2E tests — directory tracked, only generated artifacts ignored
+e2e/playwright-report/
+e2e/test-results/
+e2e/node_modules/
+e2e/.cache/
 
 # --- Flutter integration test artifacts ---
 mobile/test/integration/
