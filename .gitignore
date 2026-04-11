@@ -23,6 +23,7 @@ venv/
 /backend/debug_*.py
 /backend/verify_*.py
 /backend/app/verify_*.py
+backend/openapi_generated.json
 
 # MacOS
 .DS_Store
@@ -56,6 +57,8 @@ test_ord007_simple.py
 **/.flutter-plugins-dependencies
 **/.packages
 **/mobile/.DS_Store
+mobile/linux/
+mobile/windows/
 
 # Misc
 **/.env
@@ -141,3 +144,8 @@ test-results/
 token.json
 
 bills/
+
+# Test artifacts
+backend/tests/*.log
+backend/tests/*.txt
+backend/tests/ruff_*.json
