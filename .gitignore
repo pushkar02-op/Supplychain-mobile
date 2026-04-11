@@ -30,6 +30,7 @@ venv/
 # Claude Code local cache (NOT settings.json — that's committed)
 .claude/cache/
 .claude/local-history/
+.claude/settings.local.json
 
 # VSCode
 .vscode/
@@ -113,8 +114,8 @@ terraform.rc
 .agent/SESSIONS/*.tmp
 .agent/SESSIONS/*.draft
 .agent/STATE/state.lock
-!.agent/SESSIONS/
-!.agent/SESSIONS/phase-a-tracked-ignored-report.txt
+# Override the global *.txt ignore for session reports
+!.agent/SESSIONS/*.txt
 # E2E tests — directory tracked, only generated artifacts ignored
 e2e/playwright-report/
 e2e/test-results/
