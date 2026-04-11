@@ -6,6 +6,17 @@
 
 ---
 
+<!-- Phase D — Documentation Staging (2026-04-09) -->
+## Documentation Layout Notes
+
+### `docs/_pending_rewrite/`
+This directory contains stale phase-era documents that are **scheduled for replacement** by canonical subsystem docs as part of the Documentation Rewrite Project. These files are **not canonical**. Do not cite them, link to them from new docs, or use them to make architectural decisions. Each file carries a STALE banner at the top. The originals were moved here with `git mv` so their history is preserved.
+
+### `docs/rfcs/drafts/`
+Unapproved RFC drafts live here. Draft status is indicated by location — these are valid work-in-progress documents awaiting a decision, not stale content. Do not promote a draft to canonical without an approval record.
+
+---
+
 ## 1. Documentation Authority Hierarchy
 
 All decision-making and implementation MUST adhere to this precedence order. If a conflict exists, the higher-level document wins.
