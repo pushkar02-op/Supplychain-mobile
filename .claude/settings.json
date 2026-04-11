@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze:*)",
+      "Bash(python -m alembic current)",
+      "Bash(docker ps:*)",
+      "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(data[0][''''text''''][:80000]\\)\")",
+      "Bash(python -c \"from app.api.mart_bill import router; print\\(''OK''\\)\")",
+      "Bash(python -c \":*)"
+    ]
+  }
+}
