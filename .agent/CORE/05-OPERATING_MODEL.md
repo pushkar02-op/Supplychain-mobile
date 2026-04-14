@@ -673,6 +673,6 @@ agent behavior rules.
 layer rules (see `02-ARCHITECTURE.md`), entity definitions (see
 `03-SYSTEM_MAP.md`), canonical terms (see `04-GLOSSARY.md`).
 
-**This is the last file in `.agent/CORE/`.** Reading all five files
+**This is the last file in `.agent/CORE/`.** Reading all six files
 (00 through 05) is the prerequisite for any executor session. If any
 file was skipped, return to it before proceeding.

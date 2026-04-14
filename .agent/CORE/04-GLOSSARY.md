@@ -512,4 +512,4 @@ and known naming inconsistencies.
 `03-SYSTEM_MAP.md`), layer rules (see `02-ARCHITECTURE.md`), invariant
 text (see `01-INVARIANTS.md`).
 
-**Next file to read:** `.agent/CORE/05-OPERATING-MODE.md`
+**Next file to read:** `.agent/CORE/05-OPERATING_MODEL.md`
