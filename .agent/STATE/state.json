@@ -1,0 +1,38 @@
+{
+  "schema_version": 2,
+  "updated_at": "2026-04-14T18:05:18Z",
+  "updated_by_session": "2026-04-14-phase4-process-install",
+  "phase": "BASELINE_LOCKED",
+  "current_focus": "Process installation — PROMPTS, STATE, scripts now in place",
+  "active_branches": [],
+  "subsystems": {
+    "dispatch": {
+      "status": "stable",
+      "invariants_ok": true
+    },
+    "inventory": {
+      "status": "stable",
+      "invariants_ok": true
+    },
+    "mart_bill": {
+      "status": "stable",
+      "invariants_ok": true
+    },
+    "audit": {
+      "status": "stable",
+      "invariants_ok": true
+    },
+    "reconciliation": {
+      "status": "stable",
+      "invariants_ok": true
+    }
+  },
+  "open_threads": [],
+  "recent_sessions": [
+    ".agent/SESSIONS/phase-e1-branch-classification.txt"
+  ],
+  "last_planner_digest": "2026-04-14T18:05:18Z",
+  "next_actions": [
+    "PHASE 5 — First real feature dogfood run"
+  ]
+}
