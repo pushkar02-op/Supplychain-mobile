@@ -15,8 +15,22 @@ cd "$REPO_ROOT"
 PROMPTS_DIR=".agent/PROMPTS"
 STATE_DIR=".agent/STATE"
 
+# ---------------------------------------------------------------------------
+# PRE-FLIGHT VALIDATION — runs before any output is produced.
+# ---------------------------------------------------------------------------
+required_files=(
+  "$PROMPTS_DIR/executor-bootstrap.md"
+  "$STATE_DIR/risks.md"
+)
+for req in "${required_files[@]}"; do
+  [[ -f "$req" ]] || { echo "ABORT: missing required file: $req" >&2; exit 1; }
+  [[ -s "$req" ]] || { echo "ABORT: required file is empty: $req" >&2; exit 1; }
+done
+# ---------------------------------------------------------------------------
+
 hr() { echo ""; echo "---"; echo ""; }
 
+echo "<!-- BOOTSTRAP_START -->"
 echo "## AGENT BOOTSTRAP v2 — EXECUTOR MODE"
 echo ""
 echo "Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || python3 -c 'from datetime import datetime,timezone; print(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))')"
@@ -28,16 +42,18 @@ hr
 cat "$PROMPTS_DIR/executor-bootstrap.md"
 hr
 
-# Current state (summary)
-echo "### CURRENT STATE"
-cat "$STATE_DIR/state.json"
-hr
-
-echo "### OPEN THREADS"
-cat "$STATE_DIR/open-threads.md"
+# Active risks — executor must be aware before touching any subsystem
+echo "### ACTIVE RISKS"
+cat "$STATE_DIR/risks.md"
 hr
 
 echo "## END OF BOOTSTRAP"
+echo "<!-- BOOTSTRAP_END -->"
+echo ""
+echo "VERIFY: If both <!-- BOOTSTRAP_START --> and <!-- BOOTSTRAP_END --> are not"
+echo "present in this paste, the bootstrap is incomplete. Ask the human to"
+echo "re-run bootstrap-executor.sh before proceeding."
+echo ""
 echo "The EXECUTOR BRIEF follows immediately below."
 echo ""
 echo "--- PASTE EXECUTOR BRIEF HERE ---"

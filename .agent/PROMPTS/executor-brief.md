@@ -123,30 +123,59 @@ alembic heads
 
 ### SESSION CLOSE template
 
-The executor's final output must be in this format exactly.
-See `.agent/PROMPTS/session-close.md` for the full contract.
+The executor's final output must be in this exact format.
+This is the complete contract — every field is required.
+See `.agent/PROMPTS/session-close.md` for field-level rules.
 
 ```
 SESSION CLOSE
-PHASE: <phase>
-BRANCH: <branch>
-COMMIT: <SHA or NONE>
+═══════════════════════════════════════════════════════
+
+PHASE:        <phase ID and title — must match this brief's phase label>
+BRANCH:       <git branch name>
+COMMIT:       <short SHA — or NONE if no commit was made>
+
 CHANGES:
-  CREATED: [list or NONE]
-  MODIFIED: [list or NONE]
-  DELETED: [list or NONE]
-VALIDATION_STATUS: PASS | FAIL | PARTIAL
-  TESTS: PASS | FAIL | NOT_RUN
-  ANALYZE: PASS | FAIL | NOT_RUN
-  GOVERNANCE: PASS | FAIL | NOT_RUN
-  ALEMBIC: SINGLE | MULTIPLE | NOT_CHECKED
-INVARIANTS_TOUCHED: [INV-ID: one sentence, or NONE]
+  CREATED:    [<path> — <one-line description>, ...]  or NONE
+  MODIFIED:   [<path> — <what changed>, ...]          or NONE
+  DELETED:    [<path>, ...]                            or NONE
+
+VALIDATION_STATUS:  PASS | FAIL | PARTIAL
+  TESTS:            PASS | FAIL | NOT_RUN — <reason if NOT_RUN>
+  ANALYZE:          PASS | FAIL | NOT_RUN — <reason if NOT_RUN>
+  GOVERNANCE:       PASS | FAIL | NOT_RUN — <reason if NOT_RUN>
+  ALEMBIC:          SINGLE | MULTIPLE | NOT_CHECKED — <reason if NOT_CHECKED>
+
+INVARIANTS_TOUCHED:
+  <INV-ID>: <one sentence — what was confirmed or guarded>
+  ...
+  or NONE
+
 RISKS:
-  REGRESSION_RISK: NONE | LOW | MEDIUM | HIGH
-  STRUCTURAL_RISK: NONE | LOW | MEDIUM | HIGH
-  OPEN_QUESTIONS: [list or NONE]
-GAPS_SURFACED: [list or NONE]
-NEW_TERMS_INTRODUCED: [list or NONE]
-NEXT_PHASE: <phase> | AWAITING_HUMAN_DECISION
-NOTES: <max 5 sentences>
+  REGRESSION_RISK:  NONE | LOW | MEDIUM | HIGH — <reason if not NONE>
+  STRUCTURAL_RISK:  NONE | LOW | MEDIUM | HIGH — <reason if not NONE>
+  OPEN_QUESTIONS:   [list of unresolved items for next session]  or NONE
+
+GAPS_SURFACED:
+  [list of out-of-scope observations, bugs discovered, or follow-up work]
+  or NONE
+
+NEW_TERMS_INTRODUCED:
+  [list — each new canonical term added per 04-GLOSSARY.md §6]
+  or NONE
+
+STATE_DELTA:
+  phase: "<new phase name>"
+  current_focus: "<one line>"
+  subsystems:
+    <subsystem>: { "status": "stable|ux_transition|refactor|broken", "invariants_ok": true|false }
+  open_threads: ["<thread>", ...]
+  next_actions: ["<action>", ...]
+
+NEXT_PHASE:   <phase ID and title>  |  AWAITING_HUMAN_DECISION
+
+NOTES:
+  <free text — max 5 sentences — for anything not captured above>
+
+═══════════════════════════════════════════════════════
 ```
