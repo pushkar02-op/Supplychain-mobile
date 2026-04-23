@@ -164,21 +164,50 @@ info "Session file written: .agent/SESSIONS/${SLUG}.md"
 DELTA_RAW=$(echo "$SESSION_CLOSE" | awk '/^STATE_DELTA:/{found=1; next} found && /^[A-Z_]+:/{exit} found{print}')
 
 if [[ -n "$DELTA_RAW" ]]; then
-  # Convert STATE_DELTA section to JSON-ish and apply via update-state.py
+  # Convert STATE_DELTA section to JSON and apply via update-state.py.
+  # Handles two-level nesting: top-level scalar/list fields and one level of
+  # nested dicts (e.g. subsystems.dispatch = { ... }).
   DELTA_JSON=$(python3 -c "
-import sys, re, json
+import re, json
 
 raw = '''$DELTA_RAW'''
 result = {}
+current_parent = None  # key of the active nested block
+base_indent = None     # indentation of top-level keys (set from first match)
 
-for line in raw.strip().splitlines():
-    line = line.strip()
-    if not line or line.startswith('#'):
+for line in raw.splitlines():
+    stripped = line.strip()
+    if not stripped or stripped.startswith('#'):
         continue
-    m = re.match(r'^(\w+):\s*(.*)', line)
-    if m:
-        key, val = m.group(1), m.group(2).strip().strip('\"')
-        result[key] = val
+    m = re.match(r'^(\w+):\s*(.*)', stripped)
+    if not m:
+        continue
+    key, val = m.group(1), m.group(2).strip().strip('\"')
+    indent = len(line) - len(line.lstrip(' '))
+
+    if base_indent is None:
+        base_indent = indent  # first key sets the baseline
+
+    if indent == base_indent:
+        # Top-level key — resets any active nested block
+        current_parent = None
+        if val == '':
+            # No value: this key heads a nested block
+            current_parent = key
+            result[key] = {}
+        else:
+            try:
+                result[key] = json.loads(val) if val.startswith('[') or val.startswith('{') else val
+            except json.JSONDecodeError:
+                result[key] = val
+    elif indent > base_indent and current_parent is not None:
+        # Indented line inside a nested block
+        if not isinstance(result.get(current_parent), dict):
+            result[current_parent] = {}
+        try:
+            result[current_parent][key] = json.loads(val) if val.startswith('{') or val.startswith('[') else val.strip('\"')
+        except json.JSONDecodeError:
+            result[current_parent][key] = val.strip('\"')
 
 print(json.dumps(result))
 " 2>/dev/null || echo '{}')
@@ -255,6 +284,16 @@ done
 
 if git diff --cached --quiet; then
   die "Nothing staged after whitelisting. Check that your changes are in whitelisted paths."
+fi
+
+# ── Documentation enforcement ─────────────────────────────────────────────────
+
+staged_files=$(git diff --cached --name-only)
+code_changed=$(echo "$staged_files" | grep -E "^(backend/|mobile/)" | head -1 || true)
+doc_changed=$(echo "$staged_files" | grep -E "^(docs/|\.agent/)" | head -1 || true)
+
+if [[ -n "$code_changed" && -z "$doc_changed" ]]; then
+  die "Code changed without documentation update. Stage a file in docs/ or .agent/ before closing."
 fi
 
 # ── Commit ────────────────────────────────────────────────────────────────────

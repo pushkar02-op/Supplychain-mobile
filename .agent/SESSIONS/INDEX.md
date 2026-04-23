@@ -1,18 +1,12 @@
 # .agent/SESSIONS/ — Session Log Index
 
 This directory holds append-only logs of agent sessions. Each session
-produces one file named `NNNN-phase-X-description.md` where NNNN is
-a zero-padded sequence number.
+produces one file named `YYYY-MM-DD-HHMM-slug.md`.
 
+- [2026-04-23-2026-phase4-process-install](2026-04-23-2026-phase4-process-install.md) � FINAL_HARDENING_COMPLETE | 2026-04-23T20:26:43Z
 ## Status
-ACTIVE — transitional. Reports from Phases A through E.1 are stored
-here but not yet in the final session format. Phase G will establish
-the canonical session file format and update this index.
+ACTIVE — canonical format established from Phase G onward.
 
-## Current Contents
-- `phase-a-tracked-ignored-report.txt` — Phase A tracked-but-ignored report
-- `phase-e1-branch-classification.txt` — Phase E.1 branch classification
+## Sessions (newest first)
 
-## Future Format
-Starting from Phase G, sessions will follow the format defined in
-`.agent/DESIGN_LOCKED.md` (section on Session memory layer).
+- [2026-04-11-1429-phase-a-tracked-ignored-report](2026-04-11-1429-phase-a-tracked-ignored-report.md) — Phase A: tracked-but-ignored file report (pre-canonical, legacy content)

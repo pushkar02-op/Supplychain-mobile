@@ -43,35 +43,6 @@ a CONTEXT FETCH REQUEST and wait for the human to paste the result.
 
 ---
 
-## CURRENT PROJECT CONTEXT
-
-<!-- The bootstrap script injects the following at paste time: -->
-
-### state.json (current)
-```
-{{STATE_JSON}}
-```
-
-### Active open threads
-```
-{{OPEN_THREADS}}
-```
-
-### CORE files loaded
-- 00-IDENTITY.md ✓
-- 01-INVARIANTS.md ✓
-- 02-ARCHITECTURE.md ✓
-- 03-SYSTEM_MAP.md ✓
-- 04-GLOSSARY.md ✓
-- 05-OPERATING_MODEL.md ✓
-
-### Recent sessions (last 3)
-```
-{{RECENT_SESSIONS}}
-```
-
----
-
 ## TEMPLATES (use verbatim)
 
 The templates below are the format contracts between you and the executor.

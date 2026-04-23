@@ -66,10 +66,11 @@ The mistake to avoid: **never mix these.** Invariants do not live in the same fi
 .agent/
 ├── CORE/                         ← L1 — rarely changes, planner reads ALL
 │   ├── 00-IDENTITY.md            ← Project one-pager
-│   ├── 01-INVARIANTS.md          ← Locked rules (the 8 core principles + business rules)
-│   ├── 02-ARCHITECTURE.md        ← Ledger flow, entities, subsystems
-│   ├── 03-GLOSSARY.md            ← Domain terms
-│   └── 04-OPERATING-MODE.md      ← Planner + executor behavior rules
+│   ├── 01-INVARIANTS.md          ← Locked rules (26 invariants across 6 categories)
+│   ├── 02-ARCHITECTURE.md        ← Ledger flow, entities, layer contracts
+│   ├── 03-SYSTEM_MAP.md          ← Subsystem map and file ownership
+│   ├── 04-GLOSSARY.md            ← Domain terms and canonical naming
+│   └── 05-OPERATING_MODEL.md     ← Planner + executor behavior rules
 │
 ├── STATE/                        ← L1 — updated every session, machine-readable
 │   ├── state.json                ← Current snapshot (see Part E)
@@ -136,10 +137,11 @@ The one file that makes automation possible. Small, diff-friendly, parseable.
     { "name": "feature/x", "agent": "claude-code", "status": "in-progress" }
   ],
   "subsystems": {
-    "dispatch":       { "status": "stable|ux_transition|refactor|broken", "invariants_ok": true },
-    "inventory":      { "status": "stable", "invariants_ok": true },
-    "mart_invoice":   { "status": "stable", "invariants_ok": true },
-    "audit":          { "status": "stable", "invariants_ok": true }
+    "dispatch":        { "status": "stable|ux_transition|refactor|broken", "invariants_ok": true },
+    "inventory":       { "status": "stable", "invariants_ok": true },
+    "mart_bill":       { "status": "stable", "invariants_ok": true },
+    "audit":           { "status": "stable", "invariants_ok": true },
+    "reconciliation":  { "status": "stable", "invariants_ok": true }
   },
   "open_threads": ["..."],
   "recent_sessions": [".agent/SESSIONS/..."],

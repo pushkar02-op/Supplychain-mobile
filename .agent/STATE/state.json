@@ -1,9 +1,9 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-04-14T18:05:18Z",
+  "updated_at": "2026-04-23T20:26:43Z",
   "updated_by_session": "2026-04-14-phase4-process-install",
-  "phase": "BASELINE_LOCKED",
-  "current_focus": "Process installation — PROMPTS, STATE, scripts now in place",
+  "phase": "FINAL_HARDENING_COMPLETE",
+  "current_focus": "Executor bootstrap simplified; doc enforcement enforced in git loop",
   "active_branches": [],
   "subsystems": {
     "dispatch": {
@@ -29,10 +29,10 @@
   },
   "open_threads": [],
   "recent_sessions": [
-    ".agent/SESSIONS/phase-e1-branch-classification.txt"
+    ".agent/SESSIONS/2026-04-11-1429-phase-a-tracked-ignored-report.md"
   ],
   "last_planner_digest": "2026-04-14T18:05:18Z",
   "next_actions": [
-    "PHASE 5 — First real feature dogfood run"
+    "PHASE 5 \u2014 First real feature dogfood run"
   ]
 }
